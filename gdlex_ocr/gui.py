@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import subprocess
 from pathlib import Path
 
@@ -55,6 +56,22 @@ _OCR_LANGUAGES = [
     ("Francese", "fra"),
     ("Tedesco", "deu"),
 ]
+
+
+def resolve_output_path(value: str) -> Path:
+    """Expand and validate an output path entered by the user."""
+    raw_path = value.strip()
+    if not raw_path:
+        raise ValueError("La cartella di output non può essere vuota.")
+    return Path(os.path.expanduser(os.path.expandvars(raw_path)))
+
+
+def resolve_pdf_path(value: str) -> Path:
+    """Expand a PDF path entered by the user."""
+    raw_path = value.strip()
+    if not raw_path:
+        raise ValueError("Il percorso del file PDF non può essere vuoto.")
+    return Path(os.path.expanduser(os.path.expandvars(raw_path)))
 
 
 class AboutDialog(QDialog):
@@ -113,6 +130,7 @@ class MainWindow(QMainWindow):
         self._final_markdown_path: str | None = None
         self._searchable_pdf_path: str | None = None
         self._create_searchable_requested = False
+        self._output_path_customized = False
         self._theme_actions: dict[str, QAction] = {}
 
         self.setWindowTitle(f"{APP_NAME} {APP_VERSION_LABEL}")
@@ -182,8 +200,11 @@ class MainWindow(QMainWindow):
         source_layout.setColumnStretch(1, 1)
 
         self.pdf_edit = QLineEdit()
-        self.pdf_edit.setReadOnly(True)
-        self.pdf_edit.setPlaceholderText("Seleziona un fascicolo PDF")
+        self.pdf_edit.setPlaceholderText(
+            "Inserisci o incolla un file PDF (anche con ~ o variabili ambiente)"
+        )
+        self.pdf_edit.textEdited.connect(self._on_pdf_text_edited)
+        self.pdf_edit.editingFinished.connect(self._update_pdf_page_count)
         self.pdf_button = QPushButton("Sfoglia PDF")
         self.pdf_button.setMinimumWidth(150)
         self.pdf_button.clicked.connect(self._select_pdf)
@@ -196,8 +217,10 @@ class MainWindow(QMainWindow):
         source_layout.addWidget(self.pdf_button, 0, 2)
 
         self.output_edit = QLineEdit()
-        self.output_edit.setReadOnly(True)
-        self.output_edit.setPlaceholderText("Seleziona la cartella di destinazione")
+        self.output_edit.setPlaceholderText(
+            "Inserisci o incolla una cartella (anche con ~ o variabili ambiente)"
+        )
+        self.output_edit.textEdited.connect(self._on_output_text_edited)
         self.output_button = QPushButton("Sfoglia cartella")
         self.output_button.setMinimumWidth(150)
         self.output_button.clicked.connect(self._select_output)
@@ -434,8 +457,45 @@ class MainWindow(QMainWindow):
     # File / folder selectors
     # ------------------------------------------------------------------
 
+    def _on_output_text_edited(self, text: str) -> None:
+        self._output_path_customized = bool(text.strip())
+
+    def _on_pdf_text_edited(self, text: str) -> None:
+        if text.strip():
+            self.page_count_label.setText("Conteggio pagine all'avvio")
+        else:
+            self.page_count_label.setText("Nessun PDF selezionato")
+
+    def _update_pdf_page_count(self, show_warning: bool = False) -> bool:
+        try:
+            pdf_path = resolve_pdf_path(self.pdf_edit.text())
+        except ValueError:
+            self.page_count_label.setText("Nessun PDF selezionato")
+            return False
+
+        if not pdf_path.is_file():
+            self.page_count_label.setText("PDF non trovato")
+            return False
+        if pdf_path.suffix.lower() != ".pdf":
+            self.page_count_label.setText("Formato non PDF")
+            return False
+
+        try:
+            page_count = count_pdf_pages(pdf_path)
+        except PdfSplitError as exc:
+            self.page_count_label.setText("PDF non leggibile")
+            if show_warning:
+                QMessageBox.warning(self, "PDF non valido", str(exc))
+            return False
+
+        self.page_count_label.setText(f"{page_count} pagine")
+        return True
+
     def _select_pdf(self) -> None:
-        start_dir = str(Path(self.pdf_edit.text()).parent) if self.pdf_edit.text() else ""
+        try:
+            start_dir = str(resolve_pdf_path(self.pdf_edit.text()).parent)
+        except ValueError:
+            start_dir = ""
         filename, _ = QFileDialog.getOpenFileName(
             self,
             "Seleziona il fascicolo PDF",
@@ -446,19 +506,16 @@ class MainWindow(QMainWindow):
             return
 
         self.pdf_edit.setText(filename)
-        try:
-            page_count = count_pdf_pages(filename)
-        except PdfSplitError as exc:
-            self.page_count_label.setText("PDF non leggibile")
-            QMessageBox.warning(self, "PDF non valido", str(exc))
-            return
-
-        self.page_count_label.setText(f"{page_count} pagine")
-        if not self.output_edit.text():
+        self._update_pdf_page_count(show_warning=True)
+        if not self.output_edit.text().strip() or not self._output_path_customized:
             self.output_edit.setText(str(Path(filename).parent))
+            self._output_path_customized = False
 
     def _select_output(self) -> None:
-        start_dir = self.output_edit.text() or str(Path.home())
+        try:
+            start_dir = str(resolve_output_path(self.output_edit.text()))
+        except ValueError:
+            start_dir = str(Path.home())
         directory = QFileDialog.getExistingDirectory(
             self,
             "Seleziona la cartella di output",
@@ -467,28 +524,42 @@ class MainWindow(QMainWindow):
         )
         if directory:
             self.output_edit.setText(directory)
+            self._output_path_customized = True
 
     # ------------------------------------------------------------------
     # Processing
     # ------------------------------------------------------------------
 
     def _start(self) -> None:
-        pdf_path = Path(self.pdf_edit.text())
-        output_dir = Path(self.output_edit.text())
-
-        if not self.pdf_edit.text() or not pdf_path.is_file():
+        try:
+            pdf_path = resolve_pdf_path(self.pdf_edit.text())
+        except ValueError as exc:
             QMessageBox.warning(
-                self, "Dati mancanti", "Selezionare un file PDF valido."
+                self, "Dati mancanti", str(exc)
+            )
+            return
+        if not pdf_path.is_file():
+            QMessageBox.warning(
+                self, "File non trovato", "Il file PDF indicato non esiste."
             )
             return
         if pdf_path.suffix.lower() != ".pdf":
             QMessageBox.warning(
-                self, "Formato non valido", "Il file selezionato non è un PDF."
+                self, "Formato non valido", "Il file indicato non ha estensione .pdf."
             )
             return
-        if not self.output_edit.text():
+        try:
+            page_count = count_pdf_pages(pdf_path)
+        except PdfSplitError as exc:
+            self.page_count_label.setText("PDF non leggibile")
+            QMessageBox.warning(self, "PDF non valido", str(exc))
+            return
+        self.page_count_label.setText(f"{page_count} pagine")
+        try:
+            output_dir = resolve_output_path(self.output_edit.text())
+        except ValueError as exc:
             QMessageBox.warning(
-                self, "Dati mancanti", "Selezionare la cartella di output."
+                self, "Dati mancanti", str(exc)
             )
             return
 
@@ -502,6 +573,7 @@ class MainWindow(QMainWindow):
             )
             return
 
+        self.output_edit.setText(str(output_dir))
         create_searchable = self.searchable_checkbox.isChecked()
         if create_searchable and not is_ocrmypdf_available():
             QMessageBox.warning(
@@ -641,7 +713,9 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
 
     def _set_running(self, running: bool) -> None:
+        self.pdf_edit.setEnabled(not running)
         self.pdf_button.setEnabled(not running)
+        self.output_edit.setEnabled(not running)
         self.output_button.setEnabled(not running)
         self.profile_combo.setEnabled(not running)
         self.block_size_spin.setEnabled(not running)
@@ -661,8 +735,11 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
 
     def _open_output_folder(self) -> None:
-        folder = self.output_edit.text()
-        if not folder or not Path(folder).is_dir():
+        try:
+            folder: Path | None = resolve_output_path(self.output_edit.text())
+        except ValueError:
+            folder = None
+        if folder is None or not folder.is_dir():
             QMessageBox.warning(
                 self,
                 "Cartella non trovata",
@@ -670,7 +747,7 @@ class MainWindow(QMainWindow):
             )
             return
         try:
-            subprocess.Popen(["xdg-open", folder])
+            subprocess.Popen(["xdg-open", str(folder)])
         except OSError as exc:
             QMessageBox.critical(
                 self,
