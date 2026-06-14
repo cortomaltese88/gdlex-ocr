@@ -1,10 +1,14 @@
-"""Matrix-inspired visual theme for the GD LEX desktop interface."""
+"""Application themes for the GD LEX desktop interface."""
 
 from __future__ import annotations
 
+from PySide6.QtCore import QSettings
 from PySide6.QtGui import QColor, QPalette
 from PySide6.QtWidgets import QApplication
 
+
+AVAILABLE_THEMES = ("Matrix", "Chiaro")
+DEFAULT_THEME = "Matrix"
 
 BACKGROUND = "#070b09"
 PANEL = "#0b120e"
@@ -20,7 +24,7 @@ TEXT_MUTED = "#8aaa93"
 WARNING = "#f0b45a"
 
 
-STYLE_SHEET = f"""
+MATRIX_STYLE_SHEET = f"""
 QWidget {{
     color: {TEXT};
     background-color: {BACKGROUND};
@@ -221,23 +225,334 @@ QToolTip {{
     border: 1px solid {GREEN};
     padding: 4px;
 }}
+
+QMenuBar {{
+    color: {TEXT};
+    background-color: {PANEL};
+}}
+
+QMenuBar::item:selected, QMenu::item:selected {{
+    color: {GREEN_BRIGHT};
+    background-color: {GREEN_DARK};
+}}
+
+QMenu {{
+    color: {TEXT};
+    background-color: {PANEL};
+    border: 1px solid {BORDER};
+}}
+
+QComboBox {{
+    color: {TEXT};
+    background-color: {INPUT_BACKGROUND};
+    border: 1px solid {BORDER};
+    border-radius: 5px;
+    padding: 6px 9px;
+}}
+
+QComboBox:focus {{
+    border-color: {GREEN};
+}}
+
+QComboBox QAbstractItemView {{
+    color: {TEXT};
+    background-color: {PANEL};
+    selection-color: {GREEN_BRIGHT};
+    selection-background-color: {GREEN_DARK};
+}}
+
+QLabel#aboutTitle {{
+    color: {GREEN_BRIGHT};
+    font-size: 20pt;
+    font-weight: 700;
+    letter-spacing: 1px;
+}}
+
+QLabel#aboutVersion {{
+    color: {GREEN};
+    font-family: "DejaVu Sans Mono", monospace;
+    font-weight: 600;
+}}
+
+QLabel#aboutDetails {{
+    color: {TEXT};
+}}
 """
 
 
-def apply_theme(app: QApplication) -> None:
-    """Apply the application palette and shared widget stylesheet."""
+LIGHT_STYLE_SHEET = """
+QWidget {
+    color: #26342d;
+    background-color: #eef2ef;
+    font-family: "Noto Sans", "DejaVu Sans", sans-serif;
+    font-size: 10pt;
+}
+
+QMainWindow, QDialog {
+    background-color: #eef2ef;
+}
+
+QLabel {
+    background: transparent;
+}
+
+QLabel#appTitle {
+    color: #174d31;
+    font-size: 24pt;
+    font-weight: 700;
+    letter-spacing: 2px;
+}
+
+QLabel#appSubtitle, QLabel#sectionHint {
+    color: #64736a;
+}
+
+QLabel#versionBadge {
+    color: #155a35;
+    background-color: #e1eee6;
+    border: 1px solid #9db9a7;
+    border-radius: 11px;
+    padding: 4px 10px;
+    font-family: "DejaVu Sans Mono", monospace;
+    font-weight: 600;
+}
+
+QLabel#statusLabel {
+    color: #155a35;
+    font-weight: 600;
+}
+
+QLabel#etaLabel {
+    color: #52665a;
+    font-family: "DejaVu Sans Mono", monospace;
+}
+
+QFrame#headerFrame {
+    background-color: #ffffff;
+    border: 1px solid #b8c8be;
+    border-left: 4px solid #278653;
+    border-radius: 7px;
+}
+
+QGroupBox {
+    color: #174d31;
+    background-color: #ffffff;
+    border: 1px solid #b8c8be;
+    border-radius: 7px;
+    font-weight: 600;
+    margin-top: 12px;
+    padding-top: 12px;
+}
+
+QGroupBox::title {
+    subcontrol-origin: margin;
+    subcontrol-position: top left;
+    left: 12px;
+    padding: 0 6px;
+    background-color: #ffffff;
+}
+
+QLineEdit, QSpinBox, QTextEdit, QComboBox {
+    color: #26342d;
+    background-color: #ffffff;
+    border: 1px solid #aebeb4;
+    border-radius: 5px;
+    padding: 7px 9px;
+    selection-color: #ffffff;
+    selection-background-color: #287a4d;
+}
+
+QLineEdit:focus, QSpinBox:focus, QTextEdit:focus, QComboBox:focus {
+    border-color: #287a4d;
+}
+
+QLineEdit:disabled, QSpinBox:disabled, QComboBox:disabled {
+    color: #89948e;
+    background-color: #e7ebe8;
+}
+
+QSpinBox {
+    padding-right: 24px;
+}
+
+QSpinBox::up-button, QSpinBox::down-button {
+    width: 18px;
+    background-color: #e7eee9;
+    border-left: 1px solid #aebeb4;
+}
+
+QComboBox QAbstractItemView {
+    color: #26342d;
+    background-color: #ffffff;
+    selection-color: #ffffff;
+    selection-background-color: #287a4d;
+}
+
+QPushButton {
+    color: #244332;
+    background-color: #f8faf8;
+    border: 1px solid #9fb2a6;
+    border-radius: 5px;
+    min-height: 20px;
+    padding: 7px 16px;
+    font-weight: 600;
+}
+
+QPushButton:hover {
+    color: #123522;
+    background-color: #e1eee6;
+    border-color: #287a4d;
+}
+
+QPushButton:pressed {
+    background-color: #cfdfd5;
+}
+
+QPushButton:disabled {
+    color: #929c96;
+    background-color: #e9ecea;
+    border-color: #d0d7d2;
+}
+
+QPushButton#primaryButton {
+    color: #ffffff;
+    background-color: #287a4d;
+    border-color: #185f39;
+    min-width: 100px;
+}
+
+QPushButton#primaryButton:hover {
+    background-color: #1f6841;
+}
+
+QPushButton#cancelButton {
+    min-width: 100px;
+}
+
+QProgressBar {
+    color: #26342d;
+    background-color: #e1e8e3;
+    border: 1px solid #9fb2a6;
+    border-radius: 6px;
+    min-height: 22px;
+    text-align: center;
+    font-family: "DejaVu Sans Mono", monospace;
+    font-weight: 600;
+}
+
+QProgressBar::chunk {
+    background-color: #338b59;
+    border-radius: 5px;
+}
+
+QTextEdit#logView {
+    color: #26342d;
+    background-color: #fbfcfb;
+    border-color: #aebeb4;
+    font-family: "DejaVu Sans Mono", "Liberation Mono", monospace;
+    font-size: 9.5pt;
+}
+
+QScrollBar:vertical {
+    background: #edf1ee;
+    width: 12px;
+    margin: 0;
+}
+
+QScrollBar::handle:vertical {
+    background: #a7b9ad;
+    border-radius: 5px;
+    min-height: 24px;
+}
+
+QScrollBar::handle:vertical:hover {
+    background: #7f9988;
+}
+
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+    height: 0;
+}
+
+QMenuBar {
+    color: #26342d;
+    background-color: #ffffff;
+}
+
+QMenuBar::item:selected, QMenu::item:selected {
+    color: #ffffff;
+    background-color: #287a4d;
+}
+
+QMenu {
+    color: #26342d;
+    background-color: #ffffff;
+    border: 1px solid #aebeb4;
+}
+
+QToolTip {
+    color: #26342d;
+    background-color: #ffffff;
+    border: 1px solid #287a4d;
+    padding: 4px;
+}
+
+QLabel#aboutTitle {
+    color: #174d31;
+    font-size: 20pt;
+    font-weight: 700;
+    letter-spacing: 1px;
+}
+
+QLabel#aboutVersion {
+    color: #287a4d;
+    font-family: "DejaVu Sans Mono", monospace;
+    font-weight: 600;
+}
+
+QLabel#aboutDetails {
+    color: #26342d;
+}
+"""
+
+
+def load_theme_name() -> str:
+    """Load the saved theme, falling back to Matrix."""
+    name = QSettings().value("theme", DEFAULT_THEME)
+    return name if name in AVAILABLE_THEMES else DEFAULT_THEME
+
+
+def save_theme_name(name: str) -> None:
+    """Persist a valid theme using the application's QSettings identity."""
+    if name in AVAILABLE_THEMES:
+        QSettings().setValue("theme", name)
+
+
+def apply_theme(app: QApplication, name: str = DEFAULT_THEME) -> None:
+    """Apply a theme palette and shared widget stylesheet."""
+    if name not in AVAILABLE_THEMES:
+        name = DEFAULT_THEME
+
+    is_light = name == "Chiaro"
+    background = "#eef2ef" if is_light else BACKGROUND
+    panel = "#ffffff" if is_light else PANEL
+    panel_raised = "#f8faf8" if is_light else PANEL_RAISED
+    input_background = "#ffffff" if is_light else INPUT_BACKGROUND
+    text = "#26342d" if is_light else TEXT
+    accent = "#287a4d" if is_light else GREEN
+    highlighted_text = "#ffffff" if is_light else BACKGROUND
+
     palette = QPalette()
-    palette.setColor(QPalette.ColorRole.Window, QColor(BACKGROUND))
-    palette.setColor(QPalette.ColorRole.WindowText, QColor(TEXT))
-    palette.setColor(QPalette.ColorRole.Base, QColor(INPUT_BACKGROUND))
-    palette.setColor(QPalette.ColorRole.AlternateBase, QColor(PANEL))
-    palette.setColor(QPalette.ColorRole.ToolTipBase, QColor(PANEL_RAISED))
-    palette.setColor(QPalette.ColorRole.ToolTipText, QColor(TEXT))
-    palette.setColor(QPalette.ColorRole.Text, QColor(TEXT))
-    palette.setColor(QPalette.ColorRole.Button, QColor(PANEL_RAISED))
-    palette.setColor(QPalette.ColorRole.ButtonText, QColor(TEXT))
-    palette.setColor(QPalette.ColorRole.BrightText, QColor(GREEN_BRIGHT))
-    palette.setColor(QPalette.ColorRole.Highlight, QColor(GREEN))
-    palette.setColor(QPalette.ColorRole.HighlightedText, QColor(BACKGROUND))
+    palette.setColor(QPalette.ColorRole.Window, QColor(background))
+    palette.setColor(QPalette.ColorRole.WindowText, QColor(text))
+    palette.setColor(QPalette.ColorRole.Base, QColor(input_background))
+    palette.setColor(QPalette.ColorRole.AlternateBase, QColor(panel))
+    palette.setColor(QPalette.ColorRole.ToolTipBase, QColor(panel_raised))
+    palette.setColor(QPalette.ColorRole.ToolTipText, QColor(text))
+    palette.setColor(QPalette.ColorRole.Text, QColor(text))
+    palette.setColor(QPalette.ColorRole.Button, QColor(panel_raised))
+    palette.setColor(QPalette.ColorRole.ButtonText, QColor(text))
+    palette.setColor(QPalette.ColorRole.BrightText, QColor(accent))
+    palette.setColor(QPalette.ColorRole.Highlight, QColor(accent))
+    palette.setColor(QPalette.ColorRole.HighlightedText, QColor(highlighted_text))
     app.setPalette(palette)
-    app.setStyleSheet(STYLE_SHEET)
+    app.setStyleSheet(LIGHT_STYLE_SHEET if is_light else MATRIX_STYLE_SHEET)

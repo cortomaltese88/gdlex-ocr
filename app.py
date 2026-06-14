@@ -8,8 +8,8 @@ from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication
 
 from gdlex_ocr.gui import MainWindow
-from gdlex_ocr.splash import create_splash
-from gdlex_ocr.theme import apply_theme
+from gdlex_ocr.splash import SPLASH_DURATION_MS, create_splash
+from gdlex_ocr.theme import apply_theme, load_theme_name
 from gdlex_ocr.version import APP_NAME, APP_VERSION
 
 
@@ -18,17 +18,17 @@ def main() -> int:
     app.setApplicationName(APP_NAME)
     app.setApplicationVersion(APP_VERSION)
     app.setOrganizationName("GD LEX")
-    apply_theme(app)
+    apply_theme(app, load_theme_name())
 
     window = MainWindow()
     splash = create_splash()
     splash.show()
 
     def show_main_window() -> None:
+        splash.close()
         window.show()
-        splash.finish(window)
 
-    QTimer.singleShot(1200, show_main_window)
+    QTimer.singleShot(SPLASH_DURATION_MS, show_main_window)
     return app.exec()
 
 

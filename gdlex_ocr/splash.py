@@ -1,91 +1,168 @@
-"""Generated startup splash screen for GD LEX OCR."""
+"""Animated Matrix-style startup splash for GD LEX OCR."""
 
 from __future__ import annotations
 
-import random
-
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QColor, QFont, QLinearGradient, QPainter, QPen, QPixmap
+from PySide6.QtCore import QRectF, Qt, QTimer
+from PySide6.QtGui import QBrush, QColor, QFont, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import QSplashScreen
 
-from gdlex_ocr.theme import (
-    BACKGROUND,
-    BORDER,
-    GREEN,
-    GREEN_BRIGHT,
-    GREEN_DARK,
-    TEXT_MUTED,
-)
 from gdlex_ocr.version import APP_NAME, APP_SUBTITLE, APP_VERSION_LABEL
 
 
-def create_splash() -> QSplashScreen:
-    """Build a self-contained splash without external image assets."""
-    width, height = 620, 330
-    pixmap = QPixmap(width, height)
-    pixmap.fill(QColor(BACKGROUND))
+SPLASH_DURATION_MS = 2800
+SPLASH_FRAME_INTERVAL_MS = 50
+_DIGITAL_RAIN_GLYPHS = "01GDLX<>/{}[]"
 
-    painter = QPainter(pixmap)
-    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
-    background = QLinearGradient(0, 0, width, height)
-    background.setColorAt(0.0, QColor("#050806"))
-    background.setColorAt(0.55, QColor("#0a120d"))
-    background.setColorAt(1.0, QColor("#071a0e"))
-    painter.fillRect(pixmap.rect(), background)
+def digital_rain_columns(width: int, column_width: int = 24) -> tuple[int, ...]:
+    """Return stable x coordinates for the animated rain columns."""
+    if width <= 0 or column_width <= 0:
+        return ()
+    return tuple(range(column_width // 2, width, column_width))
 
-    randomizer = random.Random(3101984)
-    painter.setFont(QFont("DejaVu Sans Mono", 8))
-    for column in range(18, width, 24):
-        alpha = randomizer.randint(20, 58)
-        painter.setPen(QColor(50, 232, 117, alpha))
-        glyphs = "".join(randomizer.choice("01GDLX") for _ in range(8))
-        painter.drawText(column, randomizer.randint(20, 115), glyphs)
 
-    painter.fillRect(0, 0, 7, height, QColor(GREEN))
-    painter.setPen(QPen(QColor(BORDER), 1))
-    painter.drawRoundedRect(15, 15, width - 30, height - 30, 10, 10)
+def digital_rain_cell(column: int, row: int, frame: int) -> tuple[str, int]:
+    """Return a deterministic glyph and opacity for one rain cell."""
+    seed = column * 17 + row * 31 + frame
+    glyph = _DIGITAL_RAIN_GLYPHS[seed % len(_DIGITAL_RAIN_GLYPHS)]
+    trail = (row - (frame // 2 + column * 3)) % 18
+    if trail == 0:
+        alpha = 210
+    elif trail < 6:
+        alpha = 125 - trail * 17
+    else:
+        alpha = 16
+    return glyph, alpha
 
-    painter.setPen(QColor(GREEN_BRIGHT))
-    painter.setFont(QFont("DejaVu Sans", 29, QFont.Weight.Bold))
-    painter.drawText(
-        54,
-        136,
-        width - 108,
-        58,
-        Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
-        APP_NAME,
-    )
 
-    painter.setPen(QColor(TEXT_MUTED))
-    painter.setFont(QFont("DejaVu Sans", 11))
-    painter.drawText(
-        57,
-        192,
-        width - 114,
-        32,
-        Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
-        APP_SUBTITLE,
-    )
+class MatrixSplashScreen(QSplashScreen):
+    """Self-contained, lightweight Matrix splash with no external assets."""
 
-    painter.setPen(QPen(QColor(GREEN_DARK), 1))
-    painter.drawLine(57, 238, width - 57, 238)
+    _WIDTH = 680
+    _HEIGHT = 380
 
-    painter.setPen(QColor(GREEN))
-    painter.setFont(QFont("DejaVu Sans Mono", 10, QFont.Weight.DemiBold))
-    painter.drawText(
-        57,
-        255,
-        width - 114,
-        28,
-        Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter,
-        APP_VERSION_LABEL,
-    )
-    painter.end()
+    def __init__(self) -> None:
+        pixmap = QPixmap(self._WIDTH, self._HEIGHT)
+        pixmap.fill(QColor("#030704"))
+        super().__init__(
+            pixmap,
+            Qt.WindowType.SplashScreen | Qt.WindowType.FramelessWindowHint,
+        )
+        self.setObjectName("startupSplash")
+        self._frame = 0
+        self._progress = 0.0
+        self._timer = QTimer(self)
+        self._timer.setInterval(SPLASH_FRAME_INTERVAL_MS)
+        self._timer.timeout.connect(self._tick)
+        self._render()
 
-    splash = QSplashScreen(
-        pixmap,
-        Qt.WindowType.SplashScreen | Qt.WindowType.FramelessWindowHint,
-    )
-    splash.setObjectName("startupSplash")
-    return splash
+    def showEvent(self, event) -> None:  # noqa: N802 - Qt API
+        super().showEvent(event)
+        if not self._timer.isActive():
+            self._timer.start()
+
+    def hideEvent(self, event) -> None:  # noqa: N802 - Qt API
+        self._timer.stop()
+        super().hideEvent(event)
+
+    def _tick(self) -> None:
+        self._frame += 1
+        self._progress = min(
+            1.0,
+            self._progress + SPLASH_FRAME_INTERVAL_MS / SPLASH_DURATION_MS,
+        )
+        self._render()
+
+    def _render(self) -> None:
+        pixmap = QPixmap(self._WIDTH, self._HEIGHT)
+        pixmap.fill(QColor("#030704"))
+        painter = QPainter(pixmap)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setRenderHint(QPainter.RenderHint.TextAntialiasing)
+
+        rain_font = QFont("DejaVu Sans Mono", 10)
+        painter.setFont(rain_font)
+        row_height = 20
+        row_count = self._HEIGHT // row_height + 2
+        for column, x in enumerate(digital_rain_columns(self._WIDTH)):
+            phase = (self._frame + column * 5) % row_count
+            for row in range(-1, row_count):
+                glyph, alpha = digital_rain_cell(column, row, self._frame)
+                y = ((row + phase) % row_count) * row_height - 4
+                painter.setPen(QColor(0, 255, 65, alpha))
+                painter.drawText(x, y, glyph)
+
+        panel = QRectF(54.0, 42.0, self._WIDTH - 108.0, 254.0)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QBrush(QColor(3, 12, 6, 226)))
+        painter.drawRoundedRect(panel, 12.0, 12.0)
+
+        outer = QRectF(1.0, 1.0, self._WIDTH - 2.0, self._HEIGHT - 2.0)
+        inner = QRectF(5.0, 5.0, self._WIDTH - 10.0, self._HEIGHT - 10.0)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.setPen(QPen(QColor("#00b83a"), 2))
+        painter.drawRect(outer)
+        painter.setPen(QPen(QColor("#123d1d"), 1))
+        painter.drawRect(inner)
+
+        painter.setFont(QFont("DejaVu Sans Mono", 34, QFont.Weight.Bold))
+        painter.setPen(QColor("#e0ffe7"))
+        painter.drawText(
+            QRectF(72.0, 70.0, self._WIDTH - 144.0, 58.0),
+            Qt.AlignmentFlag.AlignCenter,
+            APP_NAME,
+        )
+
+        painter.setFont(QFont("DejaVu Sans", 12))
+        painter.setPen(QColor("#7bf59a"))
+        painter.drawText(
+            QRectF(72.0, 137.0, self._WIDTH - 144.0, 30.0),
+            Qt.AlignmentFlag.AlignCenter,
+            APP_SUBTITLE,
+        )
+
+        painter.setPen(QPen(QColor("#1a5c2d"), 1))
+        painter.drawLine(116, 184, self._WIDTH - 116, 184)
+
+        painter.setFont(QFont("DejaVu Sans Mono", 12, QFont.Weight.Bold))
+        painter.setPen(QColor("#39ff70"))
+        painter.drawText(
+            QRectF(72.0, 198.0, self._WIDTH - 144.0, 26.0),
+            Qt.AlignmentFlag.AlignCenter,
+            APP_VERSION_LABEL,
+        )
+
+        painter.setFont(QFont("DejaVu Sans Mono", 9))
+        painter.setPen(QColor("#68bd7c"))
+        painter.drawText(
+            QRectF(72.0, 237.0, self._WIDTH - 144.0, 24.0),
+            Qt.AlignmentFlag.AlignCenter,
+            "LOCAL OCR / NO CLOUD UPLOAD",
+        )
+
+        bar_x, bar_y = 74.0, self._HEIGHT - 48.0
+        bar_width, bar_height = self._WIDTH - 148.0, 8.0
+        painter.setBrush(QBrush(QColor("#07140a")))
+        painter.setPen(QPen(QColor("#1a5c2d"), 1))
+        painter.drawRoundedRect(
+            QRectF(bar_x, bar_y, bar_width, bar_height),
+            3.0,
+            3.0,
+        )
+        fill_width = bar_width * self._progress
+        if fill_width > 0:
+            painter.setBrush(QBrush(QColor("#00d943")))
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.drawRoundedRect(
+                QRectF(bar_x, bar_y, fill_width, bar_height),
+                3.0,
+                3.0,
+            )
+
+        painter.end()
+        self.setPixmap(pixmap)
+
+
+def create_splash() -> MatrixSplashScreen:
+    """Build the animated startup splash."""
+    return MatrixSplashScreen()

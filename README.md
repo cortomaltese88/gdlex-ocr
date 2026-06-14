@@ -37,6 +37,11 @@ source .venv/bin/activate
 python app.py
 ```
 
+Dal menu **Visualizza → Tema** è possibile scegliere tra il tema Matrix
+predefinito e il tema Chiaro. La preferenza viene conservata localmente tramite
+le impostazioni Qt dell'utente. Il menu **Aiuto → Informazioni** mostra credits,
+componenti principali, licenza e nota sul trattamento locale dei documenti.
+
 ## Test
 
 La suite smoke offline usa solo fixture sintetiche e non avvia Docling:
@@ -86,7 +91,8 @@ alle configurazioni dei relativi progetti upstream.
 
 ## Licenza
 
-GD LEX OCR è rilasciato con licenza MIT. Il progetto usa Docling e dipendenze
+GD LEX OCR è © 2026 Studio GD LEX - Avv. Marco Gianese ed è rilasciato con
+licenza MIT. Il progetto usa Docling, RapidOCR, PySide6 e dipendenze
 di terze parti: il codebase di Docling è distribuito con licenza MIT, mentre
 per i modelli OCR e di analisi del layout e per le altre dipendenze si
 applicano le rispettive licenze upstream.

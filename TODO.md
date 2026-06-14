@@ -62,6 +62,10 @@ originale è sempre trattato in sola lettura e non viene mai modificato.
 
 ## UI / identità visiva
 
+- [x] Rifare la splash screen in stile Matrix / GD LEX, con pioggia digitale
+  animata, durata leggibile e avvio non bloccante.
+- [x] Aggiungere temi Matrix e Chiaro con cambio live e preferenza persistente.
+- [x] Aggiungere dialog Informazioni con credits, componenti, licenza e privacy.
 - [ ] Creare icona applicazione coerente con la suite GD LEX.
   - stile Matrix / GD LEX;
   - leggibile anche in formato piccolo;

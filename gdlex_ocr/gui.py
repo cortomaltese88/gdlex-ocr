@@ -6,9 +6,12 @@ import subprocess
 from pathlib import Path
 
 from PySide6.QtCore import QTimer, Qt
-from PySide6.QtGui import QCloseEvent, QFontDatabase
+from PySide6.QtGui import QAction, QActionGroup, QCloseEvent, QFontDatabase
 from PySide6.QtWidgets import (
+    QApplication,
     QComboBox,
+    QDialog,
+    QDialogButtonBox,
     QFileDialog,
     QFrame,
     QFormLayout,
@@ -17,6 +20,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QMainWindow,
+    QMenu,
     QMessageBox,
     QProgressBar,
     QPushButton,
@@ -28,6 +32,12 @@ from PySide6.QtWidgets import (
 
 from gdlex_ocr.pdf_splitter import PdfSplitError, count_pdf_pages
 from gdlex_ocr.profiles import DEFAULT_PROFILE, PROFILE_NAMES, PROFILES
+from gdlex_ocr.theme import (
+    AVAILABLE_THEMES,
+    apply_theme,
+    load_theme_name,
+    save_theme_name,
+)
 from gdlex_ocr.version import (
     APP_NAME,
     APP_SUBTITLE,
@@ -36,16 +46,66 @@ from gdlex_ocr.version import (
 from gdlex_ocr.worker import OcrWorker
 
 
+class AboutDialog(QDialog):
+    """Application credits and local-processing information."""
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setWindowTitle(f"Informazioni su {APP_NAME}")
+        self.setModal(True)
+        self.setMinimumWidth(520)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(30, 26, 30, 22)
+        layout.setSpacing(10)
+
+        title = QLabel(APP_NAME)
+        title.setObjectName("aboutTitle")
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(title)
+
+        version = QLabel(f"Versione {APP_VERSION_LABEL}")
+        version.setObjectName("aboutVersion")
+        version.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(version)
+
+        subtitle = QLabel(APP_SUBTITLE)
+        subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(subtitle)
+        layout.addSpacing(6)
+
+        details = QLabel(
+            "<b>© 2026 Studio GD LEX - Avv. Marco Gianese</b><br><br>"
+            "<b>Licenza:</b> MIT<br>"
+            "<b>Motore documentale:</b> Docling<br>"
+            "<b>GUI:</b> PySide6<br>"
+            "<b>OCR/PDF:</b> Docling / RapidOCR<br>"
+            "<b>Evoluzione possibile:</b> integrazione OCRmyPDF<br><br>"
+            "<b>Privacy:</b> elaborazione locale; nessun upload cloud "
+            "effettuato dall'applicazione."
+        )
+        details.setObjectName("aboutDetails")
+        details.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        details.setWordWrap(True)
+        layout.addWidget(details)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok)
+        buttons.accepted.connect(self.accept)
+        layout.addWidget(buttons)
+
+
 class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
         self._worker: OcrWorker | None = None
         self._close_after_cancel = False
         self._final_markdown_path: str | None = None
+        self._theme_actions: dict[str, QAction] = {}
 
         self.setWindowTitle(f"{APP_NAME} {APP_VERSION_LABEL}")
         self.setMinimumSize(820, 660)
         self.resize(980, 760)
+        self._build_menu_bar()
 
         central = QWidget(self)
         self.setCentralWidget(central)
@@ -223,6 +283,44 @@ class MainWindow(QMainWindow):
         button_row.addWidget(self.cancel_button)
 
         root_layout.addLayout(button_row)
+
+    def _build_menu_bar(self) -> None:
+        view_menu = self.menuBar().addMenu("Visualizza")
+        theme_menu = QMenu("Tema", self)
+        view_menu.addMenu(theme_menu)
+
+        self._theme_action_group = QActionGroup(self)
+        self._theme_action_group.setExclusive(True)
+        current_theme = load_theme_name()
+        for name in AVAILABLE_THEMES:
+            action = QAction(name, self)
+            action.setCheckable(True)
+            action.setChecked(name == current_theme)
+            action.triggered.connect(
+                lambda checked, theme_name=name: self._apply_theme(theme_name)
+            )
+            self._theme_action_group.addAction(action)
+            theme_menu.addAction(action)
+            self._theme_actions[name] = action
+
+        help_menu = self.menuBar().addMenu("Aiuto")
+        about_action = QAction(f"Informazioni su {APP_NAME}...", self)
+        about_action.setShortcut("F1")
+        about_action.triggered.connect(self._show_about)
+        help_menu.addAction(about_action)
+
+    def _apply_theme(self, name: str) -> None:
+        app = QApplication.instance()
+        if app is None:
+            return
+        apply_theme(app, name)
+        save_theme_name(name)
+        for theme_name, action in self._theme_actions.items():
+            action.setChecked(theme_name == name)
+        self.status_label.setText(f"Tema applicato: {name}")
+
+    def _show_about(self) -> None:
+        AboutDialog(self).exec()
 
     def _on_profile_changed(self, name: str) -> None:
         profile = PROFILES.get(name)
