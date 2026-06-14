@@ -1,3 +1,5 @@
 """GD LEX OCR local desktop application."""
 
-__version__ = "0.1.0"
+from gdlex_ocr.version import APP_VERSION
+
+__version__ = APP_VERSION

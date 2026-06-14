@@ -26,6 +26,8 @@ runs/
 # Generated OCR/Markdown outputs
 *.md
 !README.md
+!TODO.md
+!ROADMAP.md
 
 # IDE / OS
 .vscode/

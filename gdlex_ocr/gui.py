@@ -1,14 +1,16 @@
-"""Minimal PySide6 interface for GD LEX OCR."""
+"""PySide6 interface for GD LEX OCR."""
 
 from __future__ import annotations
 
 from pathlib import Path
 
 from PySide6.QtCore import QTimer, Qt
-from PySide6.QtGui import QCloseEvent, QFont
+from PySide6.QtGui import QCloseEvent, QFontDatabase
 from PySide6.QtWidgets import (
     QFileDialog,
+    QFrame,
     QFormLayout,
+    QGroupBox,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -23,6 +25,11 @@ from PySide6.QtWidgets import (
 )
 
 from gdlex_ocr.pdf_splitter import PdfSplitError, count_pdf_pages
+from gdlex_ocr.version import (
+    APP_NAME,
+    APP_SUBTITLE,
+    APP_VERSION_LABEL,
+)
 from gdlex_ocr.worker import OcrWorker
 
 
@@ -32,89 +39,147 @@ class MainWindow(QMainWindow):
         self._worker: OcrWorker | None = None
         self._close_after_cancel = False
 
-        self.setWindowTitle("GD LEX OCR")
-        self.setMinimumSize(760, 600)
-        self.resize(880, 680)
+        self.setWindowTitle(f"{APP_NAME} {APP_VERSION_LABEL}")
+        self.setMinimumSize(820, 620)
+        self.resize(980, 720)
 
         central = QWidget(self)
         self.setCentralWidget(central)
         root_layout = QVBoxLayout(central)
-        root_layout.setContentsMargins(24, 20, 24, 20)
-        root_layout.setSpacing(14)
+        root_layout.setContentsMargins(24, 22, 24, 22)
+        root_layout.setSpacing(12)
 
-        title = QLabel("GD LEX OCR")
-        title_font = QFont()
-        title_font.setPointSize(20)
-        title_font.setBold(True)
-        title.setFont(title_font)
-        root_layout.addWidget(title)
+        header = QFrame()
+        header.setObjectName("headerFrame")
+        header_layout = QHBoxLayout(header)
+        header_layout.setContentsMargins(22, 14, 18, 14)
+        header_layout.setSpacing(16)
 
-        subtitle = QLabel("OCR locale per fascicoli e documenti")
-        subtitle.setStyleSheet("color: #555;")
-        root_layout.addWidget(subtitle)
+        identity_layout = QVBoxLayout()
+        identity_layout.setSpacing(2)
+        title = QLabel(APP_NAME)
+        title.setObjectName("appTitle")
+        identity_layout.addWidget(title)
+        subtitle = QLabel(APP_SUBTITLE)
+        subtitle.setObjectName("appSubtitle")
+        identity_layout.addWidget(subtitle)
+        header_layout.addLayout(identity_layout, 1)
 
-        form = QFormLayout()
-        form.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
-        form.setHorizontalSpacing(12)
-        form.setVerticalSpacing(10)
+        version = QLabel(APP_VERSION_LABEL)
+        version.setObjectName("versionBadge")
+        version.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        header_layout.addWidget(version)
+        root_layout.addWidget(header)
+
+        source_group = QGroupBox("Documento e destinazione")
+        source_layout = QFormLayout(source_group)
+        source_layout.setContentsMargins(18, 18, 18, 16)
+        source_layout.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
+        source_layout.setFieldGrowthPolicy(
+            QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow
+        )
+        source_layout.setHorizontalSpacing(14)
+        source_layout.setVerticalSpacing(10)
 
         self.pdf_edit = QLineEdit()
         self.pdf_edit.setReadOnly(True)
         self.pdf_edit.setPlaceholderText("Seleziona un fascicolo PDF")
-        self.pdf_button = QPushButton("Sfoglia...")
+        self.pdf_button = QPushButton("Sfoglia PDF")
         self.pdf_button.clicked.connect(self._select_pdf)
         pdf_row = QHBoxLayout()
+        pdf_row.setSpacing(10)
         pdf_row.addWidget(self.pdf_edit, 1)
         pdf_row.addWidget(self.pdf_button)
-        form.addRow("File PDF:", pdf_row)
+        source_layout.addRow("File PDF", pdf_row)
 
         self.output_edit = QLineEdit()
         self.output_edit.setReadOnly(True)
         self.output_edit.setPlaceholderText("Seleziona la cartella di destinazione")
-        self.output_button = QPushButton("Sfoglia...")
+        self.output_button = QPushButton("Sfoglia cartella")
         self.output_button.clicked.connect(self._select_output)
         output_row = QHBoxLayout()
+        output_row.setSpacing(10)
         output_row.addWidget(self.output_edit, 1)
         output_row.addWidget(self.output_button)
-        form.addRow("Cartella output:", output_row)
+        source_layout.addRow("Cartella output", output_row)
+        root_layout.addWidget(source_group)
 
+        options_group = QGroupBox("Opzioni OCR")
+        options_layout = QHBoxLayout(options_group)
+        options_layout.setContentsMargins(18, 18, 18, 16)
+        options_layout.setSpacing(12)
+        block_label = QLabel("Dimensione blocco")
+        options_layout.addWidget(block_label)
         self.block_size_spin = QSpinBox()
         self.block_size_spin.setRange(1, 500)
         self.block_size_spin.setValue(5)
         self.block_size_spin.setSuffix(" pagine")
-        form.addRow("Dimensione blocco:", self.block_size_spin)
+        self.block_size_spin.setMinimumWidth(130)
+        options_layout.addWidget(self.block_size_spin)
 
+        options_layout.addSpacing(16)
+        pages_caption = QLabel("Documento")
+        pages_caption.setObjectName("sectionHint")
+        options_layout.addWidget(pages_caption)
         self.page_count_label = QLabel("Nessun PDF selezionato")
-        form.addRow("Pagine:", self.page_count_label)
-        root_layout.addLayout(form)
+        options_layout.addWidget(self.page_count_label)
+        options_layout.addStretch(1)
+        local_note = QLabel("Elaborazione locale · nessun upload cloud")
+        local_note.setObjectName("sectionHint")
+        options_layout.addWidget(local_note)
+        root_layout.addWidget(options_group)
 
-        progress_row = QHBoxLayout()
+        progress_group = QGroupBox("Avanzamento")
+        progress_layout = QVBoxLayout(progress_group)
+        progress_layout.setContentsMargins(18, 18, 18, 16)
+        progress_layout.setSpacing(8)
+
+        progress_info_row = QHBoxLayout()
+        self.status_label = QLabel("Pronto")
+        self.status_label.setObjectName("statusLabel")
+        progress_info_row.addWidget(self.status_label, 1)
+        self.eta_label = QLabel("ETA: --")
+        self.eta_label.setObjectName("etaLabel")
+        self.eta_label.setAlignment(
+            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+        )
+        self.eta_label.setMinimumWidth(210)
+        progress_info_row.addWidget(self.eta_label)
+        progress_layout.addLayout(progress_info_row)
+
         self.progress_bar = QProgressBar()
         self.progress_bar.setRange(0, 100)
         self.progress_bar.setValue(0)
         self.progress_bar.setFormat("%p%")
-        progress_row.addWidget(self.progress_bar, 1)
-        self.eta_label = QLabel("ETA: --")
-        self.eta_label.setMinimumWidth(135)
-        progress_row.addWidget(self.eta_label)
-        root_layout.addLayout(progress_row)
+        progress_layout.addWidget(self.progress_bar)
+        root_layout.addWidget(progress_group)
 
-        self.status_label = QLabel("Pronto")
-        root_layout.addWidget(self.status_label)
-
+        log_group = QGroupBox("Log elaborazione")
+        log_layout = QVBoxLayout(log_group)
+        log_layout.setContentsMargins(12, 18, 12, 12)
         self.log_view = QTextEdit()
+        self.log_view.setObjectName("logView")
         self.log_view.setReadOnly(True)
         self.log_view.setPlaceholderText("Il log dell'elaborazione apparirà qui.")
         self.log_view.document().setMaximumBlockCount(5000)
-        root_layout.addWidget(self.log_view, 1)
+        monospace_font = QFontDatabase.systemFont(
+            QFontDatabase.SystemFont.FixedFont
+        )
+        monospace_font.setPointSize(9)
+        self.log_view.setFont(monospace_font)
+        log_layout.addWidget(self.log_view)
+        root_layout.addWidget(log_group, 1)
 
         button_row = QHBoxLayout()
+        button_row.setSpacing(10)
         button_row.addStretch(1)
         self.start_button = QPushButton("Avvia")
+        self.start_button.setObjectName("primaryButton")
         self.start_button.setDefault(True)
         self.start_button.clicked.connect(self._start)
         button_row.addWidget(self.start_button)
         self.cancel_button = QPushButton("Annulla")
+        self.cancel_button.setObjectName("cancelButton")
         self.cancel_button.setEnabled(False)
         self.cancel_button.clicked.connect(self._cancel)
         button_row.addWidget(self.cancel_button)
