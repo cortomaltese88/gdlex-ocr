@@ -1,6 +1,6 @@
 # GD LEX OCR
 
-**Versione 0.1.0**
+## Versione 0.1.0
 
 GD LEX OCR è un'applicazione desktop locale in Python e PySide6 per
 convertire fascicoli e documenti PDF in Markdown tramite Docling.
@@ -10,6 +10,15 @@ convertire fascicoli e documenti PDF in Markdown tramite Docling.
 - Python 3.12
 - Un ambiente virtuale Python
 - Le dipendenze elencate in `requirements.txt`
+
+Dipendenze principali:
+
+| Pacchetto      | Versione  | Scopo                              |
+|----------------|-----------|------------------------------------|
+| docling        | 2.102.1   | OCR e conversione PDF → Markdown   |
+| onnxruntime    | 1.26.0    | Inferenza modelli OCR (CPU)        |
+| PySide6        | 6.11.1    | Interfaccia grafica                |
+| pypdf          | 6.13.2    | Suddivisione in blocchi PDF        |
 
 Per preparare l'ambiente:
 
@@ -27,6 +36,28 @@ Attivare l'ambiente Python 3.12, quindi avviare l'applicazione:
 source .venv/bin/activate
 python app.py
 ```
+
+## Profili di elaborazione
+
+L'applicazione offre tre profili selezionabili dalla GUI. Il default è **Bilanciato**.
+
+| Profilo     | Blocco | Thread | Batch | Tabelle  | Immagini | Grafici |
+|-------------|-------:|-------:|------:|----------|----------|---------|
+| Veloce      |  25 p. |     12 |     8 | fast     | no       | no      |
+| Bilanciato  |  15 p. |     10 |     6 | fast     | no       | no      |
+| Accurato    |  10 p. |      6 |     4 | accurate | sì       | sì      |
+
+Il cambio profilo aggiorna automaticamente la dimensione blocco. La dimensione
+può essere modificata manualmente dopo aver selezionato il profilo.
+
+**Veloce** massimizza la velocità disabilitando l'analisi di immagini e grafici
+e usando blocchi grandi. Adatto a documenti con prevalente contenuto testuale.
+
+**Bilanciato** (default) bilancia velocità e qualità; ottimizzato per fascicoli
+di uso comune.
+
+**Accurato** attiva l'analisi di immagini e grafici e usa blocchi più piccoli per
+maggiore robustezza. Adatto a documenti con tabelle complesse o contenuto misto.
 
 ## Elaborazione locale
 

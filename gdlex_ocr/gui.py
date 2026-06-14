@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 
 from PySide6.QtCore import QTimer, Qt
 from PySide6.QtGui import QCloseEvent, QFontDatabase
 from PySide6.QtWidgets import (
+    QComboBox,
     QFileDialog,
     QFrame,
     QFormLayout,
@@ -25,6 +27,7 @@ from PySide6.QtWidgets import (
 )
 
 from gdlex_ocr.pdf_splitter import PdfSplitError, count_pdf_pages
+from gdlex_ocr.profiles import DEFAULT_PROFILE, PROFILE_NAMES, PROFILES
 from gdlex_ocr.version import (
     APP_NAME,
     APP_SUBTITLE,
@@ -38,10 +41,11 @@ class MainWindow(QMainWindow):
         super().__init__()
         self._worker: OcrWorker | None = None
         self._close_after_cancel = False
+        self._final_markdown_path: str | None = None
 
         self.setWindowTitle(f"{APP_NAME} {APP_VERSION_LABEL}")
-        self.setMinimumSize(820, 620)
-        self.resize(980, 720)
+        self.setMinimumSize(820, 660)
+        self.resize(980, 760)
 
         central = QWidget(self)
         self.setCentralWidget(central)
@@ -105,29 +109,50 @@ class MainWindow(QMainWindow):
         root_layout.addWidget(source_group)
 
         options_group = QGroupBox("Opzioni OCR")
-        options_layout = QHBoxLayout(options_group)
-        options_layout.setContentsMargins(18, 18, 18, 16)
-        options_layout.setSpacing(12)
+        options_outer = QVBoxLayout(options_group)
+        options_outer.setContentsMargins(18, 18, 18, 16)
+        options_outer.setSpacing(10)
+
+        profile_row = QHBoxLayout()
+        profile_row.setSpacing(12)
+        profile_label = QLabel("Profilo elaborazione")
+        profile_row.addWidget(profile_label)
+        self.profile_combo = QComboBox()
+        self.profile_combo.addItems(PROFILE_NAMES)
+        self.profile_combo.setCurrentText(DEFAULT_PROFILE)
+        self.profile_combo.setMinimumWidth(140)
+        self.profile_combo.currentTextChanged.connect(self._on_profile_changed)
+        profile_row.addWidget(self.profile_combo)
+        self.profile_summary_label = QLabel()
+        self.profile_summary_label.setObjectName("sectionHint")
+        profile_row.addWidget(self.profile_summary_label, 1)
+        options_outer.addLayout(profile_row)
+
+        block_row = QHBoxLayout()
+        block_row.setSpacing(12)
         block_label = QLabel("Dimensione blocco")
-        options_layout.addWidget(block_label)
+        block_row.addWidget(block_label)
         self.block_size_spin = QSpinBox()
         self.block_size_spin.setRange(1, 500)
-        self.block_size_spin.setValue(5)
         self.block_size_spin.setSuffix(" pagine")
         self.block_size_spin.setMinimumWidth(130)
-        options_layout.addWidget(self.block_size_spin)
+        block_row.addWidget(self.block_size_spin)
 
-        options_layout.addSpacing(16)
+        block_row.addSpacing(16)
         pages_caption = QLabel("Documento")
         pages_caption.setObjectName("sectionHint")
-        options_layout.addWidget(pages_caption)
+        block_row.addWidget(pages_caption)
         self.page_count_label = QLabel("Nessun PDF selezionato")
-        options_layout.addWidget(self.page_count_label)
-        options_layout.addStretch(1)
+        block_row.addWidget(self.page_count_label)
+        block_row.addStretch(1)
         local_note = QLabel("Elaborazione locale · nessun upload cloud")
         local_note.setObjectName("sectionHint")
-        options_layout.addWidget(local_note)
+        block_row.addWidget(local_note)
+        options_outer.addLayout(block_row)
         root_layout.addWidget(options_group)
+
+        # Initialise spin and summary from default profile
+        self._on_profile_changed(DEFAULT_PROFILE)
 
         progress_group = QGroupBox("Avanzamento")
         progress_layout = QVBoxLayout(progress_group)
@@ -172,18 +197,39 @@ class MainWindow(QMainWindow):
 
         button_row = QHBoxLayout()
         button_row.setSpacing(10)
+
+        self.open_folder_button = QPushButton("Apri cartella output")
+        self.open_folder_button.setEnabled(False)
+        self.open_folder_button.clicked.connect(self._open_output_folder)
+        button_row.addWidget(self.open_folder_button)
+
+        self.open_markdown_button = QPushButton("Apri Markdown")
+        self.open_markdown_button.setEnabled(False)
+        self.open_markdown_button.clicked.connect(self._open_markdown)
+        button_row.addWidget(self.open_markdown_button)
+
         button_row.addStretch(1)
+
         self.start_button = QPushButton("Avvia")
         self.start_button.setObjectName("primaryButton")
         self.start_button.setDefault(True)
         self.start_button.clicked.connect(self._start)
         button_row.addWidget(self.start_button)
+
         self.cancel_button = QPushButton("Annulla")
         self.cancel_button.setObjectName("cancelButton")
         self.cancel_button.setEnabled(False)
         self.cancel_button.clicked.connect(self._cancel)
         button_row.addWidget(self.cancel_button)
+
         root_layout.addLayout(button_row)
+
+    def _on_profile_changed(self, name: str) -> None:
+        profile = PROFILES.get(name)
+        if profile is None:
+            return
+        self.block_size_spin.setValue(profile.block_size)
+        self.profile_summary_label.setText(profile.summary())
 
     def _select_pdf(self) -> None:
         start_dir = str(Path(self.pdf_edit.text()).parent) if self.pdf_edit.text() else ""
@@ -249,16 +295,21 @@ class MainWindow(QMainWindow):
             )
             return
 
+        self._final_markdown_path = None
+        self.open_folder_button.setEnabled(False)
+        self.open_markdown_button.setEnabled(False)
         self.log_view.clear()
         self.progress_bar.setValue(0)
         self.eta_label.setText("ETA: calcolo dopo il primo blocco")
         self.status_label.setText("Preparazione dei blocchi PDF...")
         self._set_running(True)
 
+        profile = PROFILES[self.profile_combo.currentText()]
         self._worker = OcrWorker(
             str(pdf_path),
             str(output_dir),
             self.block_size_spin.value(),
+            profile,
             self,
         )
         self._worker.log_message.connect(self._append_log)
@@ -287,13 +338,24 @@ class MainWindow(QMainWindow):
         self.eta_label.setText(f"ETA: {eta}")
         self.status_label.setText(f"Elaborazione in corso: {percent}%")
 
-    def _completed(self, final_path: str, work_dir: str) -> None:
+    def _completed(
+        self,
+        final_path: str,
+        work_dir: str,
+        duration_text: str,
+        speed_text: str,
+    ) -> None:
+        self._final_markdown_path = final_path
+        self.open_folder_button.setEnabled(True)
+        self.open_markdown_button.setEnabled(True)
         self.status_label.setText(f"Completato: {final_path}")
         self.eta_label.setText("ETA: completato")
         QMessageBox.information(
             self,
             "Elaborazione completata",
             f"Markdown creato:\n{final_path}\n\n"
+            f"Durata totale: {duration_text}\n"
+            f"Velocità: {speed_text}\n\n"
             f"Output intermedi:\n{work_dir}",
         )
 
@@ -328,9 +390,49 @@ class MainWindow(QMainWindow):
     def _set_running(self, running: bool) -> None:
         self.pdf_button.setEnabled(not running)
         self.output_button.setEnabled(not running)
+        self.profile_combo.setEnabled(not running)
         self.block_size_spin.setEnabled(not running)
         self.start_button.setEnabled(not running)
         self.cancel_button.setEnabled(running)
+        if running:
+            self.open_folder_button.setEnabled(False)
+            self.open_markdown_button.setEnabled(False)
+
+    def _open_output_folder(self) -> None:
+        folder = self.output_edit.text()
+        if not folder or not Path(folder).is_dir():
+            QMessageBox.warning(
+                self,
+                "Cartella non trovata",
+                "La cartella di output non esiste o non è accessibile.",
+            )
+            return
+        try:
+            subprocess.Popen(["xdg-open", folder])
+        except OSError as exc:
+            QMessageBox.critical(
+                self,
+                "Impossibile aprire la cartella",
+                f"Errore durante l'apertura della cartella:\n{exc}",
+            )
+
+    def _open_markdown(self) -> None:
+        path = self._final_markdown_path
+        if not path or not Path(path).is_file():
+            QMessageBox.warning(
+                self,
+                "File non trovato",
+                "Il file Markdown non esiste o non è accessibile.",
+            )
+            return
+        try:
+            subprocess.Popen(["xdg-open", path])
+        except OSError as exc:
+            QMessageBox.critical(
+                self,
+                "Impossibile aprire il file",
+                f"Errore durante l'apertura del file Markdown:\n{exc}",
+            )
 
     def closeEvent(self, event: QCloseEvent) -> None:
         if self._worker is None or not self._worker.isRunning():

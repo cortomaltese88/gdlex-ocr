@@ -21,12 +21,14 @@ from gdlex_ocr.markdown_merge import (
 )
 from gdlex_ocr.markdown_sanitize import sanitize_markdown_file
 from gdlex_ocr.pdf_splitter import PdfSplitError, count_pdf_pages, split_pdf
+from gdlex_ocr.profiles import ProcessingProfile
 
 
 class OcrWorker(QThread):
     log_message = Signal(str)
     progress_changed = Signal(int, str)
-    completed = Signal(str, str)
+    # (final_path, work_dir, duration_text, speed_text)
+    completed = Signal(str, str, str, str)
     cancelled = Signal(str)
     failed = Signal(str)
 
@@ -35,12 +37,14 @@ class OcrWorker(QThread):
         pdf_path: str,
         output_dir: str,
         pages_per_block: int,
+        profile: ProcessingProfile,
         parent=None,
     ) -> None:
         super().__init__(parent)
         self.pdf_path = Path(pdf_path)
         self.output_dir = Path(output_dir)
         self.pages_per_block = pages_per_block
+        self._profile = profile
         self._runner = DoclingRunner()
         self._work_dir: Path | None = None
         self._log_path = self.output_dir / "run.log"
@@ -61,6 +65,7 @@ class OcrWorker(QThread):
                 f"Avvio elaborazione: {self.pdf_path.name} "
                 f"({datetime.now().isoformat(timespec='seconds')})"
             )
+            self._write_log(f"Profilo: {self._profile.name}")
 
             total_pages = count_pdf_pages(self.pdf_path)
             self._write_log(f"Pagine totali: {total_pages}")
@@ -89,6 +94,9 @@ class OcrWorker(QThread):
             partials: list[MarkdownBlock] = []
             processed_pages = 0
             processing_seconds = 0.0
+            total_started = time.monotonic()
+            slowest_block_index = 0
+            slowest_block_seconds = 0.0
 
             for block in blocks:
                 self._raise_if_cancelled()
@@ -101,6 +109,12 @@ class OcrWorker(QThread):
                     block.path,
                     markdown_dir,
                     log_callback=self._write_log,
+                    table_mode=self._profile.table_mode,
+                    num_threads=self._profile.num_threads,
+                    page_batch_size=self._profile.page_batch_size,
+                    enable_ocr=self._profile.enable_ocr,
+                    enrich_picture=self._profile.enrich_picture,
+                    enrich_chart=self._profile.enrich_chart,
                 )
                 sanitize_result = sanitize_markdown_file(markdown_path)
                 self._write_log(
@@ -114,6 +128,11 @@ class OcrWorker(QThread):
                 block_seconds = time.monotonic() - started
                 processing_seconds += block_seconds
                 processed_pages += block.page_count
+
+                if block_seconds > slowest_block_seconds:
+                    slowest_block_seconds = block_seconds
+                    slowest_block_index = block.index
+
                 partials.append(
                     MarkdownBlock(
                         block.index,
@@ -142,10 +161,35 @@ class OcrWorker(QThread):
                 final_output_path,
                 self.pdf_path.name,
             )
-            self._write_log(f"Markdown finale creato: {final_path}")
+
+            total_seconds = time.monotonic() - total_started
+            pages_per_min = (
+                total_pages / (total_seconds / 60) if total_seconds > 0 else 0.0
+            )
+            duration_text = self._format_duration(total_seconds)
+            speed_text = f"{pages_per_min:.1f} pag/min"
+            slowest_text = (
+                f"blocco {slowest_block_index} "
+                f"({self._format_duration(slowest_block_seconds)})"
+            )
+
+            self._write_log("─" * 60)
+            self._write_log("Riepilogo elaborazione:")
+            self._write_log(f"  Durata totale:    {duration_text}")
+            self._write_log(f"  Pagine totali:    {total_pages}")
+            self._write_log(f"  Velocità:         {speed_text}")
+            self._write_log(f"  Blocco più lento: {slowest_text}")
+            self._write_log(f"  Markdown finale:  {final_path}")
+            self._write_log("─" * 60)
             self._write_log("Elaborazione completata.")
+
             self.progress_changed.emit(100, "Completato")
-            self.completed.emit(str(final_path), str(self._work_dir))
+            self.completed.emit(
+                str(final_path),
+                str(self._work_dir),
+                duration_text,
+                speed_text,
+            )
         except DoclingCancelled:
             self._handle_cancelled()
         except (

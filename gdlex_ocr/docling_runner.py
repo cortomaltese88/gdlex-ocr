@@ -50,6 +50,11 @@ class DoclingRunner:
         output_dir: str | Path,
         log_callback: Callable[[str], None] | None = None,
         table_mode: TableMode | None = None,
+        num_threads: int | None = None,
+        page_batch_size: int | None = None,
+        enable_ocr: bool = True,
+        enrich_picture: bool = True,
+        enrich_chart: bool = True,
     ) -> Path:
         if self._cancel_requested.is_set():
             raise DoclingCancelled("Elaborazione annullata.")
@@ -73,12 +78,23 @@ class DoclingRunner:
             str(destination),
             "--image-export-mode",
             "placeholder",
-            "--ocr",
+            "--ocr" if enable_ocr else "--no-ocr",
             "--abort-on-error",
             "-v",
         ]
         if table_mode is not None:
             command.extend(["--table-mode", table_mode])
+        if num_threads is not None:
+            command.extend(["--num-threads", str(num_threads)])
+        if page_batch_size is not None:
+            command.extend(["--page-batch-size", str(page_batch_size)])
+        if not enrich_picture:
+            command.extend([
+                "--no-enrich-picture-classes",
+                "--no-enrich-picture-description",
+            ])
+        if not enrich_chart:
+            command.append("--no-enrich-chart-extraction")
 
         if log_callback:
             log_callback(f"Comando: {' '.join(command)}")

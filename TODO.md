@@ -14,6 +14,8 @@ originale è sempre trattato in sola lettura e non viene mai modificato.
   leggibilità e assenza di duplicazioni o omissioni evidenti.
 - [ ] Controllare la corrispondenza tra riferimenti alle pagine originali,
   intervalli dei blocchi e contenuto Markdown prodotto.
+- [ ] Battere la baseline di 5,7 pag/min (27m43s su 158 pag) usando il profilo
+  Bilanciato con onnxruntime.
 - [ ] Migliorare la gestione degli errori Docling, distinguendo almeno comando
   assente, processo non avviabile, uscita anomala, timeout e output mancante.
 - [ ] Verificare annullamento, conservazione degli output parziali e messaggi
@@ -23,8 +25,6 @@ originale è sempre trattato in sola lettura e non viene mai modificato.
 
 ## Priorità media
 
-- [ ] Aggiungere un comando per aprire la cartella di output al termine
-  dell'elaborazione o su richiesta dell'utente.
 - [ ] Aggiungere un'anteprima Markdown locale, in sola lettura, senza alterare
   il file generato.
 - [ ] Definire controlli automatici minimi per conteggio pagine, suddivisione
@@ -36,6 +36,10 @@ originale è sempre trattato in sola lettura e non viene mai modificato.
 
 ## Priorità futura
 
+- [ ] Profilo **Solo Testo**: rilevare se il PDF contiene già testo selezionabile
+  (PDF testuale) e saltare l'OCR, estraendo direttamente il testo con pypdf o
+  Docling in modalità senza OCR. Utile per documenti nativi digitali, atti
+  informatici e sentenze redatte in formato testuale.
 - [ ] Valutare la pulizia opzionale dei PDF e Markdown intermedi al termine
   dell'elaborazione, mantenendo la conservazione come comportamento sicuro.
 - [ ] Migliorare il logging buffered del processo Docling per rendere più

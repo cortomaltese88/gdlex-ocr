@@ -13,26 +13,38 @@ viene mai modificato.
 - Tema Matrix / GD LEX.
 - Splash screen generato localmente.
 
-## v0.2.0 - Qualità dell'output
+## v0.2.0 - Performance e UX
+
+- Profili di elaborazione: Veloce, Bilanciato (default), Accurato.
+- Parametri Docling configurabili: num_threads, page_batch_size, table_mode,
+  enrich_picture, enrich_chart.
+- onnxruntime come runtime OCR locale (CPU).
+- Selettore profilo in GUI con riepilogo parametri.
+- Pulsanti "Apri cartella output" e "Apri Markdown" post-elaborazione.
+- Report finale: durata totale, pagine/minuto, blocco più lento.
+- Obiettivo: battere baseline 27m43s / 5,7 pag/min su 158 pagine.
+
+## v0.3.0 - Qualità dell'output
 
 - Miglioramento e verifica della qualità dell'output.
 - Indice del fascicolo.
 - Generazione di `fascicolo_per_chatgpt.md`.
 - Anteprima Markdown locale.
 - Controlli OCR e diagnostica più accurati.
+- Profilo Solo Testo: rilevamento PDF testuale e skip OCR.
 
-## v0.3.0 - Profili e formati
+## v0.4.0 - Profili e formati
 
 - Profili operativi: fascicolo penale, fascicolo civile, sentenza, APE e
   documenti misti.
 - Esportazione TXT, Markdown e JSON.
 - Report delle pagine problematiche o con qualità OCR incerta.
 
-## v0.4.0 - Distribuzione desktop
+## v0.5.0 - Distribuzione desktop
 
 - Packaging `.deb`.
 - Launcher desktop.
-- Icona applicativa.
+- Icona applicativa coerente con la suite GD LEX.
 - Configurazione utente persistente.
 
 ## v1.0.0 - Uso interno stabile
