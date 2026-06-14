@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+
 from PySide6.QtCore import QRectF, Qt, QTimer
 from PySide6.QtGui import QBrush, QColor, QFont, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import QSplashScreen
@@ -9,9 +11,16 @@ from PySide6.QtWidgets import QSplashScreen
 from gdlex_ocr.version import APP_NAME, APP_SUBTITLE, APP_VERSION_LABEL
 
 
+SPLASH_DISABLE_ENV = "GDLEX_OCR_DISABLE_SPLASH"
 SPLASH_DURATION_MS = 2800
 SPLASH_FRAME_INTERVAL_MS = 50
 _DIGITAL_RAIN_GLYPHS = "01GDLX<>/{}[]"
+
+
+def splash_disabled() -> bool:
+    """Return whether the startup splash is disabled by the environment."""
+    value = os.environ.get(SPLASH_DISABLE_ENV, "").strip().lower()
+    return value in {"1", "true", "yes", "on"}
 
 
 def digital_rain_columns(width: int, column_width: int = 24) -> tuple[int, ...]:
