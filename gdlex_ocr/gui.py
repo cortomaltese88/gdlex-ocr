@@ -421,6 +421,12 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
 
     def _build_menu_bar(self) -> None:
+        self.file_menu = self.menuBar().addMenu("File")
+        self.quit_action = QAction("Esci", self)
+        self.quit_action.setShortcut("Ctrl+Q")
+        self.quit_action.triggered.connect(self.request_close)
+        self.file_menu.addAction(self.quit_action)
+
         view_menu = self.menuBar().addMenu("Visualizza")
         theme_menu = QMenu("Tema", self)
         view_menu.addMenu(theme_menu)
@@ -471,7 +477,7 @@ class MainWindow(QMainWindow):
             toggle_window=self._toggle_window_from_tray,
             show_window=self._show_window_from_tray,
             open_output_folder=self._open_output_folder,
-            quit_app=self._quit_from_tray,
+            quit_app=self.request_close,
         )
         if self._tray_is_available():
             app = QApplication.instance()
@@ -509,6 +515,10 @@ class MainWindow(QMainWindow):
             return
         self.tray.cleanup()
         self.tray = None
+
+    def request_close(self) -> None:
+        """Request a real application exit through the shared tray-aware flow."""
+        self._quit_from_tray()
 
     def _quit_from_tray(self) -> None:
         if self._tray_real_quit_requested:

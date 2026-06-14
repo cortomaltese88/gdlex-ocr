@@ -9,7 +9,7 @@ from unittest.mock import MagicMock, patch
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtCore import QSize
-from PySide6.QtGui import QIcon
+from PySide6.QtGui import QIcon, QKeySequence
 from PySide6.QtWidgets import QApplication, QMessageBox, QWidget
 
 from gdlex_ocr.gui import MainWindow
@@ -36,6 +36,31 @@ class SystemTrayTest(unittest.TestCase):
     def tearDown(self) -> None:
         self.app.setQuitOnLastWindowClosed(True)
         self.app.processEvents()
+
+    def test_file_menu_exit_action_uses_shared_close_request(self) -> None:
+        class CloseTrackingWindow(MainWindow):
+            def __init__(self) -> None:
+                self.close_requests = 0
+                super().__init__()
+
+            def request_close(self) -> None:
+                self.close_requests += 1
+
+        window = CloseTrackingWindow()
+
+        self.assertEqual("File", window.file_menu.title())
+        self.assertIn(window.file_menu.menuAction(), window.menuBar().actions())
+        self.assertEqual("Esci", window.quit_action.text())
+        self.assertIn(window.quit_action, window.file_menu.actions())
+        self.assertEqual(
+            QKeySequence("Ctrl+Q"),
+            window.quit_action.shortcut(),
+        )
+
+        window.quit_action.trigger()
+
+        self.assertEqual(1, window.close_requests)
+        window.deleteLater()
 
     def test_tray_menu_contains_required_actions(self) -> None:
         with (
