@@ -1,0 +1,34 @@
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local env
+.env
+.env.*
+
+# GD LEX OCR outputs / sensitive files
+output/
+outputs/
+tmp/
+temp/
+runs/
+*.log
+*.pdf
+*.PDF
+*.docx
+*.DOCX
+
+# Generated OCR/Markdown outputs
+*.md
+!README.md
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
