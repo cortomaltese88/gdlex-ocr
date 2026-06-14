@@ -1,0 +1,31 @@
+.TH GDLEX-OCR 1 "June 2026" "GD LEX OCR 0.1.0" "User Commands"
+.SH NAME
+gdlex-ocr \- convert PDF documents to Markdown using local OCR
+.SH SYNOPSIS
+.B gdlex-ocr
+.SH DESCRIPTION
+.B gdlex-ocr
+starts the GD LEX OCR desktop application.
+The application processes PDF documents locally with Docling and can
+optionally create searchable PDFs using OCRmyPDF and Tesseract.
+.PP
+Python dependencies are not bundled in the Debian package.
+By default the launcher uses
+.IR ~/.local/share/gdlex-ocr/venv/bin/python
+when that environment exists, otherwise it checks
+.IR /usr/bin/python3 .
+.SH ENVIRONMENT
+.TP
+.B GDLEX_OCR_PYTHON
+Path to a compatible Python interpreter with the dependencies listed in
+.IR /usr/share/doc/gdlex-ocr/requirements.txt .
+.SH FILES
+.TP
+.I /usr/lib/gdlex-ocr
+Installed application sources and assets.
+.TP
+.I /usr/share/doc/gdlex-ocr/requirements.txt
+Pinned Python runtime dependencies.
+.SH SEE ALSO
+.BR ocrmypdf (1),
+.BR tesseract (1)

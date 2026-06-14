@@ -18,6 +18,7 @@ outputs/
 tmp/
 temp/
 runs/
+dist/
 *.log
 *.pdf
 *.PDF

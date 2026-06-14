@@ -2,10 +2,9 @@
 
 ## Stato attuale
 
-Il repository non contiene ancora un pacchetto Debian. La directory
-`packaging/` contiene soltanto `gdlex-ocr.desktop`; gli script
-`install-desktop.sh` e `uninstall-desktop.sh` installano launcher, icone e
-wrapper per il singolo utente.
+La v0.1.0 usa un pacchetto Debian leggero generato da
+`scripts/build-deb.sh`. Il pacchetto installa sorgenti, asset, file desktop,
+icone, documentazione e il wrapper `/usr/bin/gdlex-ocr`.
 
 La distribuzione `.deb` richiede una decisione esplicita su come fornire Python
 3.12, le dipendenze Python non necessariamente disponibili come pacchetti
@@ -68,12 +67,25 @@ Criticità:
 - il launcher attuale contiene il percorso assoluto del checkout e quindi non è
   ancora adatto a installazioni generiche o multiutente.
 
-## Raccomandazione per v0.1.0
+## Scelta per v0.1.0
 
-Usare l'opzione C per la release v0.1.0 e non pubblicare ancora un `.deb`.
-È la scelta con minore rischio operativo e legale rispetto allo stato attuale.
+La release usa una variante minima dell'opzione A:
 
-Per una release successiva, progettare l'opzione A soltanto dopo avere:
+- codice installato in `/usr/lib/gdlex-ocr`;
+- launcher, icone e wrapper installati nei percorsi di sistema;
+- dipendenze Python fissate in
+  `/usr/share/doc/gdlex-ocr/requirements.txt`, ma non vendorizzate;
+- venv utente esterna in `~/.local/share/gdlex-ocr/venv`, oppure interprete
+  indicato tramite `GDLEX_OCR_PYTHON`;
+- OCRmyPDF e Tesseract dichiarati come componenti opzionali;
+- nessun download o `pip install` eseguito dagli script Debian.
+
+Il pacchetto non contiene `.venv`, cache, modelli, PDF, output OCR o log. Lo
+script di build controlla automaticamente il payload prima di dichiarare
+l'artefatto completato.
+
+Per una release successiva, rendere il pacchetto autosufficiente soltanto dopo
+avere:
 
 1. reso il launcher indipendente dal percorso locale di sviluppo;
 2. scelto una strategia supportata per Python e dipendenze;

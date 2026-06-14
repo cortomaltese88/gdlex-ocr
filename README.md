@@ -102,6 +102,30 @@ Per rimuovere launcher, wrapper e icone installati localmente:
 bash scripts/uninstall-desktop.sh
 ```
 
+## Pacchetto Debian leggero
+
+Il pacchetto `.deb` v0.1.0 installa sorgenti, asset, launcher e documentazione,
+ma non incorpora `.venv`, dipendenze Python, modelli OCR o documenti elaborati.
+Per costruirlo:
+
+```bash
+bash scripts/build-deb.sh
+```
+
+Dopo l'installazione del `.deb`, preparare una venv utente con le dipendenze
+fissate nel pacchetto:
+
+```bash
+python3 -m venv ~/.local/share/gdlex-ocr/venv
+~/.local/share/gdlex-ocr/venv/bin/pip install \
+  -r /usr/share/doc/gdlex-ocr/requirements.txt
+gdlex-ocr
+```
+
+In alternativa, `GDLEX_OCR_PYTHON` può indicare il Python di una venv
+compatibile già esistente. OCRmyPDF, Tesseract e il modello italiano restano
+dipendenze di sistema opzionali.
+
 ## Test
 
 La suite smoke offline usa solo fixture sintetiche e non avvia Docling:

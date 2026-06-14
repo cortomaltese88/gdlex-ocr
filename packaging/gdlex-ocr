@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+APP_DIR="/usr/lib/gdlex-ocr"
+REQUIREMENTS="/usr/share/doc/gdlex-ocr/requirements.txt"
+
+if [[ -n "${GDLEX_OCR_PYTHON:-}" ]]; then
+    PYTHON="${GDLEX_OCR_PYTHON}"
+else
+    USER_VENV=""
+    if [[ -n "${XDG_DATA_HOME:-}" ]]; then
+        USER_VENV="${XDG_DATA_HOME}/gdlex-ocr/venv"
+    elif [[ -n "${HOME:-}" ]]; then
+        USER_VENV="${HOME}/.local/share/gdlex-ocr/venv"
+    fi
+
+    if [[ -n "${USER_VENV}" && -x "${USER_VENV}/bin/python" ]]; then
+        PYTHON="${USER_VENV}/bin/python"
+    else
+        PYTHON="/usr/bin/python3"
+    fi
+fi
+
+if [[ ! -x "${PYTHON}" ]]; then
+    printf 'Errore: interprete Python non eseguibile: %s\n' "${PYTHON}" >&2
+    exit 1
+fi
+
+if ! "${PYTHON}" -c 'import docling, onnxruntime, PySide6, pypdf' \
+    >/dev/null 2>&1; then
+    cat >&2 <<EOF
+GD LEX OCR richiede dipendenze Python esterne non incluse nel pacchetto.
+
+Preparare una venv utente con:
+  python3 -m venv "\${HOME}/.local/share/gdlex-ocr/venv"
+  "\${HOME}/.local/share/gdlex-ocr/venv/bin/pip" install -r "${REQUIREMENTS}"
+
+In alternativa impostare GDLEX_OCR_PYTHON sul Python di una venv compatibile.
+EOF
+    exit 1
+fi
+
+cd "${APP_DIR}"
+exec "${PYTHON}" "${APP_DIR}/app.py" "$@"

@@ -20,4 +20,5 @@ Prima release pubblica di GD LEX OCR.
   riferimenti di pagina intra-blocco affidabili.
 - Temi Matrix e Chiaro con preferenza locale.
 - Icona e launcher per KDE/Linux installabili per il singolo utente.
+- Pacchetto Debian leggero senza dipendenze Python o modelli vendorizzati.
 - Smoke test offline con fixture sintetiche, senza avvio di Docling.

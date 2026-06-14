@@ -18,6 +18,7 @@ fi
 bash -n scripts/install-desktop.sh
 bash -n scripts/uninstall-desktop.sh
 bash -n scripts/check-ocr-deps.sh
+bash -n scripts/build-deb.sh
 if command -v desktop-file-validate >/dev/null 2>&1; then
     desktop-file-validate packaging/gdlex-ocr.desktop
 fi

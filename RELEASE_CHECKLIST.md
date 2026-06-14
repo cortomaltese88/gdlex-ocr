@@ -60,11 +60,12 @@ git diff
 
 ## Packaging
 
-- [ ] Applicare la scelta descritta in `PACKAGING.md`.
-- [ ] Non incorporare la `.venv` nel pacchetto v0.1.0.
+- [x] Applicare la scelta descritta in `PACKAGING.md`.
+- [x] Non incorporare la `.venv` nel pacchetto v0.1.0.
 - [ ] Se viene creato un `.deb`, verificarne contenuto, dipendenze e copyright in ambiente pulito.
-- [ ] Non includere modelli Docling/ONNX senza inventario e verifica delle licenze.
-- [ ] Confermare che OCRmyPDF e Tesseract restino dipendenze opzionali di sistema.
+- [x] Verificare il `.deb` con `dpkg-deb`, estrazione temporanea e `lintian`.
+- [x] Non includere modelli Docling/ONNX senza inventario e verifica delle licenze.
+- [x] Confermare che OCRmyPDF e Tesseract restino dipendenze opzionali di sistema.
 
 ## Tag e release futuri
 
@@ -82,4 +83,4 @@ gh release create v0.1.0 --title "GD LEX OCR v0.1.0" \
 
 - [ ] Controllare il tag locale prima del push.
 - [ ] Allegare solo artefatti riproducibili e già verificati.
-- [ ] Pubblicare checksum degli eventuali pacchetti.
+- [x] Generare il checksum SHA-256 del pacchetto.
