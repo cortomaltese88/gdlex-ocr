@@ -20,8 +20,14 @@ from gdlex_ocr.markdown_merge import (
     merge_markdown,
 )
 from gdlex_ocr.markdown_sanitize import sanitize_markdown_file
+from gdlex_ocr.pdf_outline import add_block_bookmarks
 from gdlex_ocr.pdf_splitter import PdfSplitError, count_pdf_pages, split_pdf
 from gdlex_ocr.profiles import ProcessingProfile
+from gdlex_ocr.searchable_pdf import (
+    SearchablePdfError,
+    make_progressive_output_path,
+    run_ocrmypdf,
+)
 
 
 class OcrWorker(QThread):
@@ -31,6 +37,8 @@ class OcrWorker(QThread):
     completed = Signal(str, str, str, str)
     cancelled = Signal(str)
     failed = Signal(str)
+    searchable_pdf_done = Signal(str)
+    searchable_pdf_error = Signal(str)
 
     def __init__(
         self,
@@ -38,6 +46,8 @@ class OcrWorker(QThread):
         output_dir: str,
         pages_per_block: int,
         profile: ProcessingProfile,
+        create_searchable: bool = False,
+        ocr_language: str = "ita",
         parent=None,
     ) -> None:
         super().__init__(parent)
@@ -45,6 +55,8 @@ class OcrWorker(QThread):
         self.output_dir = Path(output_dir)
         self.pages_per_block = pages_per_block
         self._profile = profile
+        self._create_searchable = create_searchable
+        self._ocr_language = ocr_language
         self._runner = DoclingRunner()
         self._work_dir: Path | None = None
         self._log_path = self.output_dir / "run.log"
@@ -65,7 +77,6 @@ class OcrWorker(QThread):
                 f"Avvio elaborazione: {self.pdf_path.name} "
                 f"({datetime.now().isoformat(timespec='seconds')})"
             )
-            self._write_log(f"Cartella output finale: {self.output_dir}")
             self._write_log(f"Profilo: {self._profile.name}")
 
             total_pages = count_pdf_pages(self.pdf_path)
@@ -191,6 +202,10 @@ class OcrWorker(QThread):
                 duration_text,
                 speed_text,
             )
+
+            if self._create_searchable:
+                self._build_searchable_pdf(total_pages)
+
         except DoclingCancelled:
             self._handle_cancelled()
         except (
@@ -206,6 +221,32 @@ class OcrWorker(QThread):
             message = f"Errore inatteso: {exc}"
             self._write_log(f"ERRORE: {message}")
             self.failed.emit(message)
+
+    def _build_searchable_pdf(self, total_pages: int) -> None:
+        try:
+            self._write_log("─" * 60)
+            self._write_log("Creazione PDF ricercabile OCR...")
+            searchable_path = make_progressive_output_path(
+                self.output_dir, self.pdf_path.stem
+            )
+            run_ocrmypdf(
+                self.pdf_path,
+                searchable_path,
+                language=self._ocr_language,
+                log_callback=self._write_log,
+            )
+            self._write_log("Aggiunta segnalibri PDF...")
+            add_block_bookmarks(searchable_path, self.pages_per_block, total_pages)
+            self._write_log(f"PDF ricercabile creato: {searchable_path}")
+            self._write_log("─" * 60)
+            self.searchable_pdf_done.emit(str(searchable_path))
+        except (SearchablePdfError, OSError, ValueError) as exc:
+            self._write_log(f"ERRORE PDF ricercabile: {exc}")
+            self.searchable_pdf_error.emit(str(exc))
+        except Exception as exc:
+            message = f"Errore inatteso durante la creazione PDF ricercabile: {exc}"
+            self._write_log(f"ERRORE PDF ricercabile: {message}")
+            self.searchable_pdf_error.emit(message)
 
     def _raise_if_cancelled(self) -> None:
         if self.isInterruptionRequested():

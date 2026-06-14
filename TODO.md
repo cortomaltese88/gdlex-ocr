@@ -6,6 +6,8 @@ originale è sempre trattato in sola lettura e non viene mai modificato.
 
 ## Priorità alta
 
+- [ ] Installare OCRmyPDF e Tesseract sul sistema di elaborazione per abilitare
+  la funzione PDF ricercabile: `sudo apt install ocrmypdf tesseract-ocr tesseract-ocr-ita`
 - [ ] Eseguire un test completo locale su `Fascicolo_PM.pdf`, senza registrare
   nel repository contenuti, dati personali o dettagli del documento.
 - [ ] Verificare la qualità OCR su un PDF scansionato, controllando testo,
@@ -36,6 +38,10 @@ originale è sempre trattato in sola lettura e non viene mai modificato.
 
 ## Priorità futura
 
+- [ ] PDF ricercabile: aggiungere supporto `--sidecar` per esportare il testo
+  OCR grezzo in un file `.txt` affiancato al PDF ricercabile.
+- [ ] PDF ricercabile: valutare `--jobs N` configurabile in GUI per sfruttare
+  più core CPU durante la fase OCRmyPDF.
 - [ ] Profilo **Solo Testo**: rilevare se il PDF contiene già testo selezionabile
   (PDF testuale) e saltare l'OCR, estraendo direttamente il testo con pypdf o
   Docling in modalità senza OCR. Utile per documenti nativi digitali, atti

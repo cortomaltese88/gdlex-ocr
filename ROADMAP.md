@@ -20,8 +20,13 @@ viene mai modificato.
   enrich_picture, enrich_chart.
 - onnxruntime come runtime OCR locale (CPU).
 - Selettore profilo in GUI con riepilogo parametri.
-- Pulsanti "Apri cartella output" e "Apri Markdown" post-elaborazione.
+- Pulsanti "Apri cartella output", "Apri Markdown" e "Apri PDF OCR"
+  post-elaborazione.
 - Report finale: durata totale, pagine/minuto, blocco più lento.
+- PDF ricercabile opzionale via OCRmyPDF (richiede installazione di sistema).
+- Segnalibri PDF a blocchi pagina (standard PDF outline, compatibile con
+  Okular, Evince, Adobe Reader, Firefox/Chrome).
+- Selettore lingua OCR per OCRmyPDF (italiano, inglese, misto, altre lingue).
 - Obiettivo: battere baseline 27m43s / 5,7 pag/min su 158 pagine.
 
 ## v0.3.0 - Qualità dell'output

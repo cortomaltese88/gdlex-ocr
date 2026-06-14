@@ -13,12 +13,29 @@ convertire fascicoli e documenti PDF in Markdown tramite Docling.
 
 Dipendenze principali:
 
-| Pacchetto      | Versione  | Scopo                              |
-|----------------|-----------|------------------------------------|
-| docling        | 2.102.1   | OCR e conversione PDF → Markdown   |
-| onnxruntime    | 1.26.0    | Inferenza modelli OCR (CPU)        |
-| PySide6        | 6.11.1    | Interfaccia grafica                |
-| pypdf          | 6.13.2    | Suddivisione in blocchi PDF        |
+| Pacchetto      | Versione  | Scopo                                    |
+|----------------|-----------|------------------------------------------|
+| docling        | 2.102.1   | OCR e conversione PDF → Markdown         |
+| onnxruntime    | 1.26.0    | Inferenza modelli OCR (CPU)              |
+| PySide6        | 6.11.1    | Interfaccia grafica                      |
+| pypdf          | 6.13.2    | Suddivisione in blocchi PDF e segnalibri |
+
+### Dipendenze di sistema opzionali (PDF ricercabile)
+
+Per la funzione **PDF ricercabile OCR** sono necessari strumenti di sistema
+non inclusi in `requirements.txt`:
+
+```bash
+sudo apt install ocrmypdf tesseract-ocr tesseract-ocr-ita
+```
+
+- `ocrmypdf` — aggiunge il layer di testo OCR al PDF originale
+- `tesseract-ocr` — motore OCR usato da OCRmyPDF
+- `tesseract-ocr-ita` — modello linguistico italiano per Tesseract
+
+La funzione è opzionale: se non installata, la generazione Markdown Docling
+rimane pienamente funzionante. Il PDF ricercabile viene creato dall'originale
+senza modificarlo; l'output è `<nome>_searchable.pdf` nella cartella di output.
 
 Per preparare l'ambiente:
 

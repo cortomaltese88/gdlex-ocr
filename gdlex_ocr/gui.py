@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 import subprocess
 from pathlib import Path
 
@@ -10,6 +9,7 @@ from PySide6.QtCore import QTimer, Qt
 from PySide6.QtGui import QAction, QActionGroup, QCloseEvent, QFontDatabase
 from PySide6.QtWidgets import (
     QApplication,
+    QCheckBox,
     QComboBox,
     QDialog,
     QDialogButtonBox,
@@ -33,6 +33,7 @@ from PySide6.QtWidgets import (
 
 from gdlex_ocr.pdf_splitter import PdfSplitError, count_pdf_pages
 from gdlex_ocr.profiles import DEFAULT_PROFILE, PROFILE_NAMES, PROFILES
+from gdlex_ocr.searchable_pdf import INSTALL_HINT, is_ocrmypdf_available
 from gdlex_ocr.theme import (
     AVAILABLE_THEMES,
     apply_theme,
@@ -45,6 +46,15 @@ from gdlex_ocr.version import (
     APP_VERSION_LABEL,
 )
 from gdlex_ocr.worker import OcrWorker
+
+_OCR_LANGUAGES = [
+    ("Italiano", "ita"),
+    ("Italiano + Inglese", "ita+eng"),
+    ("Inglese", "eng"),
+    ("Spagnolo", "spa"),
+    ("Francese", "fra"),
+    ("Tedesco", "deu"),
+]
 
 
 class AboutDialog(QDialog):
@@ -81,7 +91,7 @@ class AboutDialog(QDialog):
             "<b>Motore documentale:</b> Docling<br>"
             "<b>GUI:</b> PySide6<br>"
             "<b>OCR/PDF:</b> Docling / RapidOCR<br>"
-            "<b>Evoluzione possibile:</b> integrazione OCRmyPDF<br><br>"
+            "<b>PDF ricercabile (opzionale):</b> OCRmyPDF + Tesseract<br><br>"
             "<b>Privacy:</b> elaborazione locale; nessun upload cloud "
             "effettuato dall'applicazione."
         )
@@ -101,11 +111,13 @@ class MainWindow(QMainWindow):
         self._worker: OcrWorker | None = None
         self._close_after_cancel = False
         self._final_markdown_path: str | None = None
+        self._searchable_pdf_path: str | None = None
+        self._create_searchable_requested = False
         self._theme_actions: dict[str, QAction] = {}
 
         self.setWindowTitle(f"{APP_NAME} {APP_VERSION_LABEL}")
-        self.setMinimumSize(820, 660)
-        self.resize(980, 760)
+        self.setMinimumSize(820, 700)
+        self.resize(980, 800)
         self._build_menu_bar()
 
         central = QWidget(self)
@@ -183,9 +195,8 @@ class MainWindow(QMainWindow):
         source_layout.addRow("File PDF", pdf_row)
 
         self.output_edit = QLineEdit()
-        self.output_edit.setPlaceholderText(
-            "Inserisci o seleziona la cartella di destinazione"
-        )
+        self.output_edit.setReadOnly(True)
+        self.output_edit.setPlaceholderText("Seleziona la cartella di destinazione")
         self.output_button = QPushButton("Sfoglia cartella")
         self.output_button.clicked.connect(self._select_output)
         output_row = QHBoxLayout()
@@ -195,6 +206,7 @@ class MainWindow(QMainWindow):
         source_layout.addRow("Cartella output", output_row)
         root_layout.addWidget(source_group)
 
+        # --- Opzioni OCR ---
         options_group = QGroupBox("Opzioni OCR")
         options_outer = QVBoxLayout(options_group)
         options_outer.setContentsMargins(18, 18, 18, 16)
@@ -238,9 +250,37 @@ class MainWindow(QMainWindow):
         options_outer.addLayout(block_row)
         root_layout.addWidget(options_group)
 
-        # Initialise spin and summary from default profile
         self._on_profile_changed(DEFAULT_PROFILE)
 
+        # --- Opzioni PDF ricercabile ---
+        pdf_group = QGroupBox("PDF ricercabile (opzionale)")
+        pdf_row_outer = QHBoxLayout(pdf_group)
+        pdf_row_outer.setContentsMargins(18, 14, 18, 14)
+        pdf_row_outer.setSpacing(16)
+
+        self.searchable_checkbox = QCheckBox("Crea anche PDF ricercabile OCR")
+        self.searchable_checkbox.setChecked(False)
+        self.searchable_checkbox.toggled.connect(self._on_searchable_changed)
+        pdf_row_outer.addWidget(self.searchable_checkbox)
+
+        lang_label = QLabel("Lingua OCR")
+        lang_label.setObjectName("sectionHint")
+        pdf_row_outer.addWidget(lang_label)
+        self.ocr_language_combo = QComboBox()
+        for display, code in _OCR_LANGUAGES:
+            self.ocr_language_combo.addItem(display, userData=code)
+        self.ocr_language_combo.setCurrentIndex(0)
+        self.ocr_language_combo.setEnabled(False)
+        self.ocr_language_combo.setMinimumWidth(180)
+        pdf_row_outer.addWidget(self.ocr_language_combo)
+
+        pdf_row_outer.addStretch(1)
+        engine_note = QLabel("Richiede: ocrmypdf + tesseract")
+        engine_note.setObjectName("sectionHint")
+        pdf_row_outer.addWidget(engine_note)
+        root_layout.addWidget(pdf_group)
+
+        # --- Avanzamento ---
         progress_group = QGroupBox("Avanzamento")
         progress_layout = QVBoxLayout(progress_group)
         progress_layout.setContentsMargins(18, 18, 18, 16)
@@ -295,6 +335,11 @@ class MainWindow(QMainWindow):
         self.open_markdown_button.clicked.connect(self._open_markdown)
         button_row.addWidget(self.open_markdown_button)
 
+        self.open_pdf_button = QPushButton("Apri PDF OCR")
+        self.open_pdf_button.setEnabled(False)
+        self.open_pdf_button.clicked.connect(self._open_searchable_pdf)
+        button_row.addWidget(self.open_pdf_button)
+
         button_row.addStretch(1)
 
         self.start_button = QPushButton("Avvia")
@@ -310,6 +355,10 @@ class MainWindow(QMainWindow):
         button_row.addWidget(self.cancel_button)
 
         root_layout.addLayout(button_row)
+
+    # ------------------------------------------------------------------
+    # Menu bar
+    # ------------------------------------------------------------------
 
     def _build_menu_bar(self) -> None:
         view_menu = self.menuBar().addMenu("Visualizza")
@@ -349,12 +398,23 @@ class MainWindow(QMainWindow):
     def _show_about(self) -> None:
         AboutDialog(self).exec()
 
+    # ------------------------------------------------------------------
+    # Profile / PDF options
+    # ------------------------------------------------------------------
+
     def _on_profile_changed(self, name: str) -> None:
         profile = PROFILES.get(name)
         if profile is None:
             return
         self.block_size_spin.setValue(profile.block_size)
         self.profile_summary_label.setText(profile.summary())
+
+    def _on_searchable_changed(self, checked: bool) -> None:
+        self.ocr_language_combo.setEnabled(checked)
+
+    # ------------------------------------------------------------------
+    # File / folder selectors
+    # ------------------------------------------------------------------
 
     def _select_pdf(self) -> None:
         start_dir = str(Path(self.pdf_edit.text()).parent) if self.pdf_edit.text() else ""
@@ -376,16 +436,11 @@ class MainWindow(QMainWindow):
             return
 
         self.page_count_label.setText(f"{page_count} pagine")
-        suggested_output = Path("~") / "Documenti" / "GDLEX-OCR" / Path(filename).stem
-        self.output_edit.setText(str(suggested_output))
+        if not self.output_edit.text():
+            self.output_edit.setText(str(Path(filename).parent))
 
     def _select_output(self) -> None:
-        raw_output = self.output_edit.text().strip()
-        start_dir = (
-            str(self._expanded_output_path(raw_output))
-            if raw_output
-            else str(Path.home())
-        )
+        start_dir = self.output_edit.text() or str(Path.home())
         directory = QFileDialog.getExistingDirectory(
             self,
             "Seleziona la cartella di output",
@@ -395,8 +450,13 @@ class MainWindow(QMainWindow):
         if directory:
             self.output_edit.setText(directory)
 
+    # ------------------------------------------------------------------
+    # Processing
+    # ------------------------------------------------------------------
+
     def _start(self) -> None:
         pdf_path = Path(self.pdf_edit.text())
+        output_dir = Path(self.output_edit.text())
 
         if not self.pdf_edit.text() or not pdf_path.is_file():
             QMessageBox.warning(
@@ -408,16 +468,12 @@ class MainWindow(QMainWindow):
                 self, "Formato non valido", "Il file selezionato non è un PDF."
             )
             return
-        raw_output = self.output_edit.text().strip()
-        if not raw_output:
+        if not self.output_edit.text():
             QMessageBox.warning(
-                self,
-                "Dati mancanti",
-                "Inserire o selezionare la cartella di output.",
+                self, "Dati mancanti", "Selezionare la cartella di output."
             )
             return
 
-        output_dir = self._expanded_output_path(raw_output)
         try:
             output_dir.mkdir(parents=True, exist_ok=True)
         except OSError as exc:
@@ -427,13 +483,27 @@ class MainWindow(QMainWindow):
                 f"Impossibile usare la cartella di output:\n{exc}",
             )
             return
-        self.output_edit.setText(str(output_dir))
+
+        create_searchable = self.searchable_checkbox.isChecked()
+        if create_searchable and not is_ocrmypdf_available():
+            QMessageBox.warning(
+                self,
+                "OCRmyPDF non disponibile",
+                f"OCRmyPDF non è installato sul sistema.\n\n"
+                f"La generazione del PDF ricercabile verrà saltata.\n\n"
+                f"{INSTALL_HINT}",
+            )
+            create_searchable = False
+
+        ocr_language = self.ocr_language_combo.currentData() or "ita"
+        self._create_searchable_requested = create_searchable
 
         self._final_markdown_path = None
+        self._searchable_pdf_path = None
         self.open_folder_button.setEnabled(False)
         self.open_markdown_button.setEnabled(False)
+        self.open_pdf_button.setEnabled(False)
         self.log_view.clear()
-        self._append_log(f"Cartella output finale: {output_dir}")
         self.progress_bar.setValue(0)
         self.eta_label.setText("ETA: calcolo dopo il primo blocco")
         self.status_label.setText("Preparazione dei blocchi PDF...")
@@ -445,13 +515,17 @@ class MainWindow(QMainWindow):
             str(output_dir),
             self.block_size_spin.value(),
             profile,
-            self,
+            create_searchable=create_searchable,
+            ocr_language=ocr_language,
+            parent=self,
         )
         self._worker.log_message.connect(self._append_log)
         self._worker.progress_changed.connect(self._update_progress)
         self._worker.completed.connect(self._completed)
         self._worker.cancelled.connect(self._cancelled)
         self._worker.failed.connect(self._failed)
+        self._worker.searchable_pdf_done.connect(self._on_searchable_pdf_done)
+        self._worker.searchable_pdf_error.connect(self._on_searchable_pdf_error)
         self._worker.finished.connect(self._worker_finished)
         self._worker.start()
 
@@ -462,6 +536,10 @@ class MainWindow(QMainWindow):
         self.status_label.setText("Annullamento in corso...")
         self._append_log("Richiesto annullamento dell'elaborazione.")
         self._worker.request_cancel()
+
+    # ------------------------------------------------------------------
+    # Worker signal handlers
+    # ------------------------------------------------------------------
 
     def _append_log(self, message: str) -> None:
         self.log_view.append(message)
@@ -485,12 +563,18 @@ class MainWindow(QMainWindow):
         self.open_markdown_button.setEnabled(True)
         self.status_label.setText(f"Completato: {final_path}")
         self.eta_label.setText("ETA: completato")
+        pdf_note = (
+            "\n\nCreazione PDF ricercabile OCR in corso..."
+            if self._create_searchable_requested
+            else ""
+        )
         QMessageBox.information(
             self,
             "Elaborazione completata",
             f"Markdown creato:\n{final_path}\n\n"
             f"Durata totale: {duration_text}\n"
-            f"Velocità: {speed_text}\n\n"
+            f"Velocità: {speed_text}"
+            f"{pdf_note}\n\n"
             f"Output intermedi:\n{work_dir}",
         )
 
@@ -512,6 +596,18 @@ class MainWindow(QMainWindow):
             f"{message}\n\nConsultare run.log nella cartella di output.",
         )
 
+    def _on_searchable_pdf_done(self, path: str) -> None:
+        self._searchable_pdf_path = path
+        self.open_pdf_button.setEnabled(True)
+        self._append_log(f"PDF ricercabile disponibile: {path}")
+
+    def _on_searchable_pdf_error(self, message: str) -> None:
+        QMessageBox.warning(
+            self,
+            "Errore PDF ricercabile",
+            f"Impossibile creare il PDF ricercabile:\n\n{message}",
+        )
+
     def _worker_finished(self) -> None:
         worker = self._worker
         self._worker = None
@@ -522,22 +618,33 @@ class MainWindow(QMainWindow):
             self._close_after_cancel = False
             QTimer.singleShot(0, self.close)
 
+    # ------------------------------------------------------------------
+    # UI state helpers
+    # ------------------------------------------------------------------
+
     def _set_running(self, running: bool) -> None:
         self.pdf_button.setEnabled(not running)
-        self.output_edit.setEnabled(not running)
         self.output_button.setEnabled(not running)
         self.profile_combo.setEnabled(not running)
         self.block_size_spin.setEnabled(not running)
+        self.searchable_checkbox.setEnabled(not running)
         self.start_button.setEnabled(not running)
         self.cancel_button.setEnabled(running)
         if running:
+            self.ocr_language_combo.setEnabled(False)
             self.open_folder_button.setEnabled(False)
             self.open_markdown_button.setEnabled(False)
+            self.open_pdf_button.setEnabled(False)
+        else:
+            self.ocr_language_combo.setEnabled(self.searchable_checkbox.isChecked())
+
+    # ------------------------------------------------------------------
+    # Open-file / open-folder handlers
+    # ------------------------------------------------------------------
 
     def _open_output_folder(self) -> None:
-        raw_output = self.output_edit.text().strip()
-        folder = self._expanded_output_path(raw_output) if raw_output else None
-        if folder is None or not folder.is_dir():
+        folder = self.output_edit.text()
+        if not folder or not Path(folder).is_dir():
             QMessageBox.warning(
                 self,
                 "Cartella non trovata",
@@ -545,18 +652,13 @@ class MainWindow(QMainWindow):
             )
             return
         try:
-            subprocess.Popen(["xdg-open", str(folder)])
+            subprocess.Popen(["xdg-open", folder])
         except OSError as exc:
             QMessageBox.critical(
                 self,
                 "Impossibile aprire la cartella",
                 f"Errore durante l'apertura della cartella:\n{exc}",
             )
-
-    @staticmethod
-    def _expanded_output_path(raw_path: str) -> Path:
-        expanded = os.path.expanduser(os.path.expandvars(raw_path))
-        return Path(expanded).absolute()
 
     def _open_markdown(self) -> None:
         path = self._final_markdown_path
@@ -575,6 +677,28 @@ class MainWindow(QMainWindow):
                 "Impossibile aprire il file",
                 f"Errore durante l'apertura del file Markdown:\n{exc}",
             )
+
+    def _open_searchable_pdf(self) -> None:
+        path = self._searchable_pdf_path
+        if not path or not Path(path).is_file():
+            QMessageBox.warning(
+                self,
+                "File non trovato",
+                "Il PDF ricercabile non esiste o non è accessibile.",
+            )
+            return
+        try:
+            subprocess.Popen(["xdg-open", path])
+        except OSError as exc:
+            QMessageBox.critical(
+                self,
+                "Impossibile aprire il file",
+                f"Errore durante l'apertura del PDF:\n{exc}",
+            )
+
+    # ------------------------------------------------------------------
+    # Close event
+    # ------------------------------------------------------------------
 
     def closeEvent(self, event: QCloseEvent) -> None:
         if self._worker is None or not self._worker.isRunning():
