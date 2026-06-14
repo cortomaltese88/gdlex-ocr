@@ -27,6 +27,7 @@ from gdlex_ocr.markdown_merge import (
     merge_markdown,
 )
 from gdlex_ocr.markdown_sanitize import sanitize_markdown_file
+from gdlex_ocr.output_layout import build_output_layout
 from gdlex_ocr.pdf_outline import add_technical_fallback_bookmarks
 from gdlex_ocr.pdf_splitter import PdfSplitError, count_pdf_pages, split_pdf
 from gdlex_ocr.profiles import ProcessingProfile
@@ -67,7 +68,11 @@ class OcrWorker(QThread):
         self._ocr_language = ocr_language
         self._runner = DoclingRunner()
         self._work_dir: Path | None = None
-        self._log_path = self.output_dir / "run.log"
+        self._output_layout = build_output_layout(
+            self.pdf_path,
+            self.output_dir,
+        )
+        self._log_path = self._output_layout["run_log"]
         self._manifest: dict[str, Any] | None = None
 
     @property
@@ -327,7 +332,7 @@ class OcrWorker(QThread):
         self.cancelled.emit(location)
 
     def _next_output_path(self) -> Path:
-        base_path = self.output_dir / f"{self.pdf_path.stem}_ocr.md"
+        base_path = self._output_layout["markdown"]
         if not base_path.exists():
             return base_path
 

@@ -230,6 +230,82 @@ class OpenLocalPathsGuiTest(unittest.TestCase):
         self.assertNotIn("xdg-open", gui_source)
         self.assertIn("QDesktopServices.openUrl", gui_source)
 
+    def test_log_and_verification_buttons_start_disabled(self) -> None:
+        self.assertEqual("Apri log", self.window.open_log_button.text())
+        self.assertFalse(self.window.open_log_button.isEnabled())
+        self.assertEqual(
+            "Verifica output",
+            self.window.verify_outputs_button.text(),
+        )
+        self.assertFalse(self.window.verify_outputs_button.isEnabled())
+
+    def test_existing_log_enables_button(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            log_path = Path(tmpdir) / "run.log"
+            log_path.touch()
+            self.window.output_edit.setText(tmpdir)
+
+            self.window._enable_log_button()
+
+        self.assertTrue(self.window.open_log_button.isEnabled())
+        self.assertEqual(str(log_path), self.window._log_path)
+
+    def test_open_log_uses_shared_local_path_helper(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            log_path = Path(tmpdir) / "run.log"
+            log_path.touch()
+            self.window._log_path = str(log_path)
+
+            with patch.object(self.window, "_open_local_path") as open_path:
+                self.window._open_log()
+
+        open_path.assert_called_once_with(
+            log_path,
+            "Impossibile aprire il file",
+            "Errore durante l'apertura del log.",
+        )
+
+    def test_existing_manifest_enables_open_and_verify_buttons(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            manifest_path = Path(tmpdir) / "manifest.json"
+            manifest_path.touch()
+            self.window.output_edit.setText(tmpdir)
+
+            self.window._enable_manifest_button()
+
+        self.assertTrue(self.window.open_manifest_button.isEnabled())
+        self.assertTrue(self.window.verify_outputs_button.isEnabled())
+        self.assertEqual(str(manifest_path), self.window._manifest_path)
+
+    def test_verify_outputs_shows_formatted_report(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            manifest_path = Path(tmpdir) / "manifest.json"
+            manifest_path.touch()
+            self.window._manifest_path = str(manifest_path)
+
+            with (
+                patch(
+                    "gdlex_ocr.gui.load_manifest",
+                    return_value={"job": {"status": "success"}},
+                ),
+                patch(
+                    "gdlex_ocr.gui.verify_manifest_outputs",
+                    return_value={"checked": [], "missing": [], "warnings": []},
+                ),
+                patch(
+                    "gdlex_ocr.gui.format_manifest_verification",
+                    return_value="Output verificati: 3/3",
+                ),
+                patch("gdlex_ocr.gui.QMessageBox.information") as information,
+            ):
+                self.window._verify_outputs()
+
+        information.assert_called_once_with(
+            self.window,
+            "Verifica output",
+            "Output verificati: 3/3",
+        )
+
     def test_open_output_folder_uses_local_file_url(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             self.window.output_edit.setText(tmpdir)

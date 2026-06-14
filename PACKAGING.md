@@ -52,6 +52,10 @@ runtime scritto nella cartella dell'utente durante l'elaborazione; non deve
 essere incluso nel pacchetto. Lo script di build controlla il payload e genera
 il checksum SHA-256 accanto all'artefatto.
 
+Il modulo `gdlex_ocr/output_layout.py` fa parte del codice applicativo
+installato e descrive soltanto i percorsi runtime standard: non crea né include
+alcun output nel pacchetto.
+
 ## Limiti
 
 Il primo avvio richiede accesso alla rete e può richiedere tempo e spazio su

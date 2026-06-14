@@ -9,8 +9,17 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from gdlex_ocr.output_layout import build_output_layout
+
 SCHEMA_VERSION = 1
 MANIFEST_FILENAME = "manifest.json"
+OUTPUT_KEYS = (
+    "markdown",
+    "run_log",
+    "manifest",
+    "searchable_pdf",
+    "index_markdown",
+)
 
 
 def file_sha256(path: Path) -> str:
@@ -25,6 +34,103 @@ def file_sha256(path: Path) -> str:
 def utc_now_iso() -> str:
     """Return the current UTC time as ISO-8601 with timezone."""
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+def load_manifest(path: Path) -> dict[str, Any]:
+    """Load a manifest JSON object from *path*."""
+    manifest = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(manifest, dict):
+        raise ValueError("Il manifest deve contenere un oggetto JSON.")
+    return manifest
+
+
+def verify_manifest_outputs(
+    manifest: dict[str, Any],
+) -> dict[str, Any]:
+    """Check declared output paths without reading their file contents."""
+    job = manifest.get("job")
+    outputs = manifest.get("outputs")
+    processing = manifest.get("processing")
+    status = job.get("status") if isinstance(job, dict) else None
+    output_values = outputs if isinstance(outputs, dict) else {}
+    processing_values = processing if isinstance(processing, dict) else {}
+    searchable_requested = bool(
+        processing_values.get("ocr_searchable_pdf_requested", False)
+    )
+
+    checked: list[dict[str, Any]] = []
+    missing: list[str] = []
+    warnings: list[str] = []
+
+    for key in OUTPUT_KEYS:
+        raw_path = output_values.get(key)
+        declared = isinstance(raw_path, str) and bool(raw_path.strip())
+        required = _output_is_required(key, status, declared)
+        path = Path(raw_path) if declared else None
+        exists = path.is_file() if path is not None else False
+        item: dict[str, Any] = {
+            "key": key,
+            "path": str(path) if path is not None else None,
+            "required": required,
+            "exists": exists,
+        }
+        if exists and path is not None:
+            try:
+                item["size_bytes"] = path.stat().st_size
+            except OSError:
+                item["exists"] = False
+                exists = False
+        checked.append(item)
+        if required and not exists:
+            missing.append(key)
+
+    checked_by_key = {item["key"]: item for item in checked}
+    if (
+        searchable_requested
+        and not checked_by_key["searchable_pdf"]["exists"]
+    ):
+        warnings.append("PDF ricercabile richiesto ma non presente")
+    if (
+        checked_by_key["searchable_pdf"]["exists"]
+        and not checked_by_key["index_markdown"]["exists"]
+    ):
+        warnings.append("Indice Markdown del PDF ricercabile non presente")
+
+    return {
+        "ok": not missing,
+        "checked": checked,
+        "missing": missing,
+        "warnings": warnings,
+    }
+
+
+def format_manifest_verification(report: dict[str, Any]) -> str:
+    """Return a short Italian summary of an output verification report."""
+    checked = report.get("checked", [])
+    required = [
+        item for item in checked
+        if isinstance(item, dict) and item.get("required")
+    ]
+    present = sum(bool(item.get("exists")) for item in required)
+    lines = [f"Output verificati: {present}/{len(required)}"]
+    missing = report.get("missing", [])
+    if missing:
+        lines.append(f"Manca: {', '.join(str(key) for key in missing)}")
+    for warning in report.get("warnings", []):
+        lines.append(f"Warning: {warning}")
+    return "\n".join(lines)
+
+
+def _output_is_required(
+    key: str,
+    status: Any,
+    declared: bool,
+) -> bool:
+    if key == "markdown":
+        return status == "success"
+    if key in {"run_log", "manifest"}:
+        return declared or status == "success"
+    return False
 
 
 def _new_job_id() -> str:
@@ -56,6 +162,7 @@ def build_initial_manifest(
     except OSError:
         size_bytes = 0
 
+    layout = build_output_layout(pdf_path, output_dir)
     return {
         "schema_version": SCHEMA_VERSION,
         "app": {
@@ -100,8 +207,8 @@ def build_initial_manifest(
             "markdown": None,
             "index_markdown": None,
             "searchable_pdf": None,
-            "run_log": str(output_dir / "run.log"),
-            "manifest": str(output_dir / MANIFEST_FILENAME),
+            "run_log": str(layout["run_log"]),
+            "manifest": str(layout["manifest"]),
         },
         "warnings": [],
         "errors": [],

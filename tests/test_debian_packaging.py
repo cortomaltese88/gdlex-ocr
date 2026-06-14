@@ -42,6 +42,7 @@ class DebianPackagingTest(unittest.TestCase):
             "/usr/lib/gdlex-ocr/app.py",
             "/usr/lib/gdlex-ocr/gdlex_ocr/gui.py",
             "/usr/lib/gdlex-ocr/gdlex_ocr/manifest.py",
+            "/usr/lib/gdlex-ocr/gdlex_ocr/output_layout.py",
             "/usr/lib/gdlex-ocr/gdlex_ocr/splash.py",
             "/usr/lib/gdlex-ocr/gdlex_ocr/tray.py",
             "/usr/lib/gdlex-ocr/gdlex_ocr/icons.py",

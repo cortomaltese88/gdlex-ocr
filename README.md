@@ -146,6 +146,10 @@ di avvio e fine, stato (`success`, `failed`, `cancelled`), dati dell'input
 (path, dimensione, SHA-256, numero pagine), profilo usato, statistiche blocchi,
 percorsi di tutti gli output prodotti, warning ed errori.
 
+La GUI consente di aprire direttamente `manifest.json` e `run.log`. Il pulsante
+**Verifica output** controlla che i file dichiarati esistano e siano file
+regolari, senza leggere il contenuto OCR o documentale.
+
 Il manifest è un file runtime e non viene incluso nel pacchetto Debian.
 
 ## Test

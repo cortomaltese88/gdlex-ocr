@@ -17,6 +17,11 @@ Tutte le modifiche rilevanti del progetto saranno documentate in questo file.
   `safe_write_manifest`.
 - Pulsante **Apri manifest** nella barra azioni della GUI, abilitato al
   termine dell'elaborazione (successo o errore) se `manifest.json` esiste.
+- Verifica offline degli output dichiarati nel manifest, con report di file
+  mancanti e warning non bloccanti per il PDF ricercabile opzionale.
+- Pulsanti **Apri log** e **Verifica output** nella GUI.
+- Nuova utility pura `build_output_layout` per centralizzare i nomi standard
+  degli output senza cambiare il formato corrente.
 
 ## [0.1.2] - 2026-06-14
 

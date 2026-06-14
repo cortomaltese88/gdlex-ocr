@@ -39,6 +39,11 @@ from PySide6.QtWidgets import (
 )
 
 from gdlex_ocr.icons import tray_icon
+from gdlex_ocr.manifest import (
+    format_manifest_verification,
+    load_manifest,
+    verify_manifest_outputs,
+)
 from gdlex_ocr.pdf_splitter import PdfSplitError, count_pdf_pages
 from gdlex_ocr.profiles import DEFAULT_PROFILE, PROFILE_NAMES, PROFILES
 from gdlex_ocr.searchable_pdf import INSTALL_HINT, is_ocrmypdf_available
@@ -150,6 +155,7 @@ class MainWindow(QMainWindow):
         self._final_markdown_path: str | None = None
         self._searchable_pdf_path: str | None = None
         self._manifest_path: str | None = None
+        self._log_path: str | None = None
         self._create_searchable_requested = False
         self._output_path_customized = False
         self._theme_actions: dict[str, QAction] = {}
@@ -410,6 +416,18 @@ class MainWindow(QMainWindow):
         self.open_manifest_button.setEnabled(False)
         self.open_manifest_button.clicked.connect(self._open_manifest)
         button_row.addWidget(self.open_manifest_button)
+
+        self.open_log_button = QPushButton("Apri log")
+        self.open_log_button.setMinimumWidth(110)
+        self.open_log_button.setEnabled(False)
+        self.open_log_button.clicked.connect(self._open_log)
+        button_row.addWidget(self.open_log_button)
+
+        self.verify_outputs_button = QPushButton("Verifica output")
+        self.verify_outputs_button.setMinimumWidth(140)
+        self.verify_outputs_button.setEnabled(False)
+        self.verify_outputs_button.clicked.connect(self._verify_outputs)
+        button_row.addWidget(self.verify_outputs_button)
 
         button_row.addStretch(1)
 
@@ -721,10 +739,13 @@ class MainWindow(QMainWindow):
         self._final_markdown_path = None
         self._searchable_pdf_path = None
         self._manifest_path = None
+        self._log_path = None
         self.open_folder_button.setEnabled(False)
         self.open_markdown_button.setEnabled(False)
         self.open_pdf_button.setEnabled(False)
         self.open_manifest_button.setEnabled(False)
+        self.open_log_button.setEnabled(False)
+        self.verify_outputs_button.setEnabled(False)
         self.log_view.clear()
         self.progress_bar.setValue(0)
         self.eta_label.setText("ETA: calcolo dopo il primo blocco")
@@ -784,6 +805,7 @@ class MainWindow(QMainWindow):
         self.open_folder_button.setEnabled(True)
         self.open_markdown_button.setEnabled(True)
         self._enable_manifest_button()
+        self._enable_log_button()
         self.status_label.setText(f"Completato: {final_path}")
         self.eta_label.setText("ETA: completato")
         pdf_note = (
@@ -812,6 +834,8 @@ class MainWindow(QMainWindow):
     def _cancelled(self, work_dir: str) -> None:
         self.status_label.setText("Elaborazione annullata")
         self.eta_label.setText("ETA: --")
+        self._enable_manifest_button()
+        self._enable_log_button()
         QMessageBox.information(
             self,
             "Elaborazione annullata",
@@ -822,6 +846,7 @@ class MainWindow(QMainWindow):
         self.status_label.setText("Elaborazione terminata con errore")
         self.eta_label.setText("ETA: --")
         self._enable_manifest_button()
+        self._enable_log_button()
         self._show_tray_message(
             "Errore OCR",
             message,
@@ -886,6 +911,9 @@ class MainWindow(QMainWindow):
             self.open_folder_button.setEnabled(False)
             self.open_markdown_button.setEnabled(False)
             self.open_pdf_button.setEnabled(False)
+            self.open_manifest_button.setEnabled(False)
+            self.open_log_button.setEnabled(False)
+            self.verify_outputs_button.setEnabled(False)
         else:
             self.ocr_language_combo.setEnabled(self.searchable_checkbox.isChecked())
 
@@ -968,6 +996,7 @@ class MainWindow(QMainWindow):
         if manifest_path.is_file():
             self._manifest_path = str(manifest_path)
             self.open_manifest_button.setEnabled(True)
+            self.verify_outputs_button.setEnabled(True)
 
     def _open_manifest(self) -> None:
         path = self._manifest_path
@@ -982,6 +1011,56 @@ class MainWindow(QMainWindow):
             Path(path),
             "Impossibile aprire il file",
             "Errore durante l'apertura del manifest.",
+        )
+
+    def _enable_log_button(self) -> None:
+        try:
+            output_dir = resolve_output_path(self.output_edit.text())
+        except ValueError:
+            return
+        log_path = output_dir / "run.log"
+        if log_path.is_file():
+            self._log_path = str(log_path)
+            self.open_log_button.setEnabled(True)
+
+    def _open_log(self) -> None:
+        path = self._log_path
+        if not path or not Path(path).is_file():
+            QMessageBox.warning(
+                self,
+                "File non trovato",
+                "Il file run.log non esiste o non è accessibile.",
+            )
+            return
+        self._open_local_path(
+            Path(path),
+            "Impossibile aprire il file",
+            "Errore durante l'apertura del log.",
+        )
+
+    def _verify_outputs(self) -> None:
+        path = self._manifest_path
+        if not path or not Path(path).is_file():
+            QMessageBox.warning(
+                self,
+                "File non trovato",
+                "Il file manifest.json non esiste o non è accessibile.",
+            )
+            return
+        try:
+            manifest = load_manifest(Path(path))
+            report = verify_manifest_outputs(manifest)
+        except (OSError, ValueError) as exc:
+            QMessageBox.warning(
+                self,
+                "Manifest non leggibile",
+                f"Impossibile verificare gli output:\n{exc}",
+            )
+            return
+        QMessageBox.information(
+            self,
+            "Verifica output",
+            format_manifest_verification(report),
         )
 
     # ------------------------------------------------------------------
