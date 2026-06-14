@@ -13,13 +13,24 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
+def _select_debian_package() -> Path | None:
+    """Return the .deb matching APP_VERSION, falling back to newest by mtime."""
+    from gdlex_ocr.version import APP_VERSION
+
+    packages = list((PROJECT_ROOT / "dist").glob("*.deb"))
+    if not packages:
+        return None
+    versioned = [p for p in packages if f"_{APP_VERSION}_" in p.name]
+    if versioned:
+        return versioned[0]
+    return max(packages, key=lambda p: p.stat().st_mtime)
+
+
 class DebianPackagingTest(unittest.TestCase):
     def test_built_debian_package_payload(self) -> None:
-        packages = list((PROJECT_ROOT / "dist").glob("*.deb"))
-        if not packages:
+        package = _select_debian_package()
+        if package is None:
             self.skipTest("no Debian package found in dist/")
-
-        package = max(packages, key=lambda candidate: candidate.stat().st_mtime)
         result = subprocess.run(
             ["dpkg-deb", "--contents", str(package)],
             check=False,

@@ -1,8 +1,8 @@
 # Piano packaging Debian
 
-## Scelta per v0.1.2
+## Scelta per v0.1.x
 
-La v0.1.2 usa un pacchetto Debian leggero generato da
+L'applicazione usa un pacchetto Debian leggero generato da
 `scripts/build-deb.sh`. Il pacchetto installa sorgenti, asset, file desktop,
 icone, documentazione e il wrapper `/usr/bin/gdlex-ocr`.
 
@@ -48,9 +48,9 @@ a funzionare in loro assenza.
 
 Il `.deb` non contiene `.venv`, cache Python, repository Git, modelli, PDF,
 output OCR, log o file `manifest.json`. Il manifest è un file di output
-runtime scritto nella cartella dell'utente durante l'elaborazione; non deve
-essere incluso nel pacchetto. Lo script di build controlla il payload e genera
-il checksum SHA-256 accanto all'artefatto.
+runtime scritto nella cartella dell'utente durante l'elaborazione e non viene
+incluso nel pacchetto. Lo script di build controlla il payload e genera il
+checksum SHA-256 accanto all'artefatto.
 
 Il modulo `gdlex_ocr/output_layout.py` fa parte del codice applicativo
 installato e descrive soltanto i percorsi runtime standard: non crea né include

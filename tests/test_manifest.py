@@ -515,5 +515,186 @@ class ManifestVerificationTest(unittest.TestCase):
         self.assertIn("Warning: PDF ricercabile", summary)
 
 
+class LoadManifestEdgeCaseTest(unittest.TestCase):
+    def test_rejects_json_array_root(self) -> None:
+        from gdlex_ocr.manifest import load_manifest
+
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "manifest.json"
+            path.write_text("[1, 2, 3]", encoding="utf-8")
+            with self.assertRaises(ValueError):
+                load_manifest(path)
+
+    def test_rejects_json_string_root(self) -> None:
+        from gdlex_ocr.manifest import load_manifest
+
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "manifest.json"
+            path.write_text('"ciao"', encoding="utf-8")
+            with self.assertRaises(ValueError):
+                load_manifest(path)
+
+    def test_rejects_json_null_root(self) -> None:
+        from gdlex_ocr.manifest import load_manifest
+
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "manifest.json"
+            path.write_text("null", encoding="utf-8")
+            with self.assertRaises(ValueError):
+                load_manifest(path)
+
+
+class VerifyManifestEdgeCaseTest(unittest.TestCase):
+    def test_empty_manifest_does_not_crash(self) -> None:
+        from gdlex_ocr.manifest import verify_manifest_outputs
+
+        report = verify_manifest_outputs({})
+
+        self.assertTrue(report["ok"])
+        self.assertEqual([], report["missing"])
+        self.assertEqual([], report["warnings"])
+
+    def test_manifest_without_job_key_does_not_crash(self) -> None:
+        from gdlex_ocr.manifest import verify_manifest_outputs
+
+        report = verify_manifest_outputs({"outputs": {}, "processing": {}})
+
+        self.assertTrue(report["ok"])
+        self.assertNotIn("markdown", report["missing"])
+
+    def test_directory_path_not_counted_as_existing_file(self) -> None:
+        from gdlex_ocr.manifest import verify_manifest_outputs
+
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            dir_path = root / "is_a_dir"
+            dir_path.mkdir()
+            manifest = {
+                "job": {"status": "success"},
+                "processing": {"ocr_searchable_pdf_requested": False},
+                "outputs": {
+                    "markdown": str(dir_path),
+                    "run_log": str(root / "run.log"),
+                    "manifest": str(root / "manifest.json"),
+                },
+            }
+            (root / "run.log").touch()
+            (root / "manifest.json").touch()
+            report = verify_manifest_outputs(manifest)
+
+        self.assertFalse(report["ok"])
+        self.assertIn("markdown", report["missing"])
+        markdown_item = next(
+            item for item in report["checked"] if item["key"] == "markdown"
+        )
+        self.assertFalse(markdown_item["exists"])
+
+    def test_unknown_status_does_not_require_markdown(self) -> None:
+        from gdlex_ocr.manifest import verify_manifest_outputs
+
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            (root / "run.log").touch()
+            (root / "manifest.json").touch()
+            manifest = {
+                "job": {"status": "cancelled"},
+                "processing": {"ocr_searchable_pdf_requested": False},
+                "outputs": {
+                    "markdown": None,
+                    "run_log": str(root / "run.log"),
+                    "manifest": str(root / "manifest.json"),
+                },
+            }
+            report = verify_manifest_outputs(manifest)
+
+        self.assertTrue(report["ok"])
+        self.assertNotIn("markdown", report["missing"])
+
+    def test_success_without_declared_run_log_reports_missing(self) -> None:
+        from gdlex_ocr.manifest import verify_manifest_outputs
+
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            (root / "sample_ocr.md").touch()
+            (root / "manifest.json").touch()
+            manifest = {
+                "job": {"status": "success"},
+                "processing": {"ocr_searchable_pdf_requested": False},
+                "outputs": {
+                    "markdown": str(root / "sample_ocr.md"),
+                    "run_log": None,
+                    "manifest": str(root / "manifest.json"),
+                },
+            }
+            report = verify_manifest_outputs(manifest)
+
+        self.assertFalse(report["ok"])
+        self.assertIn("run_log", report["missing"])
+
+    def test_non_string_path_treated_as_not_declared(self) -> None:
+        from gdlex_ocr.manifest import verify_manifest_outputs
+
+        manifest = {
+            "job": {"status": "failed"},
+            "processing": {"ocr_searchable_pdf_requested": False},
+            "outputs": {
+                "markdown": 42,
+                "run_log": ["lista"],
+                "manifest": None,
+            },
+        }
+        report = verify_manifest_outputs(manifest)
+
+        for item in report["checked"]:
+            if item["key"] in {"markdown", "run_log", "manifest"}:
+                self.assertFalse(item["exists"])
+
+
+class FormatManifestVerificationEdgeCaseTest(unittest.TestCase):
+    def test_multiple_warnings_all_appear_in_summary(self) -> None:
+        from gdlex_ocr.manifest import format_manifest_verification
+
+        report = {
+            "ok": False,
+            "checked": [
+                {"required": True, "exists": True},
+                {"required": True, "exists": False},
+                {"required": True, "exists": False},
+            ],
+            "missing": ["markdown", "run_log"],
+            "warnings": [
+                "PDF ricercabile richiesto ma non presente",
+                "Indice Markdown del PDF ricercabile non presente",
+            ],
+        }
+
+        summary = format_manifest_verification(report)
+
+        self.assertIn("Output verificati: 1/3", summary)
+        self.assertIn("PDF ricercabile richiesto", summary)
+        self.assertIn("Indice Markdown", summary)
+
+    def test_empty_report_does_not_crash(self) -> None:
+        from gdlex_ocr.manifest import format_manifest_verification
+
+        summary = format_manifest_verification({})
+
+        self.assertIn("Output verificati: 0/0", summary)
+
+
+class ManifestOutputLayoutConsistencyTest(unittest.TestCase):
+    def test_manifest_filename_constant_consistent_with_output_layout(self) -> None:
+        from gdlex_ocr.manifest import MANIFEST_FILENAME as mf_name
+        from gdlex_ocr.output_layout import MANIFEST_FILENAME as ol_name
+
+        self.assertEqual(mf_name, ol_name)
+
+    def test_log_filename_constant_consistent_with_output_layout(self) -> None:
+        from gdlex_ocr.output_layout import LOG_FILENAME, build_output_layout
+
+        layout = build_output_layout(Path("/tmp/doc.pdf"), Path("/tmp/out"))
+        self.assertEqual(Path("/tmp/out") / LOG_FILENAME, layout["run_log"])
+
+
 if __name__ == "__main__":
     unittest.main()

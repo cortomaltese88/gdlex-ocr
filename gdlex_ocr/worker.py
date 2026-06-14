@@ -96,6 +96,7 @@ class OcrWorker(QThread):
         )
         safe_write_manifest(self._manifest, self.output_dir)
 
+        job_started = time.monotonic()
         try:
             self._write_log("=" * 72)
             self._write_log(
@@ -244,6 +245,9 @@ class OcrWorker(QThread):
             if self._manifest is not None:
                 self._manifest["job"]["status"] = "cancelled"
                 self._manifest["job"]["finished_at"] = utc_now_iso()
+                self._manifest["job"]["duration_seconds"] = round(
+                    time.monotonic() - job_started, 3
+                )
                 safe_write_manifest(self._manifest, self.output_dir)
             self._handle_cancelled()
         except (
@@ -257,6 +261,9 @@ class OcrWorker(QThread):
             if self._manifest is not None:
                 self._manifest["job"]["status"] = "failed"
                 self._manifest["job"]["finished_at"] = utc_now_iso()
+                self._manifest["job"]["duration_seconds"] = round(
+                    time.monotonic() - job_started, 3
+                )
                 self._manifest["errors"].append(str(exc))
                 safe_write_manifest(self._manifest, self.output_dir)
             self.failed.emit(str(exc))
@@ -266,6 +273,9 @@ class OcrWorker(QThread):
             if self._manifest is not None:
                 self._manifest["job"]["status"] = "failed"
                 self._manifest["job"]["finished_at"] = utc_now_iso()
+                self._manifest["job"]["duration_seconds"] = round(
+                    time.monotonic() - job_started, 3
+                )
                 self._manifest["errors"].append(message)
                 safe_write_manifest(self._manifest, self.output_dir)
             self.failed.emit(message)

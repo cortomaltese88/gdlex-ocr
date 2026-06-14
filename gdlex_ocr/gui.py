@@ -44,6 +44,7 @@ from gdlex_ocr.manifest import (
     load_manifest,
     verify_manifest_outputs,
 )
+from gdlex_ocr.output_layout import LOG_FILENAME, MANIFEST_FILENAME
 from gdlex_ocr.pdf_splitter import PdfSplitError, count_pdf_pages
 from gdlex_ocr.profiles import DEFAULT_PROFILE, PROFILE_NAMES, PROFILES
 from gdlex_ocr.searchable_pdf import INSTALL_HINT, is_ocrmypdf_available
@@ -921,6 +922,15 @@ class MainWindow(QMainWindow):
     # Open-file / open-folder handlers
     # ------------------------------------------------------------------
 
+    def _resolve_existing_output_file(self, filename: str) -> Path | None:
+        """Return output_dir / filename if it is a regular file, else None."""
+        try:
+            output_dir = resolve_output_path(self.output_edit.text())
+        except ValueError:
+            return None
+        path = output_dir / filename
+        return path if path.is_file() else None
+
     def _open_local_path(
         self,
         path: Path,
@@ -988,13 +998,9 @@ class MainWindow(QMainWindow):
         )
 
     def _enable_manifest_button(self) -> None:
-        try:
-            output_dir = resolve_output_path(self.output_edit.text())
-        except ValueError:
-            return
-        manifest_path = output_dir / "manifest.json"
-        if manifest_path.is_file():
-            self._manifest_path = str(manifest_path)
+        path = self._resolve_existing_output_file(MANIFEST_FILENAME)
+        if path is not None:
+            self._manifest_path = str(path)
             self.open_manifest_button.setEnabled(True)
             self.verify_outputs_button.setEnabled(True)
 
@@ -1014,13 +1020,9 @@ class MainWindow(QMainWindow):
         )
 
     def _enable_log_button(self) -> None:
-        try:
-            output_dir = resolve_output_path(self.output_edit.text())
-        except ValueError:
-            return
-        log_path = output_dir / "run.log"
-        if log_path.is_file():
-            self._log_path = str(log_path)
+        path = self._resolve_existing_output_file(LOG_FILENAME)
+        if path is not None:
+            self._log_path = str(path)
             self.open_log_button.setEnabled(True)
 
     def _open_log(self) -> None:

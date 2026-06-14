@@ -44,3 +44,33 @@ class OutputLayoutTest(unittest.TestCase):
 
             self.assertFalse(output_dir.exists())
             self.assertTrue(all(not path.exists() for path in layout.values()))
+
+    def test_input_without_extension(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            output_dir = Path(td) / "out"
+            layout = build_output_layout(Path(td) / "fascicolo", output_dir)
+
+            self.assertEqual(output_dir / "fascicolo_ocr.md", layout["markdown"])
+            self.assertEqual(
+                output_dir / "fascicolo_searchable.pdf", layout["searchable_pdf"]
+            )
+
+    def test_input_with_multiple_dots_uses_correct_stem(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            output_dir = Path(td) / "out"
+            layout = build_output_layout(Path(td) / "doc.v2.pdf", output_dir)
+
+            self.assertEqual(output_dir / "doc.v2_ocr.md", layout["markdown"])
+            self.assertEqual(
+                output_dir / "doc.v2_searchable.pdf", layout["searchable_pdf"]
+            )
+
+    def test_fixed_filenames_use_constants(self) -> None:
+        from gdlex_ocr.output_layout import LOG_FILENAME, MANIFEST_FILENAME
+
+        with tempfile.TemporaryDirectory() as td:
+            output_dir = Path(td) / "out"
+            layout = build_output_layout(Path(td) / "doc.pdf", output_dir)
+
+            self.assertEqual(output_dir / MANIFEST_FILENAME, layout["manifest"])
+            self.assertEqual(output_dir / LOG_FILENAME, layout["run_log"])

@@ -360,5 +360,71 @@ class OpenLocalPathsGuiTest(unittest.TestCase):
         self.assertEqual(str(pdf_path), opened_url.toLocalFile())
 
 
+class ResolveOutputFileGuiTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.app = QApplication.instance() or QApplication([])
+
+    def setUp(self) -> None:
+        self.window = MainWindow()
+
+    def tearDown(self) -> None:
+        self.window.close()
+        self.window.deleteLater()
+        self.app.processEvents()
+
+    def test_enable_log_button_noop_when_output_path_empty(self) -> None:
+        self.window.output_edit.setText("")
+        self.window._enable_log_button()
+        self.assertFalse(self.window.open_log_button.isEnabled())
+
+    def test_enable_manifest_button_noop_when_file_absent(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            self.window.output_edit.setText(tmpdir)
+            self.window._enable_manifest_button()
+        self.assertFalse(self.window.open_manifest_button.isEnabled())
+        self.assertFalse(self.window.verify_outputs_button.isEnabled())
+
+    def test_resolve_existing_output_file_returns_none_for_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            dir_path = Path(tmpdir) / "run.log"
+            dir_path.mkdir()
+            self.window.output_edit.setText(tmpdir)
+            result = self.window._resolve_existing_output_file("run.log")
+        self.assertIsNone(result)
+
+    def test_resolve_existing_output_file_returns_path_for_file(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            log_path = Path(tmpdir) / "run.log"
+            log_path.touch()
+            self.window.output_edit.setText(tmpdir)
+            result = self.window._resolve_existing_output_file("run.log")
+        self.assertEqual(log_path, result)
+
+    def test_verify_outputs_shows_warning_on_invalid_json(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            manifest_path = Path(tmpdir) / "manifest.json"
+            manifest_path.write_text("{invalid json", encoding="utf-8")
+            self.window._manifest_path = str(manifest_path)
+
+            with patch("gdlex_ocr.gui.QMessageBox.warning") as warning:
+                self.window._verify_outputs()
+
+        warning.assert_called_once()
+        self.assertEqual("Manifest non leggibile", warning.call_args.args[1])
+
+    def test_verify_outputs_shows_warning_on_non_object_json(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            manifest_path = Path(tmpdir) / "manifest.json"
+            manifest_path.write_text("[1, 2, 3]", encoding="utf-8")
+            self.window._manifest_path = str(manifest_path)
+
+            with patch("gdlex_ocr.gui.QMessageBox.warning") as warning:
+                self.window._verify_outputs()
+
+        warning.assert_called_once()
+        self.assertEqual("Manifest non leggibile", warning.call_args.args[1])
+
+
 if __name__ == "__main__":
     unittest.main()

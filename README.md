@@ -1,6 +1,6 @@
 # GD LEX OCR
 
-## Versione 0.1.2
+## Versione 0.1.3
 
 GD LEX OCR è un'applicazione desktop locale in Python e PySide6 per
 convertire fascicoli e documenti PDF in Markdown tramite Docling.
@@ -104,7 +104,7 @@ bash scripts/uninstall-desktop.sh
 
 ## Pacchetto Debian leggero
 
-Il pacchetto `.deb` v0.1.2 installa sorgenti, asset, launcher e documentazione,
+Il pacchetto `.deb` v0.1.3 installa sorgenti, asset, launcher e documentazione,
 ma non incorpora `.venv`, dipendenze Python, modelli OCR o documenti elaborati.
 Per costruirlo:
 

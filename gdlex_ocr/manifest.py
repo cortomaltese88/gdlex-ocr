@@ -9,10 +9,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from gdlex_ocr.output_layout import build_output_layout
+from gdlex_ocr.output_layout import MANIFEST_FILENAME, build_output_layout
 
 SCHEMA_VERSION = 1
-MANIFEST_FILENAME = "manifest.json"
 OUTPUT_KEYS = (
     "markdown",
     "run_log",
