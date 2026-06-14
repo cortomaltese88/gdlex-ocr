@@ -6,6 +6,7 @@ import tempfile
 import time
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 from PySide6.QtCore import QThread, Signal
 
@@ -14,6 +15,11 @@ from gdlex_ocr.docling_runner import (
     DoclingCancelled,
     DoclingError,
     DoclingRunner,
+)
+from gdlex_ocr.manifest import (
+    build_initial_manifest,
+    safe_write_manifest,
+    utc_now_iso,
 )
 from gdlex_ocr.markdown_merge import (
     MarkdownBlock,
@@ -29,6 +35,7 @@ from gdlex_ocr.searchable_pdf import (
     make_progressive_output_path,
     run_ocrmypdf,
 )
+from gdlex_ocr.version import APP_VERSION
 
 
 class OcrWorker(QThread):
@@ -61,6 +68,7 @@ class OcrWorker(QThread):
         self._runner = DoclingRunner()
         self._work_dir: Path | None = None
         self._log_path = self.output_dir / "run.log"
+        self._manifest: dict[str, Any] | None = None
 
     @property
     def work_dir(self) -> Path | None:
@@ -71,8 +79,19 @@ class OcrWorker(QThread):
         self._runner.cancel()
 
     def run(self) -> None:
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+        self._manifest = build_initial_manifest(
+            pdf_path=self.pdf_path,
+            output_dir=self.output_dir,
+            profile=self._profile,
+            pages_per_block=self.pages_per_block,
+            create_searchable=self._create_searchable,
+            ocr_language=self._ocr_language,
+            app_version=APP_VERSION,
+        )
+        safe_write_manifest(self._manifest, self.output_dir)
+
         try:
-            self.output_dir.mkdir(parents=True, exist_ok=True)
             self._write_log("=" * 72)
             self._write_log(
                 f"Avvio elaborazione: {self.pdf_path.name} "
@@ -81,6 +100,7 @@ class OcrWorker(QThread):
             self._write_log(f"Profilo: {self._profile.name}")
 
             total_pages = count_pdf_pages(self.pdf_path)
+            self._manifest["input"]["page_count"] = total_pages
             self._write_log(f"Pagine totali: {total_pages}")
             self._work_dir = Path(
                 tempfile.mkdtemp(
@@ -102,6 +122,7 @@ class OcrWorker(QThread):
                     f"{block.start_page}-{block.end_page}"
                 ),
             )
+            self._manifest["processing"]["blocks_total"] = len(blocks)
             self._raise_if_cancelled()
 
             partials: list[MarkdownBlock] = []
@@ -154,6 +175,7 @@ class OcrWorker(QThread):
                         markdown_path,
                     )
                 )
+                self._manifest["processing"]["blocks_completed"] = len(partials)
 
                 seconds_per_page = processing_seconds / processed_pages
                 remaining_pages = total_pages - processed_pages
@@ -196,6 +218,12 @@ class OcrWorker(QThread):
             self._write_log("─" * 60)
             self._write_log("Elaborazione completata.")
 
+            self._manifest["job"]["status"] = "success"
+            self._manifest["job"]["finished_at"] = utc_now_iso()
+            self._manifest["job"]["duration_seconds"] = round(total_seconds, 3)
+            self._manifest["outputs"]["markdown"] = str(final_path)
+            safe_write_manifest(self._manifest, self.output_dir)
+
             self.progress_changed.emit(100, "Completato")
             self.completed.emit(
                 str(final_path),
@@ -208,6 +236,10 @@ class OcrWorker(QThread):
                 self._build_searchable_pdf(total_pages, final_path)
 
         except DoclingCancelled:
+            if self._manifest is not None:
+                self._manifest["job"]["status"] = "cancelled"
+                self._manifest["job"]["finished_at"] = utc_now_iso()
+                safe_write_manifest(self._manifest, self.output_dir)
             self._handle_cancelled()
         except (
             PdfSplitError,
@@ -217,10 +249,20 @@ class OcrWorker(QThread):
             ValueError,
         ) as exc:
             self._write_log(f"ERRORE: {exc}")
+            if self._manifest is not None:
+                self._manifest["job"]["status"] = "failed"
+                self._manifest["job"]["finished_at"] = utc_now_iso()
+                self._manifest["errors"].append(str(exc))
+                safe_write_manifest(self._manifest, self.output_dir)
             self.failed.emit(str(exc))
         except Exception as exc:
             message = f"Errore inatteso: {exc}"
             self._write_log(f"ERRORE: {message}")
+            if self._manifest is not None:
+                self._manifest["job"]["status"] = "failed"
+                self._manifest["job"]["finished_at"] = utc_now_iso()
+                self._manifest["errors"].append(message)
+                safe_write_manifest(self._manifest, self.output_dir)
             self.failed.emit(message)
 
     def _build_searchable_pdf(
@@ -254,13 +296,25 @@ class OcrWorker(QThread):
             )
             self._write_log(f"PDF ricercabile creato: {searchable_path}")
             self._write_log("─" * 60)
+            if self._manifest is not None:
+                self._manifest["outputs"]["searchable_pdf"] = str(searchable_path)
+                self._manifest["outputs"]["index_markdown"] = str(index.index_path)
+                safe_write_manifest(self._manifest, self.output_dir)
             self.searchable_pdf_done.emit(str(searchable_path))
         except (SearchablePdfError, OSError, ValueError) as exc:
             self._write_log(f"ERRORE PDF ricercabile: {exc}")
+            if self._manifest is not None:
+                self._manifest["warnings"].append(
+                    f"PDF ricercabile non creato: {exc}"
+                )
+                safe_write_manifest(self._manifest, self.output_dir)
             self.searchable_pdf_error.emit(str(exc))
         except Exception as exc:
             message = f"Errore inatteso durante la creazione PDF ricercabile: {exc}"
             self._write_log(f"ERRORE PDF ricercabile: {message}")
+            if self._manifest is not None:
+                self._manifest["warnings"].append(message)
+                safe_write_manifest(self._manifest, self.output_dir)
             self.searchable_pdf_error.emit(message)
 
     def _raise_if_cancelled(self) -> None:

@@ -47,8 +47,10 @@ sistema opzionali dichiarati come `Suggests`. La conversione Markdown continua
 a funzionare in loro assenza.
 
 Il `.deb` non contiene `.venv`, cache Python, repository Git, modelli, PDF,
-output OCR o log. Lo script di build controlla il payload e genera il checksum
-SHA-256 accanto all'artefatto.
+output OCR, log o file `manifest.json`. Il manifest è un file di output
+runtime scritto nella cartella dell'utente durante l'elaborazione; non deve
+essere incluso nel pacchetto. Lo script di build controlla il payload e genera
+il checksum SHA-256 accanto all'artefatto.
 
 ## Limiti
 

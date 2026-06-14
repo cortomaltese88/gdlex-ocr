@@ -2,6 +2,22 @@
 
 Tutte le modifiche rilevanti del progetto saranno documentate in questo file.
 
+## [Unreleased]
+
+### Funzionalità
+
+- Ogni elaborazione OCR/convert genera un file `manifest.json` nella cartella
+  di output con schema version, identità app, ID job, tempi, input (path,
+  dimensione, SHA-256, numero pagine), profilo, dettagli blocchi, output
+  prodotti (Markdown, indice, PDF ricercabile), warning ed errori.
+- Il manifest viene scritto all'avvio del job con `status: running` e
+  aggiornato a fine job con `status: success`, `failed` o `cancelled`.
+- Nuovo modulo `gdlex_ocr/manifest.py` con funzioni pure e testabili offline:
+  `file_sha256`, `utc_now_iso`, `build_initial_manifest`, `write_manifest`,
+  `safe_write_manifest`.
+- Pulsante **Apri manifest** nella barra azioni della GUI, abilitato al
+  termine dell'elaborazione (successo o errore) se `manifest.json` esiste.
+
 ## [0.1.2] - 2026-06-14
 
 ### Funzionalità

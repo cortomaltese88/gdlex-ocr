@@ -137,6 +137,17 @@ Il comando restituisce `0` se tutti i controlli passano, `1` se mancano
 componenti essenziali e `2` se mancano soltanto OCRmyPDF, Tesseract o la lingua
 italiana. Questi strumenti di sistema restano opzionali.
 
+## Output auditabile (manifest.json)
+
+Al termine di ogni elaborazione OCR/convert, nella cartella di output viene
+creato un file `manifest.json` con schema fisso, leggibile da editor o da
+script. Il manifest include: identità app e versione, ID job UUID, timestamp
+di avvio e fine, stato (`success`, `failed`, `cancelled`), dati dell'input
+(path, dimensione, SHA-256, numero pagine), profilo usato, statistiche blocchi,
+percorsi di tutti gli output prodotti, warning ed errori.
+
+Il manifest è un file runtime e non viene incluso nel pacchetto Debian.
+
 ## Test
 
 La suite smoke offline usa solo fixture sintetiche e non avvia Docling:

@@ -149,6 +149,7 @@ class MainWindow(QMainWindow):
         self.tray: GdlexOcrTray | None = None
         self._final_markdown_path: str | None = None
         self._searchable_pdf_path: str | None = None
+        self._manifest_path: str | None = None
         self._create_searchable_requested = False
         self._output_path_customized = False
         self._theme_actions: dict[str, QAction] = {}
@@ -403,6 +404,12 @@ class MainWindow(QMainWindow):
         self.open_pdf_button.setEnabled(False)
         self.open_pdf_button.clicked.connect(self._open_searchable_pdf)
         button_row.addWidget(self.open_pdf_button)
+
+        self.open_manifest_button = QPushButton("Apri manifest")
+        self.open_manifest_button.setMinimumWidth(140)
+        self.open_manifest_button.setEnabled(False)
+        self.open_manifest_button.clicked.connect(self._open_manifest)
+        button_row.addWidget(self.open_manifest_button)
 
         button_row.addStretch(1)
 
@@ -713,9 +720,11 @@ class MainWindow(QMainWindow):
 
         self._final_markdown_path = None
         self._searchable_pdf_path = None
+        self._manifest_path = None
         self.open_folder_button.setEnabled(False)
         self.open_markdown_button.setEnabled(False)
         self.open_pdf_button.setEnabled(False)
+        self.open_manifest_button.setEnabled(False)
         self.log_view.clear()
         self.progress_bar.setValue(0)
         self.eta_label.setText("ETA: calcolo dopo il primo blocco")
@@ -774,6 +783,7 @@ class MainWindow(QMainWindow):
         self._final_markdown_path = final_path
         self.open_folder_button.setEnabled(True)
         self.open_markdown_button.setEnabled(True)
+        self._enable_manifest_button()
         self.status_label.setText(f"Completato: {final_path}")
         self.eta_label.setText("ETA: completato")
         pdf_note = (
@@ -811,6 +821,7 @@ class MainWindow(QMainWindow):
     def _failed(self, message: str) -> None:
         self.status_label.setText("Elaborazione terminata con errore")
         self.eta_label.setText("ETA: --")
+        self._enable_manifest_button()
         self._show_tray_message(
             "Errore OCR",
             message,
@@ -946,6 +957,31 @@ class MainWindow(QMainWindow):
             Path(path),
             "Impossibile aprire il file",
             "Errore durante l'apertura del PDF.",
+        )
+
+    def _enable_manifest_button(self) -> None:
+        try:
+            output_dir = resolve_output_path(self.output_edit.text())
+        except ValueError:
+            return
+        manifest_path = output_dir / "manifest.json"
+        if manifest_path.is_file():
+            self._manifest_path = str(manifest_path)
+            self.open_manifest_button.setEnabled(True)
+
+    def _open_manifest(self) -> None:
+        path = self._manifest_path
+        if not path or not Path(path).is_file():
+            QMessageBox.warning(
+                self,
+                "File non trovato",
+                "Il file manifest.json non esiste o non è accessibile.",
+            )
+            return
+        self._open_local_path(
+            Path(path),
+            "Impossibile aprire il file",
+            "Errore durante l'apertura del manifest.",
         )
 
     # ------------------------------------------------------------------
