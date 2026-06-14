@@ -1,4 +1,4 @@
-"""Build content-aware PDF outlines from Docling Markdown."""
+"""Extract act titles from Docling Markdown for an experimental audit index."""
 
 from __future__ import annotations
 
@@ -9,17 +9,7 @@ from dataclasses import dataclass
 from difflib import SequenceMatcher
 from pathlib import Path
 
-from pypdf import PdfReader
-
-from gdlex_ocr.pdf_outline import (
-    PdfOutlineItem,
-    add_outline_items,
-    technical_fallback_items,
-)
-
-
 MAX_OUTLINE_ITEMS = 80
-MIN_CONTENT_ITEMS = 3
 MAX_TITLE_LENGTH = 100
 
 _BLOCK_RE = re.compile(
@@ -86,9 +76,8 @@ class ActOutlineEntry:
 
 
 @dataclass(frozen=True, slots=True)
-class OutlineResult:
+class ActIndexResult:
     entries: tuple[ActOutlineEntry, ...]
-    used_fallback: bool
     index_path: Path
 
 
@@ -126,52 +115,26 @@ def extract_act_titles(
     return entries
 
 
-def create_content_aware_outline(
-    pdf_path: str | Path,
+def write_act_index(
     markdown_path: str | Path,
-    block_size: int,
-    total_pages: int | None = None,
     *,
     index_path: str | Path | None = None,
-    min_content_items: int = MIN_CONTENT_ITEMS,
-) -> OutlineResult:
-    """Create a content-aware outline, with a technical range fallback."""
-    if min_content_items < 1:
-        raise ValueError("min_content_items deve essere almeno 1.")
+) -> ActIndexResult:
+    """Write an experimental act index using each Docling block start page.
 
-    pdf = Path(pdf_path)
+    Docling Markdown has no intra-block page markers, so entry pages are
+    estimates for audit purposes and must not be used as PDF destinations.
+    """
     markdown_file = Path(markdown_path)
     markdown = markdown_file.read_text(encoding="utf-8")
-    entries = extract_act_titles(markdown)
-
-    page_count = len(PdfReader(pdf).pages)
-    n_pages = min(total_pages, page_count) if total_pages is not None else page_count
-    valid_entries = [
-        entry for entry in entries if 1 <= entry.page <= page_count
-    ]
-    used_fallback = len(valid_entries) < min_content_items
-
-    if used_fallback:
-        pdf_items = technical_fallback_items(block_size, n_pages)
-        audit_entries = tuple(
-            ActOutlineEntry(item.title, item.page_index + 1, index + 1)
-            for index, item in enumerate(pdf_items)
-        )
-    else:
-        pdf_items = [
-            PdfOutlineItem(entry.title, entry.page - 1)
-            for entry in valid_entries
-        ]
-        audit_entries = tuple(valid_entries)
-
-    add_outline_items(pdf, pdf_items)
+    entries = tuple(extract_act_titles(markdown))
     destination = (
         Path(index_path)
         if index_path is not None
         else markdown_file.with_name(f"{markdown_file.stem}_index.md")
     )
-    _write_index(destination, markdown_file.name, audit_entries, used_fallback)
-    return OutlineResult(audit_entries, used_fallback, destination)
+    _write_index(destination, markdown_file.name, entries)
+    return ActIndexResult(entries, destination)
 
 
 def _candidate_title(line: str) -> str | None:
@@ -259,17 +222,18 @@ def _write_index(
     path: Path,
     markdown_name: str,
     entries: tuple[ActOutlineEntry, ...],
-    used_fallback: bool,
 ) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    mode = "fallback tecnico per intervalli" if used_fallback else "content-aware"
     lines = [
-        "# Indice documenti",
+        "# Indice atti sperimentale",
         "",
         f"- Markdown sorgente: `{markdown_name}`",
-        f"- Modalità outline: {mode}",
+        "- Uso: indice Markdown sperimentale e auditabile; non genera "
+        "segnalibri PDF.",
+        "- Pagina stimata: inizio del blocco Docling, non posizione "
+        "intra-blocco dell'atto.",
         "",
-        "| Titolo | Pagina stimata | Blocco |",
+        "| Titolo | Pagina stimata (inizio blocco) | Blocco |",
         "|---|---:|---:|",
     ]
     lines.extend(

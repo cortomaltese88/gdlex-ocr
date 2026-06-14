@@ -9,18 +9,19 @@ from pathlib import Path
 
 from PySide6.QtCore import QThread, Signal
 
+from gdlex_ocr.act_outline import write_act_index
 from gdlex_ocr.docling_runner import (
     DoclingCancelled,
     DoclingError,
     DoclingRunner,
 )
-from gdlex_ocr.act_outline import create_content_aware_outline
 from gdlex_ocr.markdown_merge import (
     MarkdownBlock,
     MarkdownMergeError,
     merge_markdown,
 )
 from gdlex_ocr.markdown_sanitize import sanitize_markdown_file
+from gdlex_ocr.pdf_outline import add_technical_fallback_bookmarks
 from gdlex_ocr.pdf_splitter import PdfSplitError, count_pdf_pages, split_pdf
 from gdlex_ocr.profiles import ProcessingProfile
 from gdlex_ocr.searchable_pdf import (
@@ -239,24 +240,18 @@ class OcrWorker(QThread):
                 language=self._ocr_language,
                 log_callback=self._write_log,
             )
-            self._write_log("Analisi Markdown per segnalibri PDF...")
-            outline = create_content_aware_outline(
+            add_technical_fallback_bookmarks(
                 searchable_path,
-                markdown_path,
                 self.pages_per_block,
                 total_pages,
             )
-            if outline.used_fallback:
-                self._write_log(
-                    "Titoli attendibili insufficienti: applicato fallback "
-                    "tecnico per intervalli di pagine."
-                )
-            else:
-                self._write_log(
-                    f"Aggiunti {len(outline.entries)} segnalibri "
-                    "content-aware."
-                )
-            self._write_log(f"Indice Markdown creato: {outline.index_path}")
+            self._write_log(
+                "Aggiunti segnalibri PDF tecnici per intervalli di pagine."
+            )
+            index = write_act_index(markdown_path)
+            self._write_log(
+                f"Indice atti Markdown sperimentale creato: {index.index_path}"
+            )
             self._write_log(f"PDF ricercabile creato: {searchable_path}")
             self._write_log("─" * 60)
             self.searchable_pdf_done.emit(str(searchable_path))

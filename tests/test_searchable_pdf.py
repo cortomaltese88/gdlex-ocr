@@ -5,11 +5,15 @@ No real OCR is executed; no user PDFs are read.
 
 from __future__ import annotations
 
+import io
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+from pypdf import PdfReader, PdfWriter
+
+from gdlex_ocr.profiles import PROFILES
 from gdlex_ocr.searchable_pdf import (
     INSTALL_HINT,
     SearchablePdfError,
@@ -18,6 +22,16 @@ from gdlex_ocr.searchable_pdf import (
     make_progressive_output_path,
     run_ocrmypdf,
 )
+from gdlex_ocr.worker import OcrWorker
+
+
+def _synthetic_pdf(num_pages: int) -> bytes:
+    writer = PdfWriter()
+    for _ in range(num_pages):
+        writer.add_blank_page(width=595, height=842)
+    output = io.BytesIO()
+    writer.write(output)
+    return output.getvalue()
 
 
 class BuildOcrmypdfCommandTest(unittest.TestCase):
@@ -130,6 +144,69 @@ class MakeProgressiveOutputPathTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             result = make_progressive_output_path(tmpdir, "mydoc")
             self.assertFalse(result.exists())
+
+
+class SearchablePdfPipelineTest(unittest.TestCase):
+    def test_uses_only_technical_bookmarks_and_keeps_act_index(self) -> None:
+        markdown = """\
+## Blocco 1 - Pagine 1-3
+
+## Annotazione di P.G.
+## Verbale di sommarie informazioni
+
+## Blocco 2 - Pagine 4-6
+
+## Richiesta di archiviazione
+"""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            source_pdf = root / "fascicolo.pdf"
+            markdown_path = root / "fascicolo_ocr.md"
+            source_pdf.write_bytes(_synthetic_pdf(6))
+            markdown_path.write_text(markdown, encoding="utf-8")
+            worker = OcrWorker(
+                str(source_pdf),
+                str(root),
+                pages_per_block=3,
+                profile=PROFILES["Bilanciato"],
+                create_searchable=True,
+            )
+
+            def fake_ocr(input_path, output_path, **_kwargs) -> None:
+                Path(output_path).write_bytes(Path(input_path).read_bytes())
+
+            with patch("gdlex_ocr.worker.run_ocrmypdf", side_effect=fake_ocr):
+                worker._build_searchable_pdf(6, markdown_path)
+
+            searchable_path = root / "fascicolo_searchable.pdf"
+            reader = PdfReader(searchable_path)
+            outline = reader.outline
+            titles = [item.title for item in outline]
+            destinations = [
+                reader.get_destination_page_number(item) for item in outline
+            ]
+
+            self.assertEqual(
+                [
+                    "Fallback tecnico - Pagine 1–3",
+                    "Fallback tecnico - Pagine 4–6",
+                ],
+                titles,
+            )
+            self.assertEqual([0, 3], destinations)
+            self.assertEqual(len(destinations), len(set(destinations)))
+            self.assertNotIn("Annotazione di P.G", titles)
+            self.assertNotIn("Verbale di sommarie informazioni", titles)
+
+            index_path = root / "fascicolo_ocr_index.md"
+            self.assertTrue(index_path.is_file())
+            index = index_path.read_text(encoding="utf-8")
+            self.assertIn("| Annotazione di P.G | 1 | 1 |", index)
+            self.assertIn(
+                "| Verbale di sommarie informazioni | 1 | 1 |",
+                index,
+            )
+            self.assertIn("| Richiesta di archiviazione | 4 | 2 |", index)
 
 
 if __name__ == "__main__":

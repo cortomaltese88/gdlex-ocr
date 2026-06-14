@@ -1,18 +1,15 @@
-"""Offline tests for content-aware act outlines."""
+"""Offline tests for the experimental Markdown act index."""
 
 from __future__ import annotations
 
-import io
 import tempfile
 import unittest
 from pathlib import Path
 
-from pypdf import PdfReader, PdfWriter
-
 from gdlex_ocr.act_outline import (
-    create_content_aware_outline,
     extract_act_titles,
     normalize_title,
+    write_act_index,
 )
 
 
@@ -45,15 +42,6 @@ Verbale di sommarie informazioni
 
 ### Richiesta di archiviazione
 """
-
-
-def _synthetic_pdf(num_pages: int) -> bytes:
-    writer = PdfWriter()
-    for _ in range(num_pages):
-        writer.add_blank_page(width=595, height=842)
-    output = io.BytesIO()
-    writer.write(output)
-    return output.getvalue()
 
 
 class ExtractActTitlesTest(unittest.TestCase):
@@ -96,43 +84,31 @@ class ExtractActTitlesTest(unittest.TestCase):
         self.assertNotIn("�", normalized)
 
 
-class CreateContentAwareOutlineTest(unittest.TestCase):
-    def test_creates_content_outline_and_audit_index(self) -> None:
+class WriteActIndexTest(unittest.TestCase):
+    def test_creates_experimental_audit_index_without_pdf(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
-            pdf_path = root / "fascicolo.pdf"
             markdown_path = root / "fascicolo_ocr.md"
-            pdf_path.write_bytes(_synthetic_pdf(9))
             markdown_path.write_text(SYNTHETIC_MARKDOWN, encoding="utf-8")
 
-            result = create_content_aware_outline(
-                pdf_path,
-                markdown_path,
-                block_size=3,
-                total_pages=9,
-            )
+            result = write_act_index(markdown_path)
 
-            reader = PdfReader(pdf_path)
-            outline = reader.outline
-            self.assertFalse(result.used_fallback)
             self.assertEqual(
                 [
                     "Annotazione di P.G",
                     "VERBALE DI SOMMARIE INFORMAZIONI",
                     "Richiesta di archiviazione",
                 ],
-                [item.title for item in outline],
-            )
-            self.assertEqual(
-                [0, 3, 6],
-                [reader.get_destination_page_number(item) for item in outline],
+                [entry.title for entry in result.entries],
             )
             self.assertTrue(result.index_path.is_file())
             index = result.index_path.read_text(encoding="utf-8")
-            self.assertIn("Modalità outline: content-aware", index)
+            self.assertIn("Indice atti sperimentale", index)
+            self.assertIn("non genera segnalibri PDF", index)
+            self.assertIn("inizio del blocco Docling", index)
             self.assertIn("| Richiesta di archiviazione | 7 | 3 |", index)
 
-    def test_uses_technical_fallback_without_reliable_titles(self) -> None:
+    def test_creates_index_without_reliable_titles(self) -> None:
         markdown = """\
 ## Blocco 1 - Pagine 1-3
 
@@ -145,25 +121,15 @@ Testo ordinario senza denominazioni di atti.
 """
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
-            pdf_path = root / "fascicolo.pdf"
             markdown_path = root / "fascicolo_ocr.md"
-            pdf_path.write_bytes(_synthetic_pdf(6))
             markdown_path.write_text(markdown, encoding="utf-8")
 
-            result = create_content_aware_outline(
-                pdf_path,
-                markdown_path,
-                block_size=3,
-            )
+            result = write_act_index(markdown_path)
 
-            titles = [item.title for item in PdfReader(pdf_path).outline]
-            self.assertTrue(result.used_fallback)
-            self.assertEqual(2, len(titles))
-            self.assertTrue(
-                all(title.startswith("Fallback tecnico - Pagine") for title in titles)
-            )
+            self.assertEqual((), result.entries)
+            self.assertTrue(result.index_path.is_file())
             index = result.index_path.read_text(encoding="utf-8")
-            self.assertIn("Modalità outline: fallback tecnico", index)
+            self.assertIn("Pagina stimata (inizio blocco)", index)
 
 
 if __name__ == "__main__":

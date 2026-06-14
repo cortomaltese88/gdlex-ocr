@@ -39,10 +39,13 @@ sudo apt install ocrmypdf tesseract-ocr tesseract-ocr-ita
 La funzione è opzionale: se non installata, la generazione Markdown Docling
 rimane pienamente funzionante. Il PDF ricercabile viene creato dall'originale
 senza modificarlo; l'output è `<nome>_searchable.pdf` nella cartella di output.
-I segnalibri del PDF sono ricavati localmente dai titoli degli atti rilevati
-nel Markdown Docling. Se i titoli attendibili sono meno di tre, viene usato un
-fallback tecnico per intervalli di pagine. Accanto al Markdown viene creato
-anche `<stem>_index.md`, utile per verificare titoli e pagine stimate.
+Per la v0.1.0 il PDF riceve esclusivamente segnalibri tecnici affidabili per
+intervalli di pagine, ad esempio `Fallback tecnico - Pagine 1–15`. Accanto al
+Markdown viene creato anche `<stem>_index.md`: è un indice atti sperimentale e
+auditabile, nel quale la pagina indicata è soltanto la stima dell'inizio del
+blocco Docling. I segnalibri PDF content-aware sono rimandati a una versione
+futura, quando saranno disponibili riferimenti di pagina intra-blocco
+affidabili.
 
 Per verificare installazione, versioni e lingue Tesseract disponibili senza
 installare né modificare nulla:
