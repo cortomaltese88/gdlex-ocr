@@ -37,6 +37,16 @@ La funzione è opzionale: se non installata, la generazione Markdown Docling
 rimane pienamente funzionante. Il PDF ricercabile viene creato dall'originale
 senza modificarlo; l'output è `<nome>_searchable.pdf` nella cartella di output.
 
+Per verificare installazione, versioni e lingue Tesseract disponibili senza
+installare né modificare nulla:
+
+```bash
+bash scripts/check-ocr-deps.sh
+```
+
+Lo script segnala anche l'eventuale assenza del modello italiano e mostra il
+comando `apt` suggerito. Non esegue OCR e non legge PDF.
+
 Per preparare l'ambiente:
 
 ```bash
@@ -58,6 +68,29 @@ Dal menu **Visualizza → Tema** è possibile scegliere tra il tema Matrix
 predefinito e il tema Chiaro. La preferenza viene conservata localmente tramite
 le impostazioni Qt dell'utente. Il menu **Aiuto → Informazioni** mostra credits,
 componenti principali, licenza e nota sul trattamento locale dei documenti.
+
+## Icona e menu KDE/Linux
+
+L'icona applicativa Matrix / GD LEX è disponibile come SVG vettoriale e PNG
+nelle dimensioni desktop comuni. L'applicazione usa direttamente l'SVG anche
+quando viene avviata dalla directory di sviluppo.
+
+Per installare il launcher solo per l'utente corrente, senza `sudo`:
+
+```bash
+bash scripts/install-desktop.sh
+```
+
+Lo script installa icone e file `.desktop` sotto `~/.local/share`, crea il
+wrapper di sviluppo `~/.local/bin/gdlex-ocr` e aggiorna la cache KDE quando
+`kbuildsycoca6` è disponibile. Il wrapper avvia la `.venv` presente in questa
+directory di progetto; `~/.local/bin` deve essere incluso in `PATH`.
+
+Per rimuovere launcher, wrapper e icone installati localmente:
+
+```bash
+bash scripts/uninstall-desktop.sh
+```
 
 ## Test
 

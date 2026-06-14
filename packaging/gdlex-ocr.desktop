@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=GD LEX OCR
+GenericName=Local OCR
+Comment=OCR locale per fascicoli e documenti
+Exec=gdlex-ocr
+Icon=gdlex-ocr
+Terminal=false
+Type=Application
+Categories=Office;Utility;
+StartupNotify=true

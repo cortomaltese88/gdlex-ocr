@@ -27,6 +27,7 @@ viene mai modificato.
 - Segnalibri PDF a blocchi pagina (standard PDF outline, compatibile con
   Okular, Evince, Adobe Reader, Firefox/Chrome).
 - Selettore lingua OCR per OCRmyPDF (italiano, inglese, misto, altre lingue).
+- Icona applicativa Matrix / GD LEX e integrazione menu KDE/Linux per utente.
 - Obiettivo: battere baseline 27m43s / 5,7 pag/min su 158 pagine.
 
 ## v0.3.0 - Qualità dell'output
@@ -48,8 +49,7 @@ viene mai modificato.
 ## v0.5.0 - Distribuzione desktop
 
 - Packaging `.deb`.
-- Launcher desktop.
-- Icona applicativa coerente con la suite GD LEX.
+- Eventuale affinamento grafico dell'icona in base alle prove d'uso.
 - Configurazione utente persistente.
 
 ## v1.0.0 - Uso interno stabile

@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title description">
+  <title id="title">GD LEX OCR</title>
+  <desc id="description">Icona Matrix verde con monogramma OCR e indicatori di scansione.</desc>
+  <defs>
+    <linearGradient id="panel" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#07150b"/>
+      <stop offset="0.55" stop-color="#020704"/>
+      <stop offset="1" stop-color="#08120a"/>
+    </linearGradient>
+    <linearGradient id="scan" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#00ff66" stop-opacity="0"/>
+      <stop offset="0.5" stop-color="#caffd9"/>
+      <stop offset="1" stop-color="#00ff66" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="5" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <rect width="512" height="512" rx="78" fill="#010302"/>
+  <rect x="18" y="18" width="476" height="476" rx="64" fill="url(#panel)" stroke="#00f15a" stroke-width="10"/>
+  <rect x="35" y="35" width="442" height="442" rx="50" fill="none" stroke="#12642d" stroke-width="3"/>
+
+  <g fill="#1cff65" opacity="0.32" font-family="monospace" font-size="14">
+    <text x="73" y="103">01001111</text>
+    <text x="346" y="103">OCR:ITA</text>
+    <text x="73" y="421">LOCAL//01</text>
+    <text x="350" y="421">SCAN_OK</text>
+  </g>
+
+  <g fill="none" stroke="#2dff72" stroke-width="12" stroke-linecap="square">
+    <path d="M72 144V76h68"/>
+    <path d="M372 76h68v68"/>
+    <path d="M72 368v68h68"/>
+    <path d="M372 436h68v-68"/>
+  </g>
+  <g fill="#9effb9">
+    <rect x="68" y="68" width="18" height="18"/>
+    <rect x="426" y="68" width="18" height="18"/>
+    <rect x="68" y="426" width="18" height="18"/>
+    <rect x="426" y="426" width="18" height="18"/>
+  </g>
+
+  <rect x="83" y="150" width="346" height="212" rx="28" fill="#020603" stroke="#168b3c" stroke-width="4"/>
+  <path d="M102 256H410" stroke="url(#scan)" stroke-width="8" filter="url(#glow)"/>
+  <g id="OCR-monogram" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <g stroke="#00ff61" stroke-width="25" filter="url(#glow)">
+      <rect x="123" y="199" width="73" height="101" rx="34"/>
+      <path d="M286 215c-12-13-31-18-47-9-25 14-25 71 0 86 16 9 35 4 47-9"/>
+      <path d="M316 299v-99h38c36 0 36 51 0 51h-38m38 0 34 48"/>
+    </g>
+    <g stroke="#e6ffed" stroke-width="11">
+      <rect x="123" y="199" width="73" height="101" rx="34"/>
+      <path d="M286 215c-12-13-31-18-47-9-25 14-25 71 0 86 16 9 35 4 47-9"/>
+      <path d="M316 299v-99h38c36 0 36 51 0 51h-38m38 0 34 48"/>
+    </g>
+  </g>
+
+  <g fill="#28d95d">
+    <rect x="113" y="326" width="112" height="5" rx="2"/>
+    <rect x="234" y="326" width="74" height="5" rx="2" opacity="0.7"/>
+    <rect x="317" y="326" width="82" height="5" rx="2" opacity="0.45"/>
+    <rect x="113" y="339" width="67" height="4" rx="2" opacity="0.45"/>
+    <rect x="189" y="339" width="128" height="4" rx="2" opacity="0.7"/>
+    <rect x="326" y="339" width="73" height="4" rx="2"/>
+  </g>
+</svg>

@@ -54,6 +54,8 @@ originale è sempre trattato in sola lettura e non viene mai modificato.
   reale, inclusi annullamento, `SIGTERM` e fallback `SIGKILL`.
 - [ ] Preparare il packaging `.deb`, dopo aver stabilizzato dipendenze,
   installazione di Docling e comportamento sui sistemi di destinazione.
+- [ ] Valutare un affinamento grafico dell'icona dopo l'uso quotidiano nei
+  launcher KDE e nei formati piccoli.
 - [ ] Valutare profili OCR specifici per differenti categorie documentali,
   senza introdurre trasformazioni irreversibili sulle fonti.
 - [ ] Aggiungere l'esportazione opzionale delle immagini come file separati,
@@ -72,9 +74,11 @@ originale è sempre trattato in sola lettura e non viene mai modificato.
   animata, durata leggibile e avvio non bloccante.
 - [x] Aggiungere temi Matrix e Chiaro con cambio live e preferenza persistente.
 - [x] Aggiungere dialog Informazioni con credits, componenti, licenza e privacy.
-- [ ] Creare icona applicazione coerente con la suite GD LEX.
+- [x] Creare icona applicazione coerente con la suite GD LEX.
   - stile Matrix / GD LEX;
   - leggibile anche in formato piccolo;
   - compatibile con launcher Linux;
   - nessuna immagine sensibile o derivata da fascicoli reali;
-  - formati target: SVG sorgente, PNG 256x256/128x128/64x64.
+  - formati: SVG sorgente e PNG 256x256/128x128/64x64/48x48/32x32.
+- [x] Aggiungere launcher KDE/Linux, wrapper di sviluppo e script di
+  installazione/rimozione per il solo utente corrente.

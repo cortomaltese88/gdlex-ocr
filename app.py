@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import sys
+from pathlib import Path
 
 from PySide6.QtCore import QTimer
+from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication
 
 from gdlex_ocr.gui import MainWindow
@@ -13,11 +15,19 @@ from gdlex_ocr.theme import apply_theme, load_theme_name
 from gdlex_ocr.version import APP_NAME, APP_VERSION
 
 
+def application_icon_path() -> Path:
+    """Return the development-tree application icon path."""
+    return Path(__file__).resolve().parent / "assets" / "icon.svg"
+
+
 def main() -> int:
     app = QApplication(sys.argv)
     app.setApplicationName(APP_NAME)
     app.setApplicationVersion(APP_VERSION)
     app.setOrganizationName("GD LEX")
+    icon_path = application_icon_path()
+    if icon_path.is_file():
+        app.setWindowIcon(QIcon(str(icon_path)))
     apply_theme(app, load_theme_name())
 
     window = MainWindow()

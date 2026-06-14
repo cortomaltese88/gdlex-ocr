@@ -15,4 +15,10 @@ fi
 
 "$PYTHON" -m py_compile app.py gdlex_ocr/*.py
 "$PYTHON" -m unittest discover -s tests -v
+bash -n scripts/install-desktop.sh
+bash -n scripts/uninstall-desktop.sh
+bash -n scripts/check-ocr-deps.sh
+if command -v desktop-file-validate >/dev/null 2>&1; then
+    desktop-file-validate packaging/gdlex-ocr.desktop
+fi
 git diff --check
