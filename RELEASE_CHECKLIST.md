@@ -24,6 +24,18 @@ git diff --check
 - [ ] Verificare che directory temporanee `.gdlex_ocr_*` non siano incluse.
 - [ ] Controllare manualmente screenshot e metadati delle immagini prima della pubblicazione.
 
+## Test OCR reale finale
+
+Eseguito il 14 giugno 2026 sul PDF di release da 158 pagine, con profilo
+Bilanciato, blocchi da 15 pagine, OCR italiano e PDF ricercabile attivo.
+
+- [x] Markdown finale creato senza payload `data:image`.
+- [x] PDF ricercabile valido e composto da 158 pagine.
+- [x] Outline limitato a 11 bookmark tecnici per intervalli di pagine.
+- [x] Nessun bookmark PDF content-aware.
+- [x] Indice atti separato in `_index.md`, con pagine dichiarate stimate e
+  corrispondenti all'inizio del blocco Docling.
+
 ## File sensibili e contenuto release
 
 - [ ] Verificare lo stato del repository:
