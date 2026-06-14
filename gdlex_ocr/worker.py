@@ -65,6 +65,7 @@ class OcrWorker(QThread):
                 f"Avvio elaborazione: {self.pdf_path.name} "
                 f"({datetime.now().isoformat(timespec='seconds')})"
             )
+            self._write_log(f"Cartella output finale: {self.output_dir}")
             self._write_log(f"Profilo: {self._profile.name}")
 
             total_pages = count_pdf_pages(self.pdf_path)

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import subprocess
 from pathlib import Path
 
@@ -182,8 +183,9 @@ class MainWindow(QMainWindow):
         source_layout.addRow("File PDF", pdf_row)
 
         self.output_edit = QLineEdit()
-        self.output_edit.setReadOnly(True)
-        self.output_edit.setPlaceholderText("Seleziona la cartella di destinazione")
+        self.output_edit.setPlaceholderText(
+            "Inserisci o seleziona la cartella di destinazione"
+        )
         self.output_button = QPushButton("Sfoglia cartella")
         self.output_button.clicked.connect(self._select_output)
         output_row = QHBoxLayout()
@@ -374,11 +376,16 @@ class MainWindow(QMainWindow):
             return
 
         self.page_count_label.setText(f"{page_count} pagine")
-        if not self.output_edit.text():
-            self.output_edit.setText(str(Path(filename).parent))
+        suggested_output = Path("~") / "Documenti" / "GDLEX-OCR" / Path(filename).stem
+        self.output_edit.setText(str(suggested_output))
 
     def _select_output(self) -> None:
-        start_dir = self.output_edit.text() or str(Path.home())
+        raw_output = self.output_edit.text().strip()
+        start_dir = (
+            str(self._expanded_output_path(raw_output))
+            if raw_output
+            else str(Path.home())
+        )
         directory = QFileDialog.getExistingDirectory(
             self,
             "Seleziona la cartella di output",
@@ -390,7 +397,6 @@ class MainWindow(QMainWindow):
 
     def _start(self) -> None:
         pdf_path = Path(self.pdf_edit.text())
-        output_dir = Path(self.output_edit.text())
 
         if not self.pdf_edit.text() or not pdf_path.is_file():
             QMessageBox.warning(
@@ -402,12 +408,16 @@ class MainWindow(QMainWindow):
                 self, "Formato non valido", "Il file selezionato non è un PDF."
             )
             return
-        if not self.output_edit.text():
+        raw_output = self.output_edit.text().strip()
+        if not raw_output:
             QMessageBox.warning(
-                self, "Dati mancanti", "Selezionare la cartella di output."
+                self,
+                "Dati mancanti",
+                "Inserire o selezionare la cartella di output.",
             )
             return
 
+        output_dir = self._expanded_output_path(raw_output)
         try:
             output_dir.mkdir(parents=True, exist_ok=True)
         except OSError as exc:
@@ -417,11 +427,13 @@ class MainWindow(QMainWindow):
                 f"Impossibile usare la cartella di output:\n{exc}",
             )
             return
+        self.output_edit.setText(str(output_dir))
 
         self._final_markdown_path = None
         self.open_folder_button.setEnabled(False)
         self.open_markdown_button.setEnabled(False)
         self.log_view.clear()
+        self._append_log(f"Cartella output finale: {output_dir}")
         self.progress_bar.setValue(0)
         self.eta_label.setText("ETA: calcolo dopo il primo blocco")
         self.status_label.setText("Preparazione dei blocchi PDF...")
@@ -512,6 +524,7 @@ class MainWindow(QMainWindow):
 
     def _set_running(self, running: bool) -> None:
         self.pdf_button.setEnabled(not running)
+        self.output_edit.setEnabled(not running)
         self.output_button.setEnabled(not running)
         self.profile_combo.setEnabled(not running)
         self.block_size_spin.setEnabled(not running)
@@ -522,8 +535,9 @@ class MainWindow(QMainWindow):
             self.open_markdown_button.setEnabled(False)
 
     def _open_output_folder(self) -> None:
-        folder = self.output_edit.text()
-        if not folder or not Path(folder).is_dir():
+        raw_output = self.output_edit.text().strip()
+        folder = self._expanded_output_path(raw_output) if raw_output else None
+        if folder is None or not folder.is_dir():
             QMessageBox.warning(
                 self,
                 "Cartella non trovata",
@@ -531,13 +545,18 @@ class MainWindow(QMainWindow):
             )
             return
         try:
-            subprocess.Popen(["xdg-open", folder])
+            subprocess.Popen(["xdg-open", str(folder)])
         except OSError as exc:
             QMessageBox.critical(
                 self,
                 "Impossibile aprire la cartella",
                 f"Errore durante l'apertura della cartella:\n{exc}",
             )
+
+    @staticmethod
+    def _expanded_output_path(raw_path: str) -> Path:
+        expanded = os.path.expanduser(os.path.expandvars(raw_path))
+        return Path(expanded).absolute()
 
     def _open_markdown(self) -> None:
         path = self._final_markdown_path
