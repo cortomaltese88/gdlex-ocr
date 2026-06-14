@@ -15,7 +15,7 @@ from PySide6.QtWidgets import (
     QDialogButtonBox,
     QFileDialog,
     QFrame,
-    QFormLayout,
+    QGridLayout,
     QGroupBox,
     QHBoxLayout,
     QLabel,
@@ -116,15 +116,15 @@ class MainWindow(QMainWindow):
         self._theme_actions: dict[str, QAction] = {}
 
         self.setWindowTitle(f"{APP_NAME} {APP_VERSION_LABEL}")
-        self.setMinimumSize(820, 700)
-        self.resize(980, 800)
+        self.setMinimumSize(1020, 780)
+        self.resize(1100, 860)
         self._build_menu_bar()
 
         central = QWidget(self)
         central.setObjectName("mainCanvas")
         self.setCentralWidget(central)
         canvas_layout = QVBoxLayout(central)
-        canvas_layout.setContentsMargins(14, 14, 14, 14)
+        canvas_layout.setContentsMargins(12, 12, 12, 12)
         canvas_layout.setSpacing(0)
 
         app_shell = QFrame()
@@ -132,13 +132,13 @@ class MainWindow(QMainWindow):
         canvas_layout.addWidget(app_shell)
 
         root_layout = QVBoxLayout(app_shell)
-        root_layout.setContentsMargins(18, 18, 18, 16)
-        root_layout.setSpacing(12)
+        root_layout.setContentsMargins(18, 14, 18, 12)
+        root_layout.setSpacing(8)
 
         header = QFrame()
         header.setObjectName("headerFrame")
         header_layout = QHBoxLayout(header)
-        header_layout.setContentsMargins(22, 15, 18, 15)
+        header_layout.setContentsMargins(22, 12, 18, 12)
         header_layout.setSpacing(18)
 
         identity_layout = QVBoxLayout()
@@ -174,116 +174,131 @@ class MainWindow(QMainWindow):
         root_layout.addWidget(header)
 
         source_group = QGroupBox("Documento e destinazione")
-        source_layout = QFormLayout(source_group)
-        source_layout.setContentsMargins(18, 18, 18, 16)
-        source_layout.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
-        source_layout.setFieldGrowthPolicy(
-            QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow
-        )
+        source_layout = QGridLayout(source_group)
+        source_layout.setContentsMargins(18, 10, 18, 10)
         source_layout.setHorizontalSpacing(14)
-        source_layout.setVerticalSpacing(10)
+        source_layout.setVerticalSpacing(8)
+        source_layout.setColumnMinimumWidth(0, 150)
+        source_layout.setColumnStretch(1, 1)
 
         self.pdf_edit = QLineEdit()
         self.pdf_edit.setReadOnly(True)
         self.pdf_edit.setPlaceholderText("Seleziona un fascicolo PDF")
         self.pdf_button = QPushButton("Sfoglia PDF")
+        self.pdf_button.setMinimumWidth(150)
         self.pdf_button.clicked.connect(self._select_pdf)
-        pdf_row = QHBoxLayout()
-        pdf_row.setSpacing(10)
-        pdf_row.addWidget(self.pdf_edit, 1)
-        pdf_row.addWidget(self.pdf_button)
-        source_layout.addRow("File PDF", pdf_row)
+        pdf_label = QLabel("File PDF")
+        pdf_label.setAlignment(
+            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+        )
+        source_layout.addWidget(pdf_label, 0, 0)
+        source_layout.addWidget(self.pdf_edit, 0, 1)
+        source_layout.addWidget(self.pdf_button, 0, 2)
 
         self.output_edit = QLineEdit()
         self.output_edit.setReadOnly(True)
         self.output_edit.setPlaceholderText("Seleziona la cartella di destinazione")
         self.output_button = QPushButton("Sfoglia cartella")
+        self.output_button.setMinimumWidth(150)
         self.output_button.clicked.connect(self._select_output)
-        output_row = QHBoxLayout()
-        output_row.setSpacing(10)
-        output_row.addWidget(self.output_edit, 1)
-        output_row.addWidget(self.output_button)
-        source_layout.addRow("Cartella output", output_row)
+        output_label = QLabel("Cartella output")
+        output_label.setAlignment(
+            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+        )
+        source_layout.addWidget(output_label, 1, 0)
+        source_layout.addWidget(self.output_edit, 1, 1)
+        source_layout.addWidget(self.output_button, 1, 2)
         root_layout.addWidget(source_group)
 
         # --- Opzioni OCR ---
         options_group = QGroupBox("Opzioni OCR")
-        options_outer = QVBoxLayout(options_group)
-        options_outer.setContentsMargins(18, 18, 18, 16)
-        options_outer.setSpacing(10)
+        options_layout = QGridLayout(options_group)
+        options_layout.setContentsMargins(18, 10, 18, 10)
+        options_layout.setHorizontalSpacing(14)
+        options_layout.setVerticalSpacing(8)
+        options_layout.setColumnMinimumWidth(0, 150)
+        options_layout.setColumnMinimumWidth(1, 220)
+        options_layout.setColumnStretch(2, 1)
 
-        profile_row = QHBoxLayout()
-        profile_row.setSpacing(12)
         profile_label = QLabel("Profilo elaborazione")
-        profile_row.addWidget(profile_label)
+        profile_label.setAlignment(
+            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+        )
+        options_layout.addWidget(profile_label, 0, 0)
         self.profile_combo = QComboBox()
         self.profile_combo.addItems(PROFILE_NAMES)
         self.profile_combo.setCurrentText(DEFAULT_PROFILE)
-        self.profile_combo.setMinimumWidth(140)
+        self.profile_combo.setMinimumWidth(220)
         self.profile_combo.currentTextChanged.connect(self._on_profile_changed)
-        profile_row.addWidget(self.profile_combo)
+        options_layout.addWidget(self.profile_combo, 0, 1)
         self.profile_summary_label = QLabel()
         self.profile_summary_label.setObjectName("sectionHint")
-        profile_row.addWidget(self.profile_summary_label, 1)
-        options_outer.addLayout(profile_row)
+        options_layout.addWidget(self.profile_summary_label, 0, 2, 1, 2)
 
-        block_row = QHBoxLayout()
-        block_row.setSpacing(12)
         block_label = QLabel("Dimensione blocco")
-        block_row.addWidget(block_label)
+        block_label.setAlignment(
+            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+        )
+        options_layout.addWidget(block_label, 1, 0)
         self.block_size_spin = QSpinBox()
         self.block_size_spin.setRange(1, 500)
         self.block_size_spin.setSuffix(" pagine")
-        self.block_size_spin.setMinimumWidth(130)
-        block_row.addWidget(self.block_size_spin)
+        self.block_size_spin.setMinimumWidth(180)
+        options_layout.addWidget(self.block_size_spin, 1, 1)
 
-        block_row.addSpacing(16)
+        document_info = QHBoxLayout()
+        document_info.setSpacing(8)
         pages_caption = QLabel("Documento")
         pages_caption.setObjectName("sectionHint")
-        block_row.addWidget(pages_caption)
+        document_info.addWidget(pages_caption)
         self.page_count_label = QLabel("Nessun PDF selezionato")
-        block_row.addWidget(self.page_count_label)
-        block_row.addStretch(1)
+        document_info.addWidget(self.page_count_label)
+        document_info.addStretch(1)
+        options_layout.addLayout(document_info, 1, 2)
+
         local_note = QLabel("Elaborazione locale · nessun upload cloud")
         local_note.setObjectName("sectionHint")
-        block_row.addWidget(local_note)
-        options_outer.addLayout(block_row)
+        local_note.setAlignment(
+            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+        )
+        options_layout.addWidget(local_note, 1, 3)
         root_layout.addWidget(options_group)
 
         self._on_profile_changed(DEFAULT_PROFILE)
 
         # --- Opzioni PDF ricercabile ---
         pdf_group = QGroupBox("PDF ricercabile (opzionale)")
-        pdf_row_outer = QHBoxLayout(pdf_group)
-        pdf_row_outer.setContentsMargins(18, 14, 18, 14)
-        pdf_row_outer.setSpacing(16)
+        pdf_options_layout = QGridLayout(pdf_group)
+        pdf_options_layout.setContentsMargins(18, 8, 18, 8)
+        pdf_options_layout.setHorizontalSpacing(14)
+        pdf_options_layout.setColumnMinimumWidth(2, 220)
+        pdf_options_layout.setColumnStretch(2, 1)
 
         self.searchable_checkbox = QCheckBox("Crea anche PDF ricercabile OCR")
         self.searchable_checkbox.setChecked(False)
         self.searchable_checkbox.toggled.connect(self._on_searchable_changed)
-        pdf_row_outer.addWidget(self.searchable_checkbox)
+        pdf_options_layout.addWidget(self.searchable_checkbox, 0, 0)
 
         lang_label = QLabel("Lingua OCR")
         lang_label.setObjectName("sectionHint")
-        pdf_row_outer.addWidget(lang_label)
+        pdf_options_layout.addWidget(lang_label, 0, 1)
         self.ocr_language_combo = QComboBox()
         for display, code in _OCR_LANGUAGES:
             self.ocr_language_combo.addItem(display, userData=code)
         self.ocr_language_combo.setCurrentIndex(0)
         self.ocr_language_combo.setEnabled(False)
-        self.ocr_language_combo.setMinimumWidth(180)
-        pdf_row_outer.addWidget(self.ocr_language_combo)
+        self.ocr_language_combo.setMinimumWidth(220)
+        pdf_options_layout.addWidget(self.ocr_language_combo, 0, 2)
 
-        pdf_row_outer.addStretch(1)
         engine_note = QLabel("Richiede: ocrmypdf + tesseract")
         engine_note.setObjectName("sectionHint")
-        pdf_row_outer.addWidget(engine_note)
+        pdf_options_layout.addWidget(engine_note, 0, 3)
         root_layout.addWidget(pdf_group)
 
         # --- Avanzamento ---
         progress_group = QGroupBox("Avanzamento")
         progress_layout = QVBoxLayout(progress_group)
-        progress_layout.setContentsMargins(18, 18, 18, 16)
+        progress_layout.setContentsMargins(18, 12, 18, 10)
         progress_layout.setSpacing(8)
 
         progress_info_row = QHBoxLayout()
@@ -308,7 +323,7 @@ class MainWindow(QMainWindow):
 
         log_group = QGroupBox("Log elaborazione")
         log_layout = QVBoxLayout(log_group)
-        log_layout.setContentsMargins(12, 18, 12, 12)
+        log_layout.setContentsMargins(12, 12, 12, 10)
         self.log_view = QTextEdit()
         self.log_view.setObjectName("logView")
         self.log_view.setReadOnly(True)
@@ -326,16 +341,19 @@ class MainWindow(QMainWindow):
         button_row.setSpacing(10)
 
         self.open_folder_button = QPushButton("Apri cartella output")
+        self.open_folder_button.setMinimumWidth(170)
         self.open_folder_button.setEnabled(False)
         self.open_folder_button.clicked.connect(self._open_output_folder)
         button_row.addWidget(self.open_folder_button)
 
         self.open_markdown_button = QPushButton("Apri Markdown")
+        self.open_markdown_button.setMinimumWidth(170)
         self.open_markdown_button.setEnabled(False)
         self.open_markdown_button.clicked.connect(self._open_markdown)
         button_row.addWidget(self.open_markdown_button)
 
         self.open_pdf_button = QPushButton("Apri PDF OCR")
+        self.open_pdf_button.setMinimumWidth(170)
         self.open_pdf_button.setEnabled(False)
         self.open_pdf_button.clicked.connect(self._open_searchable_pdf)
         button_row.addWidget(self.open_pdf_button)
