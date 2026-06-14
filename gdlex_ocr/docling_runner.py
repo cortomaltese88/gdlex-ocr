@@ -9,7 +9,10 @@ import subprocess
 import sys
 import threading
 from pathlib import Path
-from typing import Callable
+from typing import Callable, Literal
+
+
+TableMode = Literal["fast", "accurate"]
 
 
 class DoclingError(RuntimeError):
@@ -46,9 +49,14 @@ class DoclingRunner:
         source_pdf: str | Path,
         output_dir: str | Path,
         log_callback: Callable[[str], None] | None = None,
+        table_mode: TableMode | None = None,
     ) -> Path:
         if self._cancel_requested.is_set():
             raise DoclingCancelled("Elaborazione annullata.")
+        if table_mode not in (None, "fast", "accurate"):
+            raise ValueError(
+                "table_mode deve essere 'fast', 'accurate' oppure None."
+            )
 
         source = Path(source_pdf)
         destination = Path(output_dir)
@@ -63,10 +71,14 @@ class DoclingRunner:
             "md",
             "--output",
             str(destination),
+            "--image-export-mode",
+            "placeholder",
             "--ocr",
             "--abort-on-error",
             "-v",
         ]
+        if table_mode is not None:
+            command.extend(["--table-mode", table_mode])
 
         if log_callback:
             log_callback(f"Comando: {' '.join(command)}")

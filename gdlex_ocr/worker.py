@@ -19,6 +19,7 @@ from gdlex_ocr.markdown_merge import (
     MarkdownMergeError,
     merge_markdown,
 )
+from gdlex_ocr.markdown_sanitize import sanitize_markdown_file
 from gdlex_ocr.pdf_splitter import PdfSplitError, count_pdf_pages, split_pdf
 
 
@@ -100,6 +101,15 @@ class OcrWorker(QThread):
                     block.path,
                     markdown_dir,
                     log_callback=self._write_log,
+                )
+                sanitize_result = sanitize_markdown_file(markdown_path)
+                self._write_log(
+                    f"Sanitizzazione blocco {block.index}: "
+                    f"{sanitize_result.total_removed} rimozioni "
+                    f"({sanitize_result.embedded_images_removed} immagini "
+                    "embedded, "
+                    f"{sanitize_result.long_base64_lines_removed} righe "
+                    "base64 patologiche)"
                 )
                 block_seconds = time.monotonic() - started
                 processing_seconds += block_seconds

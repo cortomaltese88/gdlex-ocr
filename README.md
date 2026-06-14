@@ -34,6 +34,12 @@ L'OCR viene eseguito localmente: nessun documento viene caricato su servizi
 cloud. Il PDF originale viene solo letto; i blocchi PDF e Markdown intermedi
 sono conservati in una sottocartella `.gdlex_ocr_*` nella cartella di output.
 
+Il Markdown prodotto è ottimizzato per l'uso con LLM e sistemi RAG. Le
+immagini embedded e i relativi payload base64 non vengono inclusi: la loro
+posizione nel documento viene conservata tramite un placeholder testuale
+breve. Un controllo aggiuntivo rimuove eventuali payload residui prima
+dell'unione dei blocchi.
+
 Al primo avvio, Docling può scaricare modelli dai servizi upstream da cui
 dipende. L'applicazione non effettua upload cloud dei documenti; download,
 cache e gestione di dipendenze e modelli restano soggetti al comportamento e

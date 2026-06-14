@@ -46,8 +46,21 @@ originale è sempre trattato in sola lettura e non viene mai modificato.
   installazione di Docling e comportamento sui sistemi di destinazione.
 - [ ] Valutare profili OCR specifici per differenti categorie documentali,
   senza introdurre trasformazioni irreversibili sulle fonti.
+- [ ] Aggiungere l'esportazione opzionale delle immagini come file separati,
+  mantenendo il Markdown leggero e adatto a LLM/RAG.
+- [ ] Valutare una scelta avanzata tra esportazione immagini `embedded`,
+  `referenced` e `placeholder`, qualora emerga un caso d'uso concreto.
 - [ ] Valutare un'integrazione con `gdlex-normattiva` o con un sistema RAG
   locale, definendo prima formati di scambio, tracciabilità delle fonti e
   separazione dei dati.
 - [ ] Documentare procedure di installazione, aggiornamento, diagnosi e
   rimozione per l'uso interno.
+
+## UI / identità visiva
+
+- [ ] Creare icona applicazione coerente con la suite GD LEX.
+  - stile Matrix / GD LEX;
+  - leggibile anche in formato piccolo;
+  - compatibile con launcher Linux;
+  - nessuna immagine sensibile o derivata da fascicoli reali;
+  - formati target: SVG sorgente, PNG 256x256/128x128/64x64.
