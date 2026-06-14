@@ -36,8 +36,26 @@ QMainWindow, QDialog {{
     background-color: {BACKGROUND};
 }}
 
+QWidget#mainCanvas {{
+    background-color: #030604;
+}}
+
+QFrame#appShell {{
+    background-color: #080e0a;
+    border: 2px solid #286a40;
+    border-radius: 12px;
+}}
+
 QLabel {{
     background: transparent;
+}}
+
+QLabel#headerEyebrow {{
+    color: {GREEN};
+    font-family: "DejaVu Sans Mono", monospace;
+    font-size: 8pt;
+    font-weight: 600;
+    letter-spacing: 1px;
 }}
 
 QLabel#appTitle {{
@@ -62,6 +80,14 @@ QLabel#versionBadge {{
     font-weight: 600;
 }}
 
+QLabel#headerMeta {{
+    color: {GREEN_MUTED};
+    font-family: "DejaVu Sans Mono", monospace;
+    font-size: 7.5pt;
+    font-weight: 600;
+    letter-spacing: 1px;
+}}
+
 QLabel#sectionHint {{
     color: {TEXT_MUTED};
 }}
@@ -77,16 +103,28 @@ QLabel#etaLabel {{
 }}
 
 QFrame#headerFrame {{
-    background-color: {PANEL};
-    border: 1px solid {BORDER};
-    border-left: 4px solid {GREEN};
-    border-radius: 7px;
+    background: qlineargradient(
+        x1: 0, y1: 0, x2: 1, y2: 0,
+        stop: 0 #102016, stop: 0.55 {PANEL}, stop: 1 #0a100c
+    );
+    border: 1px solid #34754b;
+    border-left: 5px solid {GREEN};
+    border-radius: 8px;
+}}
+
+QFrame#headerDivider {{
+    color: {BORDER};
+    background-color: {BORDER};
+    border: none;
+    min-width: 1px;
+    max-width: 1px;
+    min-height: 42px;
 }}
 
 QGroupBox {{
     color: {GREEN_BRIGHT};
     background-color: {PANEL};
-    border: 1px solid {BORDER};
+    border: 1px solid #2a5e3b;
     border-radius: 7px;
     font-weight: 600;
     margin-top: 12px;
@@ -292,8 +330,26 @@ QMainWindow, QDialog {
     background-color: #eef2ef;
 }
 
+QWidget#mainCanvas {
+    background-color: #dde5df;
+}
+
+QFrame#appShell {
+    background-color: #f6f8f6;
+    border: 1px solid #94ab9c;
+    border-radius: 12px;
+}
+
 QLabel {
     background: transparent;
+}
+
+QLabel#headerEyebrow {
+    color: #287a4d;
+    font-family: "DejaVu Sans Mono", monospace;
+    font-size: 8pt;
+    font-weight: 600;
+    letter-spacing: 1px;
 }
 
 QLabel#appTitle {
@@ -317,6 +373,14 @@ QLabel#versionBadge {
     font-weight: 600;
 }
 
+QLabel#headerMeta {
+    color: #64736a;
+    font-family: "DejaVu Sans Mono", monospace;
+    font-size: 7.5pt;
+    font-weight: 600;
+    letter-spacing: 1px;
+}
+
 QLabel#statusLabel {
     color: #155a35;
     font-weight: 600;
@@ -328,10 +392,22 @@ QLabel#etaLabel {
 }
 
 QFrame#headerFrame {
-    background-color: #ffffff;
-    border: 1px solid #b8c8be;
-    border-left: 4px solid #278653;
-    border-radius: 7px;
+    background: qlineargradient(
+        x1: 0, y1: 0, x2: 1, y2: 0,
+        stop: 0 #f8fbf9, stop: 1 #ffffff
+    );
+    border: 1px solid #a9beb0;
+    border-left: 5px solid #278653;
+    border-radius: 8px;
+}
+
+QFrame#headerDivider {
+    color: #c2cec6;
+    background-color: #c2cec6;
+    border: none;
+    min-width: 1px;
+    max-width: 1px;
+    min-height: 42px;
 }
 
 QGroupBox {
