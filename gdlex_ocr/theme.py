@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from PySide6.QtCore import QSettings
 from PySide6.QtGui import QColor, QPalette
 from PySide6.QtWidgets import QApplication
@@ -14,6 +16,11 @@ BACKGROUND = "#070b09"
 PANEL = "#0b120e"
 PANEL_RAISED = "#101a14"
 INPUT_BACKGROUND = "#050806"
+INPUT_SURFACE = "#101a14"
+INPUT_SURFACE_HOVER = "#132219"
+INPUT_BORDER = "#3d8152"
+INPUT_BORDER_HOVER = "#62c982"
+INPUT_DISABLED = "#0b110d"
 GREEN = "#32e875"
 GREEN_BRIGHT = "#7dffa8"
 GREEN_MUTED = "#78a989"
@@ -22,6 +29,10 @@ BORDER = "#245535"
 TEXT = "#d8f3df"
 TEXT_MUTED = "#8aaa93"
 WARNING = "#f0b45a"
+
+_ASSET_DIR = Path(__file__).resolve().parent.parent / "assets"
+_ARROW_DOWN = (_ASSET_DIR / "matrix-arrow-down.svg").as_posix()
+_ARROW_UP = (_ASSET_DIR / "matrix-arrow-up.svg").as_posix()
 
 
 MATRIX_STYLE_SHEET = f"""
@@ -139,7 +150,86 @@ QGroupBox::title {{
     background-color: {PANEL};
 }}
 
-QLineEdit, QSpinBox, QTextEdit {{
+QLineEdit, QComboBox, QAbstractSpinBox {{
+    color: {TEXT};
+    background-color: {INPUT_SURFACE};
+    border: 1px solid {INPUT_BORDER};
+    border-radius: 6px;
+    min-height: 22px;
+    padding: 7px 10px;
+    selection-color: {BACKGROUND};
+    selection-background-color: {GREEN};
+}}
+
+QLineEdit:hover, QComboBox:hover, QAbstractSpinBox:hover {{
+    background-color: {INPUT_SURFACE_HOVER};
+    border-color: {INPUT_BORDER_HOVER};
+}}
+
+QLineEdit:focus, QComboBox:focus, QAbstractSpinBox:focus {{
+    background-color: #15271c;
+    border: 2px solid {GREEN_BRIGHT};
+    padding: 6px 9px;
+}}
+
+QLineEdit:disabled, QComboBox:disabled, QAbstractSpinBox:disabled {{
+    color: #73857a;
+    background-color: {INPUT_DISABLED};
+    border-color: #25382b;
+}}
+
+QLineEdit[readOnly="true"] {{
+    color: {TEXT};
+}}
+
+QAbstractSpinBox {{
+    padding-right: 31px;
+}}
+
+QAbstractSpinBox:focus {{
+    padding-right: 30px;
+}}
+
+QAbstractSpinBox::up-button, QAbstractSpinBox::down-button {{
+    width: 25px;
+    background-color: #18291e;
+    border-left: 1px solid {INPUT_BORDER};
+}}
+
+QAbstractSpinBox::up-button {{
+    border-top-right-radius: 5px;
+    border-bottom: 1px solid #294f36;
+}}
+
+QAbstractSpinBox::down-button {{
+    border-bottom-right-radius: 5px;
+}}
+
+QAbstractSpinBox::up-button:hover, QAbstractSpinBox::down-button:hover {{
+    background-color: {GREEN_DARK};
+    border-left-color: {GREEN};
+}}
+
+QAbstractSpinBox::up-arrow, QAbstractSpinBox::down-arrow {{
+    width: 9px;
+    height: 9px;
+}}
+
+QAbstractSpinBox::up-arrow {{
+    image: url({_ARROW_UP});
+}}
+
+QAbstractSpinBox::down-arrow {{
+    image: url({_ARROW_DOWN});
+}}
+
+QAbstractSpinBox:disabled::up-button,
+QAbstractSpinBox:disabled::down-button {{
+    background-color: #111912;
+    border-left-color: #25382b;
+}}
+
+QTextEdit {{
     color: {TEXT};
     background-color: {INPUT_BACKGROUND};
     border: 1px solid {BORDER};
@@ -149,27 +239,8 @@ QLineEdit, QSpinBox, QTextEdit {{
     selection-background-color: {GREEN};
 }}
 
-QLineEdit:focus, QSpinBox:focus, QTextEdit:focus {{
+QTextEdit:focus {{
     border-color: {GREEN};
-}}
-
-QLineEdit:disabled, QSpinBox:disabled {{
-    color: {TEXT_MUTED};
-    background-color: {PANEL};
-}}
-
-QLineEdit[readOnly="true"] {{
-    color: {TEXT};
-}}
-
-QSpinBox {{
-    padding-right: 24px;
-}}
-
-QSpinBox::up-button, QSpinBox::down-button {{
-    width: 18px;
-    background-color: {PANEL_RAISED};
-    border-left: 1px solid {BORDER};
 }}
 
 QPushButton {{
@@ -281,20 +352,45 @@ QMenu {{
 }}
 
 QComboBox {{
-    color: {TEXT};
-    background-color: {INPUT_BACKGROUND};
-    border: 1px solid {BORDER};
-    border-radius: 5px;
-    padding: 6px 9px;
+    padding-right: 35px;
 }}
 
 QComboBox:focus {{
-    border-color: {GREEN};
+    padding-right: 34px;
+}}
+
+QComboBox::drop-down {{
+    subcontrol-origin: padding;
+    subcontrol-position: top right;
+    width: 29px;
+    background-color: #18291e;
+    border-left: 1px solid {INPUT_BORDER};
+    border-top-right-radius: 5px;
+    border-bottom-right-radius: 5px;
+}}
+
+QComboBox::drop-down:hover {{
+    background-color: {GREEN_DARK};
+    border-left-color: {GREEN};
+}}
+
+QComboBox::down-arrow {{
+    image: url({_ARROW_DOWN});
+    width: 10px;
+    height: 10px;
+}}
+
+QComboBox:disabled::drop-down {{
+    background-color: #111912;
+    border-left-color: #25382b;
 }}
 
 QComboBox QAbstractItemView {{
     color: {TEXT};
-    background-color: {PANEL};
+    background-color: {INPUT_SURFACE};
+    border: 1px solid {INPUT_BORDER_HOVER};
+    outline: 0;
+    padding: 3px;
     selection-color: {GREEN_BRIGHT};
     selection-background-color: {GREEN_DARK};
 }}
@@ -614,6 +710,7 @@ def apply_theme(app: QApplication, name: str = DEFAULT_THEME) -> None:
     panel_raised = "#f8faf8" if is_light else PANEL_RAISED
     input_background = "#ffffff" if is_light else INPUT_BACKGROUND
     text = "#26342d" if is_light else TEXT
+    placeholder_text = "#718078" if is_light else "#9abca4"
     accent = "#287a4d" if is_light else GREEN
     highlighted_text = "#ffffff" if is_light else BACKGROUND
 
@@ -628,6 +725,7 @@ def apply_theme(app: QApplication, name: str = DEFAULT_THEME) -> None:
     palette.setColor(QPalette.ColorRole.Button, QColor(panel_raised))
     palette.setColor(QPalette.ColorRole.ButtonText, QColor(text))
     palette.setColor(QPalette.ColorRole.BrightText, QColor(accent))
+    palette.setColor(QPalette.ColorRole.PlaceholderText, QColor(placeholder_text))
     palette.setColor(QPalette.ColorRole.Highlight, QColor(accent))
     palette.setColor(QPalette.ColorRole.HighlightedText, QColor(highlighted_text))
     app.setPalette(palette)
