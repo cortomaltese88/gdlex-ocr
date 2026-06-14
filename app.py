@@ -19,6 +19,7 @@ def main() -> int:
     app.setApplicationName(APP_NAME)
     app.setApplicationVersion(APP_VERSION)
     app.setOrganizationName("GD LEX")
+    app.setDesktopFileName("gdlex-ocr")
     icon = application_icon()
     if not icon.isNull():
         app.setWindowIcon(icon)

@@ -48,6 +48,11 @@ class ApplicationIconTest(unittest.TestCase):
 
 
 class DesktopFileTest(unittest.TestCase):
+    def test_application_uses_launcher_desktop_file_name(self) -> None:
+        entry_point = (PROJECT_ROOT / "app.py").read_text(encoding="utf-8")
+
+        self.assertIn('app.setDesktopFileName("gdlex-ocr")', entry_point)
+
     def test_launcher_has_required_values(self) -> None:
         parser = configparser.ConfigParser(interpolation=None)
         parser.optionxform = str
