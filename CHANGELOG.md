@@ -4,6 +4,8 @@ Tutte le modifiche rilevanti del progetto saranno documentate in questo file.
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-06-14
+
 ### Funzionalità
 
 - Ogni elaborazione OCR/convert genera un file `manifest.json` nella cartella

@@ -1,8 +1,8 @@
-# Checklist release v0.1.2
+# Checklist release v0.1.3
 
 ## Pre-release
 
-- [x] Verificare che `gdlex_ocr/version.py` riporti `0.1.2`.
+- [x] Verificare che `gdlex_ocr/version.py` riporti `0.1.3`.
 - [x] Verificare coerenza tra README, changelog e comportamento della GUI.
 - [x] Controllare che `requirements.txt` contenga versioni fissate e installabili.
 - [x] Rileggere `THIRD_PARTY_NOTICES.md` e aggiornare le evidenze di licenza.
@@ -25,7 +25,7 @@ git diff --check
 - [x] Verificare che directory temporanee `.gdlex_ocr_*` non siano incluse.
 - [ ] Controllare manualmente screenshot e metadati delle immagini prima della pubblicazione.
 
-## Perimetro test v0.1.2
+## Perimetro test v0.1.3
 
 - [x] Non eseguire OCR reale durante la preparazione della release.
 - [x] Usare esclusivamente smoke test e fixture sintetiche.
@@ -57,21 +57,21 @@ git diff
 ## Packaging
 
 - [x] Applicare la scelta descritta in `PACKAGING.md`.
-- [x] Non incorporare la `.venv` nel pacchetto v0.1.2.
+- [x] Non incorporare la `.venv` nel pacchetto v0.1.3.
 - [ ] Se viene creato un `.deb`, verificarne contenuto, dipendenze e copyright in ambiente pulito.
 - [x] Verificare il `.deb` con `dpkg-deb`, estrazione temporanea e `lintian`.
 - [x] Non includere modelli Docling/ONNX senza inventario e verifica delle licenze.
 - [x] Confermare che OCRmyPDF e Tesseract restino dipendenze opzionali di sistema.
-- [ ] Installare il pacchetto v0.1.2 con `sudo apt install`.
-- [ ] Eseguire `gdlex-ocr --doctor` sulla v0.1.2 installata.
+- [ ] Installare il pacchetto v0.1.3 con `sudo apt install`.
+- [ ] Eseguire `gdlex-ocr --doctor` sulla v0.1.3 installata.
 
 ```bash
 bash scripts/build-deb.sh
-dpkg-deb --info dist/gdlex-ocr_0.1.2_all.deb
-dpkg-deb --contents dist/gdlex-ocr_0.1.2_all.deb | \
+dpkg-deb --info dist/gdlex-ocr_0.1.3_all.deb
+dpkg-deb --contents dist/gdlex-ocr_0.1.3_all.deb | \
   grep -E '(\.venv|__pycache__|\.git|\.pdf|run\.log|Fascicolo|Downloads|Documenti)' || true
-(cd dist && sha256sum -c gdlex-ocr_0.1.2_all.deb.sha256)
-sudo apt install ./dist/gdlex-ocr_0.1.2_all.deb
+(cd dist && sha256sum -c gdlex-ocr_0.1.3_all.deb.sha256)
+sudo apt install ./dist/gdlex-ocr_0.1.3_all.deb
 /usr/bin/gdlex-ocr --doctor
 ```
 
@@ -82,10 +82,10 @@ Eseguirli solo dopo approvazione esplicita e dopo aver creato il commit di
 release:
 
 ```bash
-git tag -a v0.1.2 -m "GD LEX OCR v0.1.2"
+git tag -a v0.1.3 -m "GD LEX OCR v0.1.3"
 git push origin main
-git push origin v0.1.2
-gh release create v0.1.2 --title "GD LEX OCR v0.1.2" \
+git push origin v0.1.3
+gh release create v0.1.3 --title "GD LEX OCR v0.1.3" \
   --notes-file CHANGELOG.md
 ```
 
