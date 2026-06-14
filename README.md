@@ -11,7 +11,10 @@ convertire fascicoli e documenti PDF in Markdown tramite Docling.
 - Un ambiente virtuale Python
 - Le dipendenze elencate in `requirements.txt`
 
-Dipendenze principali:
+### Dipendenze Python
+
+Le dipendenze Python dirette, installate nell'ambiente virtuale e usate per
+l'applicazione e la conversione PDF → Markdown, sono:
 
 | Pacchetto      | Versione  | Scopo                                    |
 |----------------|-----------|------------------------------------------|
@@ -20,7 +23,7 @@ Dipendenze principali:
 | PySide6        | 6.11.1    | Interfaccia grafica                      |
 | pypdf          | 6.13.2    | Suddivisione in blocchi PDF e segnalibri |
 
-### Dipendenze di sistema opzionali (PDF ricercabile)
+### Strumenti di sistema opzionali (PDF ricercabile)
 
 Per la funzione **PDF ricercabile OCR** sono necessari strumenti di sistema
 non inclusi in `requirements.txt`:
@@ -139,13 +142,22 @@ dipende. L'applicazione non effettua upload cloud dei documenti; download,
 cache e gestione di dipendenze e modelli restano soggetti al comportamento e
 alle configurazioni dei relativi progetti upstream.
 
-## Licenza
+## Licenze e componenti terzi
 
 GD LEX OCR è © 2026 Studio GD LEX - Avv. Marco Gianese ed è rilasciato con
-licenza MIT. Il progetto usa Docling, RapidOCR, PySide6 e dipendenze
-di terze parti: il codebase di Docling è distribuito con licenza MIT, mentre
-per i modelli OCR e di analisi del layout e per le altre dipendenze si
-applicano le rispettive licenze upstream.
+licenza MIT; il testo completo è nel file `LICENSE`.
+
+L'applicazione usa dipendenze Python installate nell'ambiente virtuale
+(`docling`, `onnxruntime`, `PySide6` e `pypdf`). OCRmyPDF, Tesseract e il
+modello linguistico italiano sono invece strumenti di sistema opzionali,
+richiamati solo quando viene richiesta la creazione del PDF ricercabile e non
+sono inclusi nel repository.
+
+Licenze rilevate, modalità di distribuzione e note operative sono raccolte in
+[`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md). Le dipendenze transitive e
+i modelli eventualmente scaricati da Docling conservano le rispettive licenze
+upstream e devono essere verificati separatamente prima di distribuirli in un
+pacchetto autonomo.
 
 Il software è pensato per elaborare i documenti localmente. Il PDF originale
 viene letto durante l'elaborazione e non viene modificato.

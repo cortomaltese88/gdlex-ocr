@@ -29,10 +29,14 @@ runs/
 !README.md
 !TODO.md
 !ROADMAP.md
+!BENCHMARK.md
+!CHANGELOG.md
+!PACKAGING.md
+!RELEASE_CHECKLIST.md
+!THIRD_PARTY_NOTICES.md
 
 # IDE / OS
 .vscode/
 .idea/
 .DS_Store
 Thumbs.db
-!BENCHMARK.md
