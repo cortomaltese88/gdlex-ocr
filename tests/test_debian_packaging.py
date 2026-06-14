@@ -14,6 +14,70 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
 class DebianPackagingTest(unittest.TestCase):
+    def test_built_debian_package_payload(self) -> None:
+        packages = list((PROJECT_ROOT / "dist").glob("*.deb"))
+        if not packages:
+            self.skipTest("no Debian package found in dist/")
+
+        package = max(packages, key=lambda candidate: candidate.stat().st_mtime)
+        result = subprocess.run(
+            ["dpkg-deb", "--contents", str(package)],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(
+            0,
+            result.returncode,
+            f"could not inspect {package.name}: {result.stderr}",
+        )
+
+        payload = {
+            fields[5].split(" -> ", 1)[0].removeprefix(".")
+            for line in result.stdout.splitlines()
+            if len(fields := line.split(maxsplit=5)) == 6
+        }
+        for required in (
+            "/usr/bin/gdlex-ocr",
+            "/usr/lib/gdlex-ocr/app.py",
+            "/usr/lib/gdlex-ocr/gdlex_ocr/gui.py",
+            "/usr/lib/gdlex-ocr/gdlex_ocr/splash.py",
+            "/usr/lib/gdlex-ocr/gdlex_ocr/tray.py",
+            "/usr/lib/gdlex-ocr/gdlex_ocr/icons.py",
+            "/usr/lib/gdlex-ocr/gdlex_ocr/version.py",
+            "/usr/share/applications/gdlex-ocr.desktop",
+            "/usr/share/man/man1/gdlex-ocr.1.gz",
+            "/usr/share/icons/hicolor/64x64/apps/gdlex-ocr.png",
+            "/usr/share/icons/hicolor/128x128/apps/gdlex-ocr.png",
+        ):
+            with self.subTest(required=required, package=package.name):
+                self.assertIn(required, payload)
+
+        forbidden = (
+            ".venv",
+            "__pycache__",
+            ".git",
+            ".pdf",
+            "run.log",
+            "Fascicolo",
+            "Downloads",
+            "Documenti",
+        )
+        unexpected = sorted(
+            path
+            for path in payload
+            if any(
+                marker in path.lower()
+                if marker == ".pdf"
+                else marker in path
+                for marker in forbidden
+            )
+        )
+        self.assertFalse(
+            unexpected,
+            f"{package.name} contains forbidden payload entries: {unexpected}",
+        )
+
     def test_build_script_has_required_payload_and_exclusions(self) -> None:
         script = (
             PROJECT_ROOT / "scripts" / "build-deb.sh"
