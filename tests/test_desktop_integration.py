@@ -43,7 +43,7 @@ class DesktopFileTest(unittest.TestCase):
         self.assertEqual("gdlex-ocr", entry["Icon"])
         self.assertEqual("false", entry["Terminal"])
         self.assertEqual("Application", entry["Type"])
-        self.assertEqual("Office;Utility;", entry["Categories"])
+        self.assertEqual("Office;", entry["Categories"])
         self.assertEqual("true", entry["StartupNotify"])
 
 
