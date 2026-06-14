@@ -33,6 +33,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from gdlex_ocr.icons import tray_icon
 from gdlex_ocr.pdf_splitter import PdfSplitError, count_pdf_pages
 from gdlex_ocr.profiles import DEFAULT_PROFILE, PROFILE_NAMES, PROFILES
 from gdlex_ocr.searchable_pdf import INSTALL_HINT, is_ocrmypdf_available
@@ -466,7 +467,7 @@ class MainWindow(QMainWindow):
             return
         self.tray = GdlexOcrTray(
             self,
-            icon=self.windowIcon(),
+            icon=tray_icon(),
             toggle_window=self._toggle_window_from_tray,
             show_window=self._show_window_from_tray,
             open_output_folder=self._open_output_folder,

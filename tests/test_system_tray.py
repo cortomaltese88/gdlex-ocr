@@ -8,6 +8,7 @@ from unittest.mock import MagicMock, patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
+from PySide6.QtCore import QSize
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication, QMessageBox, QWidget
 
@@ -76,6 +77,9 @@ class SystemTrayTest(unittest.TestCase):
             window = MainWindow()
 
         tray_cls.assert_called_once()
+        tray_icon = tray_cls.call_args.kwargs["icon"]
+        self.assertFalse(tray_icon.isNull())
+        self.assertIn(QSize(64, 64), tray_icon.availableSizes())
         self.assertIs(fake_tray, window.tray)
         self.assertFalse(self.app.quitOnLastWindowClosed())
         window.tray = None

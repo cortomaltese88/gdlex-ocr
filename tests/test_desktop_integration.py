@@ -7,6 +7,8 @@ import unittest
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
+from gdlex_ocr.icons import application_icon_paths, tray_icon_path
+
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
@@ -25,6 +27,24 @@ class ApplicationIconTest(unittest.TestCase):
             encoding="utf-8"
         )
         self.assertIn('id="OCR-monogram"', text)
+
+    def test_application_icon_uses_known_raster_sizes(self) -> None:
+        paths = application_icon_paths()
+
+        self.assertEqual(
+            tuple(
+                PROJECT_ROOT / "assets" / f"icon-{size}.png"
+                for size in (32, 48, 64, 128, 256)
+            ),
+            paths,
+        )
+        self.assertTrue(all(path.is_file() for path in paths))
+
+    def test_tray_icon_is_fixed_size_png(self) -> None:
+        path = tray_icon_path()
+
+        self.assertEqual(PROJECT_ROOT / "assets" / "icon-64.png", path)
+        self.assertTrue(path.is_file())
 
 
 class DesktopFileTest(unittest.TestCase):
