@@ -27,7 +27,7 @@ originale è sempre trattato in sola lettura e non viene mai modificato.
 
 - [ ] Aggiungere un'anteprima Markdown locale, in sola lettura, senza alterare
   il file generato.
-- [ ] Definire controlli automatici minimi per conteggio pagine, suddivisione
+- [x] Definire controlli automatici minimi per conteggio pagine, suddivisione
   in blocchi, unione Markdown e gestione dei percorsi di output.
 - [ ] Valutare un indice iniziale del fascicolo con collegamenti o riferimenti
   alle sezioni prodotte.

@@ -37,6 +37,14 @@ source .venv/bin/activate
 python app.py
 ```
 
+## Test
+
+La suite smoke offline usa solo fixture sintetiche e non avvia Docling:
+
+```bash
+bash scripts/smoke.sh
+```
+
 ## Profili di elaborazione
 
 L'applicazione offre tre profili selezionabili dalla GUI. Il default è **Bilanciato**.

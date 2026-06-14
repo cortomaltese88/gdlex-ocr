@@ -15,6 +15,55 @@ from typing import Callable, Literal
 TableMode = Literal["fast", "accurate"]
 
 
+def build_docling_command(
+    executable: str,
+    source_pdf: str | Path,
+    output_dir: str | Path,
+    *,
+    table_mode: TableMode | None = None,
+    num_threads: int | None = None,
+    page_batch_size: int | None = None,
+    enable_ocr: bool = True,
+    enrich_picture: bool = True,
+    enrich_chart: bool = True,
+) -> list[str]:
+    """Build the Docling CLI command without starting a subprocess."""
+    if table_mode not in (None, "fast", "accurate"):
+        raise ValueError(
+            "table_mode deve essere 'fast', 'accurate' oppure None."
+        )
+
+    command = [
+        executable,
+        str(source_pdf),
+        "--from",
+        "pdf",
+        "--to",
+        "md",
+        "--output",
+        str(output_dir),
+        "--image-export-mode",
+        "placeholder",
+        "--ocr" if enable_ocr else "--no-ocr",
+        "--abort-on-error",
+        "-v",
+    ]
+    if table_mode is not None:
+        command.extend(["--table-mode", table_mode])
+    if num_threads is not None:
+        command.extend(["--num-threads", str(num_threads)])
+    if page_batch_size is not None:
+        command.extend(["--page-batch-size", str(page_batch_size)])
+    if not enrich_picture:
+        command.extend([
+            "--no-enrich-picture-classes",
+            "--no-enrich-picture-description",
+        ])
+    if not enrich_chart:
+        command.append("--no-enrich-chart-extraction")
+    return command
+
+
 class DoclingError(RuntimeError):
     """Raised when Docling cannot be started or finishes unsuccessfully."""
 
@@ -58,43 +107,22 @@ class DoclingRunner:
     ) -> Path:
         if self._cancel_requested.is_set():
             raise DoclingCancelled("Elaborazione annullata.")
-        if table_mode not in (None, "fast", "accurate"):
-            raise ValueError(
-                "table_mode deve essere 'fast', 'accurate' oppure None."
-            )
 
         source = Path(source_pdf)
         destination = Path(output_dir)
         destination.mkdir(parents=True, exist_ok=True)
         expected_markdown = destination / f"{source.stem}.md"
-        command = [
+        command = build_docling_command(
             self.find_executable(),
-            str(source),
-            "--from",
-            "pdf",
-            "--to",
-            "md",
-            "--output",
-            str(destination),
-            "--image-export-mode",
-            "placeholder",
-            "--ocr" if enable_ocr else "--no-ocr",
-            "--abort-on-error",
-            "-v",
-        ]
-        if table_mode is not None:
-            command.extend(["--table-mode", table_mode])
-        if num_threads is not None:
-            command.extend(["--num-threads", str(num_threads)])
-        if page_batch_size is not None:
-            command.extend(["--page-batch-size", str(page_batch_size)])
-        if not enrich_picture:
-            command.extend([
-                "--no-enrich-picture-classes",
-                "--no-enrich-picture-description",
-            ])
-        if not enrich_chart:
-            command.append("--no-enrich-chart-extraction")
+            source,
+            destination,
+            table_mode=table_mode,
+            num_threads=num_threads,
+            page_batch_size=page_batch_size,
+            enable_ocr=enable_ocr,
+            enrich_picture=enrich_picture,
+            enrich_chart=enrich_chart,
+        )
 
         if log_callback:
             log_callback(f"Comando: {' '.join(command)}")
