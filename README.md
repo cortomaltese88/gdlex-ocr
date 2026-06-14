@@ -19,3 +19,13 @@ python app.py
 L'OCR viene eseguito localmente: nessun documento viene caricato su servizi
 cloud. Il PDF originale viene solo letto; i blocchi PDF e Markdown intermedi
 sono conservati in una sottocartella `.gdlex_ocr_*` nella cartella di output.
+
+## Licenza
+
+GD LEX OCR è rilasciato con licenza MIT. Il progetto usa Docling e dipendenze
+di terze parti: il codebase di Docling è distribuito con licenza MIT, mentre
+per i modelli OCR e di analisi del layout e per le altre dipendenze si
+applicano le rispettive licenze upstream.
+
+Il software è pensato per elaborare i documenti localmente. Il PDF originale
+viene letto durante l'elaborazione e non viene modificato.
