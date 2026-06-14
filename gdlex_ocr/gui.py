@@ -27,6 +27,7 @@ from PySide6.QtWidgets import (
     QProgressBar,
     QPushButton,
     QSpinBox,
+    QSystemTrayIcon,
     QTextEdit,
     QVBoxLayout,
     QWidget,
@@ -41,6 +42,7 @@ from gdlex_ocr.theme import (
     load_theme_name,
     save_theme_name,
 )
+from gdlex_ocr.tray import GdlexOcrTray
 from gdlex_ocr.version import (
     APP_NAME,
     APP_SUBTITLE,
@@ -56,6 +58,15 @@ _OCR_LANGUAGES = [
     ("Francese", "fra"),
     ("Tedesco", "deu"),
 ]
+
+
+def _tray_enabled() -> bool:
+    if os.environ.get("GDLEX_OCR_DISABLE_TRAY") == "1":
+        return False
+    app = QApplication.instance()
+    if app is not None and app.platformName().lower() == "offscreen":
+        return False
+    return True
 
 
 def resolve_output_path(value: str) -> Path:
@@ -127,6 +138,9 @@ class MainWindow(QMainWindow):
         super().__init__()
         self._worker: OcrWorker | None = None
         self._close_after_cancel = False
+        self._tray_real_quit_requested = False
+        self._tray_hide_message_shown = False
+        self.tray: GdlexOcrTray | None = None
         self._final_markdown_path: str | None = None
         self._searchable_pdf_path: str | None = None
         self._create_searchable_requested = False
@@ -134,6 +148,9 @@ class MainWindow(QMainWindow):
         self._theme_actions: dict[str, QAction] = {}
 
         self.setWindowTitle(f"{APP_NAME} {APP_VERSION_LABEL}")
+        app = QApplication.instance()
+        if app is not None and not app.windowIcon().isNull():
+            self.setWindowIcon(app.windowIcon())
         self.setMinimumSize(1020, 780)
         self.resize(1100, 860)
         self._build_menu_bar()
@@ -396,6 +413,7 @@ class MainWindow(QMainWindow):
         button_row.addWidget(self.cancel_button)
 
         root_layout.addLayout(button_row)
+        self._setup_tray()
 
     # ------------------------------------------------------------------
     # Menu bar
@@ -438,6 +456,95 @@ class MainWindow(QMainWindow):
 
     def _show_about(self) -> None:
         AboutDialog(self).exec()
+
+    # ------------------------------------------------------------------
+    # System tray
+    # ------------------------------------------------------------------
+
+    def _setup_tray(self) -> None:
+        if not _tray_enabled():
+            return
+        self.tray = GdlexOcrTray(
+            self,
+            icon=self.windowIcon(),
+            toggle_window=self._toggle_window_from_tray,
+            show_window=self._show_window_from_tray,
+            open_output_folder=self._open_output_folder,
+            quit_app=self._quit_from_tray,
+        )
+        if self._tray_is_available():
+            app = QApplication.instance()
+            if app is not None:
+                app.setQuitOnLastWindowClosed(False)
+
+    def _tray_is_available(self) -> bool:
+        return self.tray is not None and self.tray.is_available()
+
+    def _show_window_from_tray(self) -> None:
+        if self.isMinimized():
+            self.showNormal()
+        elif not self.isVisible():
+            self.show()
+        self.raise_()
+        self.activateWindow()
+
+    def _toggle_window_from_tray(self) -> None:
+        if self.isVisible() and not self.isMinimized():
+            self.hide()
+            return
+        self._show_window_from_tray()
+
+    def _show_tray_hide_message_once(self) -> None:
+        if self.tray is None or self._tray_hide_message_shown:
+            return
+        self._tray_hide_message_shown = True
+        self.tray.show_message(
+            APP_NAME,
+            f"{APP_NAME} continua in background nell'area di notifica.",
+        )
+
+    def _cleanup_tray(self) -> None:
+        if self.tray is None:
+            return
+        self.tray.cleanup()
+        self.tray = None
+
+    def _quit_from_tray(self) -> None:
+        if self._tray_real_quit_requested:
+            return
+        if self._worker is not None and self._worker.isRunning():
+            self._show_window_from_tray()
+            answer = QMessageBox.question(
+                self,
+                "Elaborazione in corso",
+                "Annullare l'elaborazione e uscire dall'applicazione?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
+            if answer != QMessageBox.StandardButton.Yes:
+                return
+            self._tray_real_quit_requested = True
+            self._close_after_cancel = True
+            self._cancel()
+            return
+
+        self._tray_real_quit_requested = True
+        self._cleanup_tray()
+        app = QApplication.instance()
+        if app is not None:
+            app.setQuitOnLastWindowClosed(True)
+        QTimer.singleShot(0, self.close)
+        if app is not None:
+            QTimer.singleShot(0, app.quit)
+
+    def _show_tray_message(
+        self,
+        title: str,
+        message: str,
+        icon: QSystemTrayIcon.MessageIcon = QSystemTrayIcon.MessageIcon.Information,
+    ) -> None:
+        if self.tray is not None:
+            self.tray.show_message(title, message, icon)
 
     # ------------------------------------------------------------------
     # Profile / PDF options
@@ -658,15 +765,23 @@ class MainWindow(QMainWindow):
             if self._create_searchable_requested
             else ""
         )
-        QMessageBox.information(
-            self,
-            "Elaborazione completata",
+        completion_message = (
             f"Markdown creato:\n{final_path}\n\n"
             f"Durata totale: {duration_text}\n"
             f"Velocità: {speed_text}"
             f"{pdf_note}\n\n"
-            f"Output intermedi:\n{work_dir}",
+            f"Output intermedi:\n{work_dir}"
         )
+        self._show_tray_message(
+            "Elaborazione completata",
+            f"Markdown creato: {final_path}",
+        )
+        if self.isVisible():
+            QMessageBox.information(
+                self,
+                "Elaborazione completata",
+                completion_message,
+            )
 
     def _cancelled(self, work_dir: str) -> None:
         self.status_label.setText("Elaborazione annullata")
@@ -680,11 +795,17 @@ class MainWindow(QMainWindow):
     def _failed(self, message: str) -> None:
         self.status_label.setText("Elaborazione terminata con errore")
         self.eta_label.setText("ETA: --")
-        QMessageBox.critical(
-            self,
-            "Errore di elaborazione",
-            f"{message}\n\nConsultare run.log nella cartella di output.",
+        self._show_tray_message(
+            "Errore OCR",
+            message,
+            QSystemTrayIcon.MessageIcon.Critical,
         )
+        if self.isVisible():
+            QMessageBox.critical(
+                self,
+                "Errore di elaborazione",
+                f"{message}\n\nConsultare run.log nella cartella di output.",
+            )
 
     def _on_searchable_pdf_done(self, path: str) -> None:
         self._searchable_pdf_path = path
@@ -692,11 +813,17 @@ class MainWindow(QMainWindow):
         self._append_log(f"PDF ricercabile disponibile: {path}")
 
     def _on_searchable_pdf_error(self, message: str) -> None:
-        QMessageBox.warning(
-            self,
-            "Errore PDF ricercabile",
-            f"Impossibile creare il PDF ricercabile:\n\n{message}",
+        self._show_tray_message(
+            "Errore OCR",
+            f"PDF ricercabile non creato: {message}",
+            QSystemTrayIcon.MessageIcon.Critical,
         )
+        if self.isVisible():
+            QMessageBox.warning(
+                self,
+                "Errore PDF ricercabile",
+                f"Impossibile creare il PDF ricercabile:\n\n{message}",
+            )
 
     def _worker_finished(self) -> None:
         worker = self._worker
@@ -706,7 +833,12 @@ class MainWindow(QMainWindow):
             worker.deleteLater()
         if self._close_after_cancel:
             self._close_after_cancel = False
+            app = QApplication.instance()
+            if self._tray_real_quit_requested and app is not None:
+                app.setQuitOnLastWindowClosed(True)
             QTimer.singleShot(0, self.close)
+            if self._tray_real_quit_requested and app is not None:
+                QTimer.singleShot(0, app.quit)
 
     # ------------------------------------------------------------------
     # UI state helpers
@@ -796,6 +928,17 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
 
     def closeEvent(self, event: QCloseEvent) -> None:
+        if self._tray_real_quit_requested:
+            self._cleanup_tray()
+            event.accept()
+            return
+
+        if self._tray_is_available():
+            event.ignore()
+            self.hide()
+            self._show_tray_hide_message_once()
+            return
+
         if self._worker is None or not self._worker.isRunning():
             event.accept()
             return
