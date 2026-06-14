@@ -1,38 +1,38 @@
-"""Add PDF outline (bookmarks) to a PDF file using pypdf."""
+"""Low-level PDF outline helpers using pypdf."""
 
 from __future__ import annotations
 
+from collections.abc import Iterable
+from dataclasses import dataclass
 from pathlib import Path
 
 from pypdf import PdfReader, PdfWriter
 
 
-def add_block_bookmarks(
+@dataclass(frozen=True, slots=True)
+class PdfOutlineItem:
+    title: str
+    page_index: int
+
+
+def add_outline_items(
     pdf_path: str | Path,
-    block_size: int,
-    total_pages: int | None = None,
+    items: Iterable[PdfOutlineItem],
 ) -> None:
-    """Add page-range bookmarks to *pdf_path*, replacing the file in-place.
-
-    Creates entries like "Pagine 1–15", "Pagine 16–30", … using *block_size*
-    as the interval. Compatible with standard PDF outline viewers (Okular,
-    Evince, Adobe Reader, Firefox/Chrome).
-    """
-    if block_size < 1:
-        raise ValueError("block_size deve essere almeno 1.")
-
+    """Add *items* to *pdf_path*, replacing the file in-place."""
     path = Path(pdf_path)
     reader = PdfReader(path)
     page_count = len(reader.pages)
-    n_pages = min(total_pages, page_count) if total_pages is not None else page_count
 
     writer = PdfWriter()
     writer.clone_document_from_reader(reader)
 
-    for zero_start in range(0, n_pages, block_size):
-        zero_end = min(zero_start + block_size, n_pages)
-        title = f"Pagine {zero_start + 1}–{zero_end}"
-        writer.add_outline_item(title, zero_start)
+    for item in items:
+        if not item.title.strip():
+            continue
+        if item.page_index < 0 or item.page_index >= page_count:
+            continue
+        writer.add_outline_item(item.title, item.page_index)
 
     tmp = path.with_suffix(".tmp_outline.pdf")
     replaced = False
@@ -44,3 +44,43 @@ def add_block_bookmarks(
     finally:
         if not replaced:
             tmp.unlink(missing_ok=True)
+
+
+def technical_fallback_items(
+    block_size: int,
+    total_pages: int,
+) -> list[PdfOutlineItem]:
+    """Return clearly labelled page-range entries for technical fallback."""
+    if block_size < 1:
+        raise ValueError("block_size deve essere almeno 1.")
+    if total_pages < 0:
+        raise ValueError("total_pages non può essere negativo.")
+
+    return [
+        PdfOutlineItem(
+            f"Fallback tecnico - Pagine {zero_start + 1}–{zero_end}",
+            zero_start,
+        )
+        for zero_start in range(0, total_pages, block_size)
+        for zero_end in [min(zero_start + block_size, total_pages)]
+    ]
+
+
+def add_technical_fallback_bookmarks(
+    pdf_path: str | Path,
+    block_size: int,
+    total_pages: int | None = None,
+) -> None:
+    """Add clearly labelled page-range fallback bookmarks to *pdf_path*.
+
+    This is intentionally not the primary outline strategy. It is used only
+    when content-aware extraction cannot find enough reliable act titles.
+    """
+    if block_size < 1:
+        raise ValueError("block_size deve essere almeno 1.")
+
+    path = Path(pdf_path)
+    reader = PdfReader(path)
+    page_count = len(reader.pages)
+    n_pages = min(total_pages, page_count) if total_pages is not None else page_count
+    add_outline_items(path, technical_fallback_items(block_size, n_pages))
