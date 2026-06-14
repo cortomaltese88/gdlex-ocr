@@ -71,26 +71,33 @@ class DoclingRunner:
         if log_callback:
             log_callback(f"Comando: {' '.join(command)}")
 
-        try:
-            process = subprocess.Popen(
-                command,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                bufsize=1,
-                start_new_session=True,
-            )
-        except OSError as exc:
-            raise DoclingError(f"Impossibile avviare Docling: {exc}") from exc
-
         with self._lock:
+            try:
+                process = subprocess.Popen(
+                    command,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    bufsize=1,
+                    start_new_session=True,
+                )
+            except OSError as exc:
+                raise DoclingError(
+                    f"Impossibile avviare Docling: {exc}"
+                ) from exc
             self._process = process
+
         if self._cancel_requested.is_set():
             self._terminate_process(process)
 
         output_lines: list[str] = []
         try:
-            assert process.stdout is not None
+            if process.stdout is None:
+                self._terminate_process(process)
+                process.wait()
+                raise DoclingError(
+                    "Impossibile leggere l'output del processo Docling."
+                )
             for raw_line in process.stdout:
                 line = raw_line.rstrip()
                 if line:

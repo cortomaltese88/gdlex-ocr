@@ -12,6 +12,7 @@ __pycache__/
 .env.*
 
 # GD LEX OCR outputs / sensitive files
+.gdlex_ocr_*/
 output/
 outputs/
 tmp/

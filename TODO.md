@@ -36,6 +36,12 @@ originale è sempre trattato in sola lettura e non viene mai modificato.
 
 ## Priorità futura
 
+- [ ] Valutare la pulizia opzionale dei PDF e Markdown intermedi al termine
+  dell'elaborazione, mantenendo la conservazione come comportamento sicuro.
+- [ ] Migliorare il logging buffered del processo Docling per rendere più
+  regolare l'aggiornamento dei messaggi durante elaborazioni lunghe.
+- [ ] Verificare il comportamento del process group Docling durante un OCR
+  reale, inclusi annullamento, `SIGTERM` e fallback `SIGKILL`.
 - [ ] Preparare il packaging `.deb`, dopo aver stabilizzato dipendenze,
   installazione di Docling e comportamento sui sistemi di destinazione.
 - [ ] Valutare profili OCR specifici per differenti categorie documentali,

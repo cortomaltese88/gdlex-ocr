@@ -14,7 +14,11 @@ from gdlex_ocr.docling_runner import (
     DoclingError,
     DoclingRunner,
 )
-from gdlex_ocr.markdown_merge import MarkdownBlock, merge_markdown
+from gdlex_ocr.markdown_merge import (
+    MarkdownBlock,
+    MarkdownMergeError,
+    merge_markdown,
+)
 from gdlex_ocr.pdf_splitter import PdfSplitError, count_pdf_pages, split_pdf
 
 
@@ -122,9 +126,10 @@ class OcrWorker(QThread):
                 self.progress_changed.emit(percent, eta_text)
 
             self._raise_if_cancelled()
+            final_output_path = self._next_output_path()
             final_path = merge_markdown(
                 partials,
-                self.output_dir / "fascicolo_ocr.md",
+                final_output_path,
                 self.pdf_path.name,
             )
             self._write_log(f"Markdown finale creato: {final_path}")
@@ -133,7 +138,13 @@ class OcrWorker(QThread):
             self.completed.emit(str(final_path), str(self._work_dir))
         except DoclingCancelled:
             self._handle_cancelled()
-        except (PdfSplitError, DoclingError, OSError, ValueError) as exc:
+        except (
+            PdfSplitError,
+            DoclingError,
+            MarkdownMergeError,
+            OSError,
+            ValueError,
+        ) as exc:
             self._write_log(f"ERRORE: {exc}")
             self.failed.emit(str(exc))
         except Exception as exc:
@@ -149,6 +160,20 @@ class OcrWorker(QThread):
         location = str(self._work_dir) if self._work_dir else str(self.output_dir)
         self._write_log("Elaborazione annullata dall'utente.")
         self.cancelled.emit(location)
+
+    def _next_output_path(self) -> Path:
+        base_path = self.output_dir / f"{self.pdf_path.stem}_ocr.md"
+        if not base_path.exists():
+            return base_path
+
+        suffix = 2
+        while True:
+            candidate = self.output_dir / (
+                f"{self.pdf_path.stem}_ocr_{suffix}.md"
+            )
+            if not candidate.exists():
+                return candidate
+            suffix += 1
 
     def _write_log(self, message: str) -> None:
         timestamped = (
