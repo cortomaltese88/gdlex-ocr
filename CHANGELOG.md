@@ -2,6 +2,25 @@
 
 Tutte le modifiche rilevanti del progetto saranno documentate in questo file.
 
+## [0.1.1] - 2026-06-14
+
+### Correzioni
+
+- Il wrapper Debian crea al primo avvio la venv utente in
+  `~/.local/share/gdlex-ocr/venv` e installa automaticamente le dipendenze.
+- Se gli import essenziali non sono disponibili, il wrapper prova ad aggiornare
+  la venv senza richiedere istruzioni manuali o privilegi amministrativi.
+- Il setup usa un lock per evitare avvii concorrenti e scrive il log in
+  `~/.local/state/gdlex-ocr/setup.log`.
+- In caso di errore viene mostrato un messaggio da terminale e, quando
+  disponibile, un dialogo tramite KDialog o Zenity.
+
+### Strumenti
+
+- Aggiunti `gdlex-ocr --setup-venv` e `gdlex-ocr --doctor`.
+- Aggiornati test e controlli del pacchetto Debian per escludere venv, cache,
+  documenti e log dal payload.
+
 ## [0.1.0] - 2026-06-14
 
 Prima release pubblica di GD LEX OCR.

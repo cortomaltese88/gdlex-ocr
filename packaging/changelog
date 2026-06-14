@@ -1,3 +1,10 @@
+gdlex-ocr (0.1.1) unstable; urgency=medium
+
+  * Create and maintain the per-user Python environment at first launch.
+  * Add launcher setup and runtime diagnostic commands.
+
+ -- Studio GD LEX <cortomaltese88@users.noreply.github.com>  Sun, 14 Jun 2026 20:00:00 +0200
+
 gdlex-ocr (0.1.0) unstable; urgency=medium
 
   * Initial public release.

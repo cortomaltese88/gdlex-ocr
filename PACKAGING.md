@@ -1,99 +1,58 @@
 # Piano packaging Debian
 
-## Stato attuale
+## Scelta per v0.1.1
 
-La v0.1.0 usa un pacchetto Debian leggero generato da
+La v0.1.1 usa un pacchetto Debian leggero generato da
 `scripts/build-deb.sh`. Il pacchetto installa sorgenti, asset, file desktop,
 icone, documentazione e il wrapper `/usr/bin/gdlex-ocr`.
 
-La distribuzione `.deb` richiede una decisione esplicita su come fornire Python
-3.12, le dipendenze Python non necessariamente disponibili come pacchetti
-Debian, le librerie Qt/PySide6 e gli eventuali modelli scaricati da Docling.
+Il pacchetto non incorpora una venv Python. Il wrapper crea invece, al primo
+avvio e nel contesto dell'utente corrente:
 
-## Opzione A: pacchetto launcher/source leggero
+```text
+~/.local/share/gdlex-ocr/venv
+```
 
-Il `.deb` installa codice sorgente, icone, file desktop e un launcher in
-percorsi di sistema. Le dipendenze Python vengono predisposte separatamente,
-per esempio da uno script amministrato o da istruzioni post-installazione.
+Il setup esegue `python3 -m venv`, aggiorna `pip` e installa le versioni fissate
+in `/usr/share/doc/gdlex-ocr/requirements.txt`. Se la venv esiste ma non espone
+gli import essenziali, il wrapper prova ad aggiornare nuovamente i requirements.
+Non usa `sudo` e non esegue installazioni Python dal `postinst` Debian.
 
-Vantaggi:
+Il log viene scritto in `~/.local/state/gdlex-ocr/setup.log`. Una directory
+`~/.local/state/gdlex-ocr/setup.lock` serializza i tentativi concorrenti. In
+caso di errore il wrapper stampa il percorso del log e usa KDialog o Zenity,
+quando disponibili, per mostrare un avviso grafico sintetico.
 
-- pacchetto piccolo;
-- nessun modello OCR incorporato;
-- OCRmyPDF e Tesseract possono restare `Suggests` o `Recommends`.
+## Comandi operativi
 
-Criticità:
+`gdlex-ocr --setup-venv` forza la creazione o l'aggiornamento della venv e poi
+esce.
 
-- esperienza di installazione incompleta senza una strategia Python definita;
-- installare pacchetti con `pip` durante `postinst` è fragile e non conforme
-  alle normali aspettative di packaging Debian;
-- serve stabilire percorsi, aggiornamenti, disinstallazione e accesso alla rete.
+`gdlex-ocr --doctor` controlla Python, venv, import essenziali, OCRmyPDF,
+Tesseract, lingua italiana e asset installati senza avviare la GUI o eseguire
+OCR. Restituisce:
 
-## Opzione B: pacchetto con ambiente virtuale incorporato
+- `0` se tutti i controlli passano;
+- `1` se manca un componente essenziale;
+- `2` se mancano soltanto strumenti OCR opzionali.
 
-Il `.deb` contiene una `.venv` già popolata con Docling, ONNX Runtime, PySide6,
-pypdf e dipendenze transitive.
+## Contenuto e dipendenze
 
-Vantaggi:
+Il codice applicativo è installato in `/usr/lib/gdlex-ocr`. Docling, ONNX
+Runtime, PySide6 e pypdf vengono installati nella venv utente dal file
+requirements incluso nel pacchetto.
 
-- avvio immediato su un sistema molto simile a quello di build;
-- versioni Python completamente fissate.
+OCRmyPDF, Tesseract e il modello linguistico italiano restano componenti di
+sistema opzionali dichiarati come `Suggests`. La conversione Markdown continua
+a funzionare in loro assenza.
 
-Criticità:
+Il `.deb` non contiene `.venv`, cache Python, repository Git, modelli, PDF,
+output OCR o log. Lo script di build controlla il payload e genera il checksum
+SHA-256 accanto all'artefatto.
 
-- soluzione non raccomandata per v0.1.0;
-- pacchetto grande, poco riproducibile e sensibile ad ABI, architettura e
-  versione di glibc/Python;
-- duplicazione di librerie gestite dal sistema e aggiornamenti di sicurezza più
-  difficili;
-- obblighi di licenza e notice più ampi, in particolare per Qt/PySide6,
-  dipendenze transitive e modelli eventualmente inclusi.
+## Limiti
 
-## Opzione C: sorgente e installazione desktop per utente
-
-La release distribuisce il repository sorgente, `requirements.txt` e gli script
-desktop esistenti. L'utente crea la `.venv`, installa le dipendenze Python e
-registra il launcher senza privilegi amministrativi.
-
-Vantaggi:
-
-- corrisponde al flusso già documentato e testato;
-- non incorpora dipendenze o modelli di terzi;
-- non richiede `sudo` e mantiene OCRmyPDF/Tesseract opzionali.
-
-Criticità:
-
-- richiede preparazione manuale dell'ambiente;
-- il launcher attuale contiene il percorso assoluto del checkout e quindi non è
-  ancora adatto a installazioni generiche o multiutente.
-
-## Scelta per v0.1.0
-
-La release usa una variante minima dell'opzione A:
-
-- codice installato in `/usr/lib/gdlex-ocr`;
-- launcher, icone e wrapper installati nei percorsi di sistema;
-- dipendenze Python fissate in
-  `/usr/share/doc/gdlex-ocr/requirements.txt`, ma non vendorizzate;
-- venv utente esterna in `~/.local/share/gdlex-ocr/venv`, oppure interprete
-  indicato tramite `GDLEX_OCR_PYTHON`;
-- OCRmyPDF e Tesseract dichiarati come componenti opzionali;
-- nessun download o `pip install` eseguito dagli script Debian.
-
-Il pacchetto non contiene `.venv`, cache, modelli, PDF, output OCR o log. Lo
-script di build controlla automaticamente il payload prima di dichiarare
-l'artefatto completato.
-
-Per una release successiva, rendere il pacchetto autosufficiente soltanto dopo
-avere:
-
-1. reso il launcher indipendente dal percorso locale di sviluppo;
-2. scelto una strategia supportata per Python e dipendenze;
-3. generato un inventario completo delle dipendenze transitive e delle licenze;
-4. deciso se e come gestire download, cache e versioni dei modelli;
-5. definito architetture supportate, aggiornamenti e test in una VM pulita;
-6. preparato metadata Debian (`debian/control`, `rules`, `copyright`,
-   `changelog`) e una build riproducibile.
-
-OCRmyPDF, `tesseract-ocr` e `tesseract-ocr-ita` dovrebbero restare componenti
-esterni opzionali, senza essere incorporati nell'artefatto.
+Il primo avvio richiede accesso alla rete e può richiedere tempo e spazio su
+disco per scaricare le dipendenze Python. Anche Docling può scaricare modelli
+upstream al primo utilizzo. Venv, cache e modelli restano dati per-user e non
+vengono rimossi automaticamente disinstallando il pacchetto Debian.

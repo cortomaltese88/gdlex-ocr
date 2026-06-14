@@ -1,8 +1,9 @@
-.TH GDLEX-OCR 1 "June 2026" "GD LEX OCR 0.1.0" "User Commands"
+.TH GDLEX-OCR 1 "June 2026" "GD LEX OCR 0.1.1" "User Commands"
 .SH NAME
 gdlex-ocr \- convert PDF documents to Markdown using local OCR
 .SH SYNOPSIS
 .B gdlex-ocr
+.RI [ options ]
 .SH DESCRIPTION
 .B gdlex-ocr
 starts the GD LEX OCR desktop application.
@@ -10,22 +11,43 @@ The application processes PDF documents locally with Docling and can
 optionally create searchable PDFs using OCRmyPDF and Tesseract.
 .PP
 Python dependencies are not bundled in the Debian package.
-By default the launcher uses
-.IR ~/.local/share/gdlex-ocr/venv/bin/python
-when that environment exists, otherwise it checks
-.IR /usr/bin/python3 .
-.SH ENVIRONMENT
-.TP
-.B GDLEX_OCR_PYTHON
-Path to a compatible Python interpreter with the dependencies listed in
+At first launch the wrapper creates the per-user virtual environment
+.IR ~/.local/share/gdlex-ocr/venv ,
+upgrades pip, and installs the pinned dependencies from
 .IR /usr/share/doc/gdlex-ocr/requirements.txt .
+If essential imports are missing later, the wrapper updates the environment
+before starting the application.
+.SH OPTIONS
+.TP
+.B \-\-setup\-venv
+Force creation or update of the per-user virtual environment, then exit.
+.TP
+.B \-\-doctor
+Print runtime diagnostics without starting the graphical application.
+Exit status is 0 when all checks pass, 1 when essential runtime components
+are missing, and 2 when only optional OCR tools or the Italian Tesseract
+language are missing.
 .SH FILES
+.TP
+.I ~/.local/share/gdlex-ocr/venv
+Per-user Python virtual environment.
+.TP
+.I ~/.local/state/gdlex-ocr/setup.log
+Log of virtual environment creation and dependency installation.
+.TP
+.I ~/.local/state/gdlex-ocr/setup.lock
+Lock directory used to serialize concurrent setup attempts.
 .TP
 .I /usr/lib/gdlex-ocr
 Installed application sources and assets.
 .TP
 .I /usr/share/doc/gdlex-ocr/requirements.txt
 Pinned Python runtime dependencies.
+.SH EXIT STATUS
+.B gdlex-ocr \-\-doctor
+returns 0 when all checks pass, 1 for missing essential components, and 2
+when only optional OCR support is incomplete.
+Setup or application startup failures return a non-zero status.
 .SH SEE ALSO
 .BR ocrmypdf (1),
 .BR tesseract (1)

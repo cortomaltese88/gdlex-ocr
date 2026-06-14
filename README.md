@@ -1,6 +1,6 @@
 # GD LEX OCR
 
-## Versione 0.1.0
+## Versione 0.1.1
 
 GD LEX OCR è un'applicazione desktop locale in Python e PySide6 per
 convertire fascicoli e documenti PDF in Markdown tramite Docling.
@@ -39,7 +39,7 @@ sudo apt install ocrmypdf tesseract-ocr tesseract-ocr-ita
 La funzione è opzionale: se non installata, la generazione Markdown Docling
 rimane pienamente funzionante. Il PDF ricercabile viene creato dall'originale
 senza modificarlo; l'output è `<nome>_searchable.pdf` nella cartella di output.
-Per la v0.1.0 il PDF riceve esclusivamente segnalibri tecnici affidabili per
+Attualmente il PDF riceve esclusivamente segnalibri tecnici affidabili per
 intervalli di pagine, ad esempio `Fallback tecnico - Pagine 1–15`. Accanto al
 Markdown viene creato anche `<stem>_index.md`: è un indice atti sperimentale e
 auditabile, nel quale la pagina indicata è soltanto la stima dell'inizio del
@@ -104,7 +104,7 @@ bash scripts/uninstall-desktop.sh
 
 ## Pacchetto Debian leggero
 
-Il pacchetto `.deb` v0.1.0 installa sorgenti, asset, launcher e documentazione,
+Il pacchetto `.deb` v0.1.1 installa sorgenti, asset, launcher e documentazione,
 ma non incorpora `.venv`, dipendenze Python, modelli OCR o documenti elaborati.
 Per costruirlo:
 
@@ -112,19 +112,30 @@ Per costruirlo:
 bash scripts/build-deb.sh
 ```
 
-Dopo l'installazione del `.deb`, preparare una venv utente con le dipendenze
-fissate nel pacchetto:
+Al primo avvio il wrapper crea automaticamente la venv utente, aggiorna `pip`,
+installa le dipendenze fissate nel pacchetto e avvia l'applicazione:
 
 ```bash
-python3 -m venv ~/.local/share/gdlex-ocr/venv
-~/.local/share/gdlex-ocr/venv/bin/pip install \
-  -r /usr/share/doc/gdlex-ocr/requirements.txt
 gdlex-ocr
 ```
 
-In alternativa, `GDLEX_OCR_PYTHON` può indicare il Python di una venv
-compatibile già esistente. OCRmyPDF, Tesseract e il modello italiano restano
-dipendenze di sistema opzionali.
+La venv è conservata in `~/.local/share/gdlex-ocr/venv`; il log del setup è
+`~/.local/state/gdlex-ocr/setup.log`. Non vengono usati `sudo` o script Debian
+eseguiti come root. Per forzare un aggiornamento della venv:
+
+```bash
+gdlex-ocr --setup-venv
+```
+
+Per stampare la diagnostica senza avviare la GUI:
+
+```bash
+gdlex-ocr --doctor
+```
+
+Il comando restituisce `0` se tutti i controlli passano, `1` se mancano
+componenti essenziali e `2` se mancano soltanto OCRmyPDF, Tesseract o la lingua
+italiana. Questi strumenti di sistema restano opzionali.
 
 ## Test
 

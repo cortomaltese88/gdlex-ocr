@@ -5,41 +5,244 @@ set -euo pipefail
 APP_DIR="/usr/lib/gdlex-ocr"
 REQUIREMENTS="/usr/share/doc/gdlex-ocr/requirements.txt"
 
-if [[ -n "${GDLEX_OCR_PYTHON:-}" ]]; then
-    PYTHON="${GDLEX_OCR_PYTHON}"
-else
-    USER_VENV=""
-    if [[ -n "${XDG_DATA_HOME:-}" ]]; then
-        USER_VENV="${XDG_DATA_HOME}/gdlex-ocr/venv"
-    elif [[ -n "${HOME:-}" ]]; then
-        USER_VENV="${HOME}/.local/share/gdlex-ocr/venv"
+if [[ -z "${HOME:-}" ]]; then
+    echo "Errore: HOME non impostata; impossibile preparare la venv utente." >&2
+    exit 1
+fi
+
+DATA_DIR="${HOME}/.local/share/gdlex-ocr"
+STATE_DIR="${HOME}/.local/state/gdlex-ocr"
+USER_VENV="${DATA_DIR}/venv"
+VENV_PYTHON="${USER_VENV}/bin/python"
+SETUP_LOG="${STATE_DIR}/setup.log"
+SETUP_LOCK="${STATE_DIR}/setup.lock"
+ESSENTIAL_IMPORTS="PySide6 docling pypdf onnxruntime"
+LOCK_ACQUIRED=0
+
+show_setup_error() {
+    local message
+    message="Impossibile preparare l'ambiente Python di GD LEX OCR. Log: ${SETUP_LOG}"
+    printf 'Errore: %s\n' "${message}" >&2
+
+    if command -v kdialog >/dev/null 2>&1; then
+        kdialog --title "GD LEX OCR" --error "${message}" >/dev/null 2>&1 || true
+    elif command -v zenity >/dev/null 2>&1; then
+        zenity --error --title="GD LEX OCR" --text="${message}" \
+            >/dev/null 2>&1 || true
+    fi
+}
+
+release_setup_lock() {
+    if (( LOCK_ACQUIRED )); then
+        rm -f "${SETUP_LOCK}/pid"
+        rmdir "${SETUP_LOCK}" 2>/dev/null || true
+        LOCK_ACQUIRED=0
+    fi
+}
+
+acquire_setup_lock() {
+    local attempt
+    local lock_pid
+
+    mkdir -p "${STATE_DIR}"
+    for attempt in $(seq 1 120); do
+        if mkdir "${SETUP_LOCK}" 2>/dev/null; then
+            LOCK_ACQUIRED=1
+            printf '%s\n' "$$" > "${SETUP_LOCK}/pid"
+            return 0
+        fi
+        if [[ -f "${SETUP_LOCK}/pid" ]]; then
+            lock_pid="$(cat "${SETUP_LOCK}/pid" 2>/dev/null || true)"
+            if [[ "${lock_pid}" =~ ^[0-9]+$ ]] &&
+                ! kill -0 "${lock_pid}" 2>/dev/null; then
+                rm -f "${SETUP_LOCK}/pid"
+                rmdir "${SETUP_LOCK}" 2>/dev/null || true
+                continue
+            fi
+        fi
+        sleep 1
+    done
+
+    printf 'Timeout attendendo il lock di setup: %s\n' "${SETUP_LOCK}" \
+        >> "${SETUP_LOG}"
+    return 1
+}
+
+essential_imports_available() {
+    [[ -x "${VENV_PYTHON}" ]] &&
+        "${VENV_PYTHON}" -c \
+            'import PySide6, docling, pypdf, onnxruntime' >/dev/null 2>&1
+}
+
+setup_venv() {
+    local force="${1:-0}"
+    local setup_status=0
+
+    mkdir -p "${DATA_DIR}" "${STATE_DIR}"
+    touch "${SETUP_LOG}"
+
+    if ! acquire_setup_lock; then
+        show_setup_error
+        return 1
+    fi
+    trap release_setup_lock EXIT INT TERM
+
+    if (( ! force )) && essential_imports_available; then
+        release_setup_lock
+        trap - EXIT INT TERM
+        return 0
     fi
 
-    if [[ -n "${USER_VENV}" && -x "${USER_VENV}/bin/python" ]]; then
-        PYTHON="${USER_VENV}/bin/python"
+    printf 'Preparazione ambiente Python utente. Dettagli: %s\n' "${SETUP_LOG}"
+
+    if (
+        set -e
+        printf '\n[%s] Avvio setup (force=%s)\n' \
+            "$(date --iso-8601=seconds)" "${force}"
+
+        if [[ ! -x "${VENV_PYTHON}" ]]; then
+            printf 'Creazione venv: %s\n' "${USER_VENV}"
+            if [[ -e "${USER_VENV}" ]]; then
+                python3 -m venv --clear "${USER_VENV}" || exit $?
+            else
+                python3 -m venv "${USER_VENV}" || exit $?
+            fi
+        fi
+
+        printf 'Aggiornamento pip\n'
+        "${VENV_PYTHON}" -m pip install --upgrade pip || exit $?
+        printf 'Installazione requirements: %s\n' "${REQUIREMENTS}"
+        "${VENV_PYTHON}" -m pip install --upgrade \
+            -r "${REQUIREMENTS}" || exit $?
+        "${VENV_PYTHON}" -c \
+            'import PySide6, docling, pypdf, onnxruntime' || exit $?
+        printf '[%s] Setup completato\n' "$(date --iso-8601=seconds)"
+    ) >> "${SETUP_LOG}" 2>&1; then
+        setup_status=0
     else
-        PYTHON="/usr/bin/python3"
+        setup_status=$?
     fi
-fi
 
-if [[ ! -x "${PYTHON}" ]]; then
-    printf 'Errore: interprete Python non eseguibile: %s\n' "${PYTHON}" >&2
-    exit 1
-fi
+    release_setup_lock
+    trap - EXIT INT TERM
 
-if ! "${PYTHON}" -c 'import docling, onnxruntime, PySide6, pypdf' \
-    >/dev/null 2>&1; then
-    cat >&2 <<EOF
-GD LEX OCR richiede dipendenze Python esterne non incluse nel pacchetto.
+    if (( setup_status != 0 )); then
+        show_setup_error
+        return "${setup_status}"
+    fi
 
-Preparare una venv utente con:
-  python3 -m venv "\${HOME}/.local/share/gdlex-ocr/venv"
-  "\${HOME}/.local/share/gdlex-ocr/venv/bin/pip" install -r "${REQUIREMENTS}"
+    echo "Ambiente Python pronto."
+}
 
-In alternativa impostare GDLEX_OCR_PYTHON sul Python di una venv compatibile.
-EOF
-    exit 1
+doctor_check_file() {
+    local label="$1"
+    local path="$2"
+
+    if [[ -f "${path}" ]]; then
+        printf '[OK] %s: %s\n' "${label}" "${path}"
+        return 0
+    fi
+    printf '[MANCANTE] %s: %s\n' "${label}" "${path}"
+    return 1
+}
+
+run_doctor() {
+    local essential_missing=0
+    local optional_missing=0
+    local module
+    local languages
+
+    echo "GD LEX OCR - diagnostica runtime"
+
+    if command -v python3 >/dev/null 2>&1; then
+        printf '[OK] Python wrapper: %s\n' "$(command -v python3)"
+    else
+        echo "[MANCANTE] Python wrapper: python3"
+        essential_missing=1
+    fi
+
+    if [[ -x "${VENV_PYTHON}" ]]; then
+        printf '[OK] Venv utente: %s\n' "${USER_VENV}"
+        for module in ${ESSENTIAL_IMPORTS}; do
+            if "${VENV_PYTHON}" -c "import ${module}" >/dev/null 2>&1; then
+                printf '[OK] Import Python: %s\n' "${module}"
+            else
+                printf '[MANCANTE] Import Python: %s\n' "${module}"
+                essential_missing=1
+            fi
+        done
+    else
+        printf '[MANCANTE] Venv utente: %s\n' "${USER_VENV}"
+        essential_missing=1
+        for module in ${ESSENTIAL_IMPORTS}; do
+            printf '[NON VERIFICATO] Import Python: %s\n' "${module}"
+        done
+    fi
+
+    doctor_check_file "Applicazione" "${APP_DIR}/app.py" ||
+        essential_missing=1
+    doctor_check_file "Icona principale" "${APP_DIR}/assets/icon.svg" ||
+        essential_missing=1
+    doctor_check_file "Icona tray" "${APP_DIR}/assets/icon-64.png" ||
+        essential_missing=1
+    doctor_check_file "Asset freccia su" \
+        "${APP_DIR}/assets/matrix-arrow-up.svg" || essential_missing=1
+    doctor_check_file "Asset freccia giu" \
+        "${APP_DIR}/assets/matrix-arrow-down.svg" || essential_missing=1
+
+    if command -v ocrmypdf >/dev/null 2>&1; then
+        printf '[OK] OCRmyPDF: %s\n' "$(command -v ocrmypdf)"
+    else
+        echo "[OPZIONALE MANCANTE] OCRmyPDF"
+        optional_missing=1
+    fi
+
+    if command -v tesseract >/dev/null 2>&1; then
+        printf '[OK] Tesseract: %s\n' "$(command -v tesseract)"
+        if languages="$(tesseract --list-langs 2>/dev/null)" &&
+            grep -qx "ita" <<< "${languages}"; then
+            echo "[OK] Lingua Tesseract: ita"
+        else
+            echo "[OPZIONALE MANCANTE] Lingua Tesseract: ita"
+            optional_missing=1
+        fi
+    else
+        echo "[OPZIONALE MANCANTE] Tesseract"
+        echo "[OPZIONALE MANCANTE] Lingua Tesseract: ita"
+        optional_missing=1
+    fi
+
+    if (( essential_missing )); then
+        return 1
+    fi
+    if (( optional_missing )); then
+        return 2
+    fi
+    return 0
+}
+
+case "${1:-}" in
+    --setup-venv)
+        if (( $# != 1 )); then
+            echo "Uso: gdlex-ocr --setup-venv" >&2
+            exit 1
+        fi
+        setup_venv 1
+        exit $?
+        ;;
+    --doctor)
+        if (( $# != 1 )); then
+            echo "Uso: gdlex-ocr --doctor" >&2
+            exit 1
+        fi
+        run_doctor
+        exit $?
+        ;;
+esac
+
+if ! essential_imports_available; then
+    setup_venv 0 || exit $?
 fi
 
 cd "${APP_DIR}"
-exec "${PYTHON}" "${APP_DIR}/app.py" "$@"
+exec "${VENV_PYTHON}" "${APP_DIR}/app.py" "$@"
