@@ -8,6 +8,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+from gdlex_ocr.icons import splash_icon_path
 from gdlex_ocr.splash import SPLASH_DISABLE_ENV, splash_disabled
 
 
@@ -15,6 +16,21 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
 class SplashConfigurationTest(unittest.TestCase):
+    def test_splash_icon_is_existing_raster_png(self) -> None:
+        path = splash_icon_path()
+
+        self.assertEqual("icon-128.png", path.name)
+        self.assertEqual(".png", path.suffix)
+        self.assertTrue(path.is_file())
+
+    def test_splash_source_uses_raster_icon_helper(self) -> None:
+        source = (PROJECT_ROOT / "gdlex_ocr" / "splash.py").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("splash_icon_path()", source)
+        self.assertNotIn("icon.svg", source)
+
     def test_splash_is_enabled_when_environment_variable_is_unset(self) -> None:
         with patch.dict(os.environ, {}, clear=True):
             self.assertFalse(splash_disabled())

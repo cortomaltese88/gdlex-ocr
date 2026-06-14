@@ -5,10 +5,11 @@ from __future__ import annotations
 from pathlib import Path
 
 from PySide6.QtCore import QSize
-from PySide6.QtGui import QIcon
+from PySide6.QtGui import QIcon, QPixmap
 
 _ASSETS_DIR = Path(__file__).resolve().parent.parent / "assets"
 _APPLICATION_ICON_SIZES = (32, 48, 64, 128, 256)
+_SPLASH_ICON_SIZE = 128
 _TRAY_ICON_SIZE = 64
 
 
@@ -29,6 +30,11 @@ def application_icon() -> QIcon:
     return icon
 
 
+def splash_icon_path() -> Path:
+    """Return the raster icon used by the startup splash."""
+    return _ASSETS_DIR / f"icon-{_SPLASH_ICON_SIZE}.png"
+
+
 def tray_icon_path() -> Path:
     """Return the raster icon used by the system tray."""
     return _ASSETS_DIR / f"icon-{_TRAY_ICON_SIZE}.png"
@@ -37,4 +43,6 @@ def tray_icon_path() -> Path:
 def tray_icon() -> QIcon:
     """Load a fixed-size raster icon for the system tray."""
     path = tray_icon_path()
-    return QIcon(str(path)) if path.is_file() else QIcon()
+    if not path.is_file():
+        return QIcon()
+    return QIcon(QPixmap(str(path)))

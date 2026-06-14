@@ -29,13 +29,13 @@ class GdlexOcrTray:
         self.open_output_action: QAction | None = None
         self.exit_action: QAction | None = None
         self._show_window = show_window
+        self._icon = QIcon(icon)
 
-        if not self.is_system_tray_available():
+        if self._icon.isNull() or not self.is_system_tray_available():
             return
 
         self.tray_icon = QSystemTrayIcon(parent)
-        if not icon.isNull():
-            self.tray_icon.setIcon(icon)
+        self.tray_icon.setIcon(self._icon)
         self.tray_icon.setToolTip(APP_NAME)
         self.tray_icon.activated.connect(self._on_activated)
 

@@ -8,6 +8,7 @@ from PySide6.QtCore import QRectF, Qt, QTimer
 from PySide6.QtGui import QBrush, QColor, QFont, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import QSplashScreen
 
+from gdlex_ocr.icons import splash_icon_path
 from gdlex_ocr.version import APP_NAME, APP_SUBTITLE, APP_VERSION_LABEL
 
 
@@ -45,10 +46,11 @@ def digital_rain_cell(column: int, row: int, frame: int) -> tuple[str, int]:
 
 
 class MatrixSplashScreen(QSplashScreen):
-    """Self-contained, lightweight Matrix splash with no external assets."""
+    """Lightweight Matrix splash using the raster application icon."""
 
     _WIDTH = 680
     _HEIGHT = 380
+    _ICON_SIZE = 88
 
     def __init__(self) -> None:
         pixmap = QPixmap(self._WIDTH, self._HEIGHT)
@@ -60,6 +62,7 @@ class MatrixSplashScreen(QSplashScreen):
         self.setObjectName("startupSplash")
         self._frame = 0
         self._progress = 0.0
+        self._brand_icon = QPixmap(str(splash_icon_path()))
         self._timer = QTimer(self)
         self._timer.setInterval(SPLASH_FRAME_INTERVAL_MS)
         self._timer.timeout.connect(self._tick)
@@ -114,10 +117,21 @@ class MatrixSplashScreen(QSplashScreen):
         painter.setPen(QPen(QColor("#123d1d"), 1))
         painter.drawRect(inner)
 
+        if not self._brand_icon.isNull():
+            icon = self._brand_icon.scaled(
+                self._ICON_SIZE,
+                self._ICON_SIZE,
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation,
+            )
+            icon_x = 105.0 + (self._ICON_SIZE - icon.width()) / 2
+            icon_y = 79.0 + (self._ICON_SIZE - icon.height()) / 2
+            painter.drawPixmap(int(icon_x), int(icon_y), icon)
+
         painter.setFont(QFont("DejaVu Sans Mono", 34, QFont.Weight.Bold))
         painter.setPen(QColor("#e0ffe7"))
         painter.drawText(
-            QRectF(72.0, 70.0, self._WIDTH - 144.0, 58.0),
+            QRectF(205.0, 76.0, 370.0, 58.0),
             Qt.AlignmentFlag.AlignCenter,
             APP_NAME,
         )
@@ -125,7 +139,7 @@ class MatrixSplashScreen(QSplashScreen):
         painter.setFont(QFont("DejaVu Sans", 12))
         painter.setPen(QColor("#7bf59a"))
         painter.drawText(
-            QRectF(72.0, 137.0, self._WIDTH - 144.0, 30.0),
+            QRectF(205.0, 137.0, 370.0, 30.0),
             Qt.AlignmentFlag.AlignCenter,
             APP_SUBTITLE,
         )

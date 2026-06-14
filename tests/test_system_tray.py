@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import unittest
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
@@ -13,7 +14,11 @@ from PySide6.QtGui import QIcon, QKeySequence
 from PySide6.QtWidgets import QApplication, QMessageBox, QWidget
 
 from gdlex_ocr.gui import MainWindow
+from gdlex_ocr.icons import tray_icon, tray_icon_path
 from gdlex_ocr.tray import GdlexOcrTray
+
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
 class FakeCloseEvent:
@@ -74,7 +79,7 @@ class SystemTrayTest(unittest.TestCase):
             parent = QWidget()
             tray = GdlexOcrTray(
                 parent,
-                icon=QIcon(),
+                icon=tray_icon(),
                 toggle_window=lambda: None,
                 show_window=lambda: None,
                 open_output_folder=lambda: None,
@@ -82,6 +87,15 @@ class SystemTrayTest(unittest.TestCase):
             )
 
         self.assertTrue(tray.is_available())
+        self.assertFalse(tray._icon.isNull())
+        tray_icon_class.return_value.setIcon.assert_called_once_with(tray._icon)
+        method_names = [
+            call[0] for call in tray_icon_class.return_value.method_calls
+        ]
+        self.assertLess(
+            method_names.index("setIcon"),
+            method_names.index("show"),
+        )
         tray_icon_class.return_value.setToolTip.assert_called_once_with(
             "GD LEX OCR"
         )
@@ -90,6 +104,43 @@ class SystemTrayTest(unittest.TestCase):
         self.assertEqual("Esci", tray.exit_action.text())
         tray.cleanup()
         parent.deleteLater()
+
+    def test_null_icon_does_not_create_generic_system_tray_icon(self) -> None:
+        with (
+            patch.object(
+                GdlexOcrTray,
+                "is_system_tray_available",
+                return_value=True,
+            ),
+            patch("gdlex_ocr.tray.QSystemTrayIcon") as tray_icon_class,
+        ):
+            parent = QWidget()
+            tray = GdlexOcrTray(
+                parent,
+                icon=QIcon(),
+                toggle_window=lambda: None,
+                show_window=lambda: None,
+                open_output_folder=lambda: None,
+                quit_app=lambda: None,
+            )
+
+        self.assertFalse(tray.is_available())
+        tray_icon_class.assert_not_called()
+        parent.deleteLater()
+
+    def test_tray_uses_fixed_size_raster_png(self) -> None:
+        path = tray_icon_path()
+
+        self.assertEqual("icon-64.png", path.name)
+        self.assertEqual(".png", path.suffix)
+        self.assertTrue(path.is_file())
+
+    def test_tray_source_does_not_use_svg(self) -> None:
+        source = (PROJECT_ROOT / "gdlex_ocr" / "tray.py").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertNotIn(".svg", source)
 
     def test_main_window_initializes_available_tray_without_crashing(self) -> None:
         fake_tray = MagicMock()
