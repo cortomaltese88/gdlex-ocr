@@ -3,11 +3,16 @@
 from __future__ import annotations
 
 import os
-import subprocess
 from pathlib import Path
 
-from PySide6.QtCore import QTimer, Qt
-from PySide6.QtGui import QAction, QActionGroup, QCloseEvent, QFontDatabase
+from PySide6.QtCore import QTimer, Qt, QUrl
+from PySide6.QtGui import (
+    QAction,
+    QActionGroup,
+    QCloseEvent,
+    QDesktopServices,
+    QFontDatabase,
+)
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -877,6 +882,24 @@ class MainWindow(QMainWindow):
     # Open-file / open-folder handlers
     # ------------------------------------------------------------------
 
+    def _open_local_path(
+        self,
+        path: Path,
+        error_title: str,
+        error_message: str,
+    ) -> None:
+        try:
+            opened = QDesktopServices.openUrl(QUrl.fromLocalFile(str(path)))
+        except Exception as exc:
+            QMessageBox.critical(
+                self,
+                error_title,
+                f"{error_message}\n{exc}",
+            )
+            return
+        if not opened:
+            QMessageBox.critical(self, error_title, error_message)
+
     def _open_output_folder(self) -> None:
         try:
             folder: Path | None = resolve_output_path(self.output_edit.text())
@@ -889,14 +912,11 @@ class MainWindow(QMainWindow):
                 "La cartella di output non esiste o non è accessibile.",
             )
             return
-        try:
-            subprocess.Popen(["xdg-open", str(folder)])
-        except OSError as exc:
-            QMessageBox.critical(
-                self,
-                "Impossibile aprire la cartella",
-                f"Errore durante l'apertura della cartella:\n{exc}",
-            )
+        self._open_local_path(
+            folder,
+            "Impossibile aprire la cartella",
+            "Errore durante l'apertura della cartella.",
+        )
 
     def _open_markdown(self) -> None:
         path = self._final_markdown_path
@@ -907,14 +927,11 @@ class MainWindow(QMainWindow):
                 "Il file Markdown non esiste o non è accessibile.",
             )
             return
-        try:
-            subprocess.Popen(["xdg-open", path])
-        except OSError as exc:
-            QMessageBox.critical(
-                self,
-                "Impossibile aprire il file",
-                f"Errore durante l'apertura del file Markdown:\n{exc}",
-            )
+        self._open_local_path(
+            Path(path),
+            "Impossibile aprire il file",
+            "Errore durante l'apertura del file Markdown.",
+        )
 
     def _open_searchable_pdf(self) -> None:
         path = self._searchable_pdf_path
@@ -925,14 +942,11 @@ class MainWindow(QMainWindow):
                 "Il PDF ricercabile non esiste o non è accessibile.",
             )
             return
-        try:
-            subprocess.Popen(["xdg-open", path])
-        except OSError as exc:
-            QMessageBox.critical(
-                self,
-                "Impossibile aprire il file",
-                f"Errore durante l'apertura del PDF:\n{exc}",
-            )
+        self._open_local_path(
+            Path(path),
+            "Impossibile aprire il file",
+            "Errore durante l'apertura del PDF.",
+        )
 
     # ------------------------------------------------------------------
     # Close event

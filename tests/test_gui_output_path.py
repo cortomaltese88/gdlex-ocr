@@ -209,5 +209,80 @@ class PdfPathGuiTest(unittest.TestCase):
         worker_cls.assert_not_called()
 
 
+class OpenLocalPathsGuiTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.app = QApplication.instance() or QApplication([])
+
+    def setUp(self) -> None:
+        self.window = MainWindow()
+
+    def tearDown(self) -> None:
+        self.window.close()
+        self.window.deleteLater()
+        self.app.processEvents()
+
+    def test_gui_uses_qdesktopservices_instead_of_xdg_open(self) -> None:
+        gui_source = (
+            Path(__file__).resolve().parents[1] / "gdlex_ocr" / "gui.py"
+        ).read_text(encoding="utf-8")
+
+        self.assertNotIn("xdg-open", gui_source)
+        self.assertIn("QDesktopServices.openUrl", gui_source)
+
+    def test_open_output_folder_uses_local_file_url(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            self.window.output_edit.setText(tmpdir)
+
+            with patch(
+                "gdlex_ocr.gui.QDesktopServices.openUrl",
+                return_value=True,
+            ) as open_url:
+                self.window._open_output_folder()
+
+        opened_url = open_url.call_args.args[0]
+        self.assertTrue(opened_url.isLocalFile())
+        self.assertEqual(tmpdir, opened_url.toLocalFile())
+
+    def test_open_markdown_reports_open_url_failure(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            markdown_path = Path(tmpdir) / "risultato.md"
+            markdown_path.touch()
+            self.window._final_markdown_path = str(markdown_path)
+
+            with (
+                patch(
+                    "gdlex_ocr.gui.QDesktopServices.openUrl",
+                    return_value=False,
+                ) as open_url,
+                patch("gdlex_ocr.gui.QMessageBox.critical") as critical,
+            ):
+                self.window._open_markdown()
+
+        opened_url = open_url.call_args.args[0]
+        self.assertEqual(str(markdown_path), opened_url.toLocalFile())
+        critical.assert_called_once_with(
+            self.window,
+            "Impossibile aprire il file",
+            "Errore durante l'apertura del file Markdown.",
+        )
+
+    def test_open_searchable_pdf_uses_local_file_url(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            pdf_path = Path(tmpdir) / "ricercabile.pdf"
+            pdf_path.touch()
+            self.window._searchable_pdf_path = str(pdf_path)
+
+            with patch(
+                "gdlex_ocr.gui.QDesktopServices.openUrl",
+                return_value=True,
+            ) as open_url:
+                self.window._open_searchable_pdf()
+
+        opened_url = open_url.call_args.args[0]
+        self.assertTrue(opened_url.isLocalFile())
+        self.assertEqual(str(pdf_path), opened_url.toLocalFile())
+
+
 if __name__ == "__main__":
     unittest.main()
