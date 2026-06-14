@@ -2,6 +2,31 @@
 
 Tutte le modifiche rilevanti del progetto saranno documentate in questo file.
 
+## [0.1.2] - 2026-06-14
+
+### Funzionalità
+
+- Aggiunto il menu **File > Esci** con scorciatoia `Ctrl+Q`, collegato al
+  flusso di chiusura condiviso con la system tray.
+- L'apertura della cartella di output, del Markdown e del PDF ricercabile usa
+  ora `QDesktopServices.openUrl`.
+- Lo splash iniziale può essere disabilitato impostando
+  `GDLEX_OCR_DISABLE_SPLASH`.
+
+### Integrazione desktop
+
+- Impostato `app.setDesktopFileName("gdlex-ocr")` per l'identità Linux.
+- Splash e system tray usano icone raster dedicate.
+- Rafforzata la gestione dell'icona della system tray per non creare il
+  placeholder generico "i" quando l'icona applicativa non è disponibile.
+
+### Test
+
+- Aggiunti controlli offline di coerenza per identità e versione
+  dell'applicazione.
+- Estesi i test per splash, system tray, apertura degli output e contenuto
+  effettivo del pacchetto Debian.
+
 ## [0.1.1] - 2026-06-14
 
 ### Correzioni

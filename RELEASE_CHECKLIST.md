@@ -1,44 +1,40 @@
-# Checklist release v0.1.1
+# Checklist release v0.1.2
 
 ## Pre-release
 
-- [ ] Verificare che `gdlex_ocr/version.py` riporti `0.1.1`.
-- [ ] Verificare coerenza tra README, changelog e comportamento della GUI.
-- [ ] Controllare che `requirements.txt` contenga versioni fissate e installabili.
-- [ ] Rileggere `THIRD_PARTY_NOTICES.md` e aggiornare le evidenze di licenza.
+- [x] Verificare che `gdlex_ocr/version.py` riporti `0.1.2`.
+- [x] Verificare coerenza tra README, changelog e comportamento della GUI.
+- [x] Controllare che `requirements.txt` contenga versioni fissate e installabili.
+- [x] Rileggere `THIRD_PARTY_NOTICES.md` e aggiornare le evidenze di licenza.
 - [ ] Verificare launcher, icone e installazione/rimozione desktop per utente.
-- [ ] Eseguire i test senza OCR reale:
+- [x] Eseguire i test senza OCR reale:
 
 ```bash
 .venv/bin/python -m py_compile app.py gdlex_ocr/*.py
 bash scripts/smoke.sh
+desktop-file-validate packaging/gdlex-ocr.desktop
 git diff --check
 ```
 
 ## Privacy e dati
 
-- [ ] Confermare che i documenti siano elaborati localmente e non caricati su servizi cloud.
-- [ ] Documentare che Docling può scaricare modelli upstream al primo avvio.
-- [ ] Usare solo fixture sintetiche o non sensibili nei test e negli esempi.
-- [ ] Non includere PDF originali, output OCR, Markdown generati o `run.log`.
-- [ ] Verificare che directory temporanee `.gdlex_ocr_*` non siano incluse.
+- [x] Confermare che i documenti siano elaborati localmente e non caricati su servizi cloud.
+- [x] Documentare che Docling può scaricare modelli upstream al primo avvio.
+- [x] Usare solo fixture sintetiche o non sensibili nei test e negli esempi.
+- [x] Non includere PDF originali, output OCR, Markdown generati o `run.log`.
+- [x] Verificare che directory temporanee `.gdlex_ocr_*` non siano incluse.
 - [ ] Controllare manualmente screenshot e metadati delle immagini prima della pubblicazione.
 
-## Test OCR reale finale
+## Perimetro test v0.1.2
 
-Eseguito il 14 giugno 2026 sul PDF di release da 158 pagine, con profilo
-Bilanciato, blocchi da 15 pagine, OCR italiano e PDF ricercabile attivo.
-
-- [x] Markdown finale creato senza payload `data:image`.
-- [x] PDF ricercabile valido e composto da 158 pagine.
-- [x] Outline limitato a 11 bookmark tecnici per intervalli di pagine.
-- [x] Nessun bookmark PDF content-aware.
-- [x] Indice atti separato in `_index.md`, con pagine dichiarate stimate e
-  corrispondenti all'inizio del blocco Docling.
+- [x] Non eseguire OCR reale durante la preparazione della release.
+- [x] Usare esclusivamente smoke test e fixture sintetiche.
+- [x] Verificare identità/versione, integrazione desktop, splash, system tray
+  e payload Debian tramite la suite offline.
 
 ## File sensibili e contenuto release
 
-- [ ] Verificare lo stato del repository:
+- [x] Verificare lo stato del repository:
 
 ```bash
 git status --short
@@ -49,8 +45,8 @@ find . -path ./.git -prune -o -path ./.venv -prune -o \
      -name '.env.*' -o -name '*.pem' -o -name '*.key' \) -print
 ```
 
-- [ ] Confermare che `.venv/`, cache Python, output, log e dati sensibili siano esclusi.
-- [ ] Ispezionare il diff completo prima della release:
+- [x] Confermare che `.venv/`, cache Python, output, log e dati sensibili siano esclusi.
+- [x] Ispezionare il diff completo prima della release:
 
 ```bash
 git diff --check
@@ -61,11 +57,23 @@ git diff
 ## Packaging
 
 - [x] Applicare la scelta descritta in `PACKAGING.md`.
-- [x] Non incorporare la `.venv` nel pacchetto v0.1.1.
+- [x] Non incorporare la `.venv` nel pacchetto v0.1.2.
 - [ ] Se viene creato un `.deb`, verificarne contenuto, dipendenze e copyright in ambiente pulito.
 - [x] Verificare il `.deb` con `dpkg-deb`, estrazione temporanea e `lintian`.
 - [x] Non includere modelli Docling/ONNX senza inventario e verifica delle licenze.
 - [x] Confermare che OCRmyPDF e Tesseract restino dipendenze opzionali di sistema.
+- [ ] Installare il pacchetto v0.1.2 con `sudo apt install`.
+- [ ] Eseguire `gdlex-ocr --doctor` sulla v0.1.2 installata.
+
+```bash
+bash scripts/build-deb.sh
+dpkg-deb --info dist/gdlex-ocr_0.1.2_all.deb
+dpkg-deb --contents dist/gdlex-ocr_0.1.2_all.deb | \
+  grep -E '(\.venv|__pycache__|\.git|\.pdf|run\.log|Fascicolo|Downloads|Documenti)' || true
+(cd dist && sha256sum -c gdlex-ocr_0.1.2_all.deb.sha256)
+sudo apt install ./dist/gdlex-ocr_0.1.2_all.deb
+/usr/bin/gdlex-ocr --doctor
+```
 
 ## Tag e release futuri
 
@@ -74,10 +82,10 @@ Eseguirli solo dopo approvazione esplicita e dopo aver creato il commit di
 release:
 
 ```bash
-git tag -a v0.1.1 -m "GD LEX OCR v0.1.1"
+git tag -a v0.1.2 -m "GD LEX OCR v0.1.2"
 git push origin main
-git push origin v0.1.1
-gh release create v0.1.1 --title "GD LEX OCR v0.1.1" \
+git push origin v0.1.2
+gh release create v0.1.2 --title "GD LEX OCR v0.1.2" \
   --notes-file CHANGELOG.md
 ```
 

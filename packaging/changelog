@@ -1,3 +1,13 @@
+gdlex-ocr (0.1.2) unstable; urgency=medium
+
+  * Add File > Exit with Ctrl+Q and improve Linux desktop integration.
+  * Open generated outputs through Qt desktop services.
+  * Add application identity, splash, tray icon, and Debian payload tests.
+  * Allow disabling the splash screen with GDLEX_OCR_DISABLE_SPLASH.
+  * Use raster icons for the splash screen and system tray.
+
+ -- Studio GD LEX <cortomaltese88@users.noreply.github.com>  Sun, 14 Jun 2026 21:30:00 +0200
+
 gdlex-ocr (0.1.1) unstable; urgency=medium
 
   * Create and maintain the per-user Python environment at first launch.

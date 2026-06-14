@@ -1,8 +1,8 @@
 # Piano packaging Debian
 
-## Scelta per v0.1.1
+## Scelta per v0.1.2
 
-La v0.1.1 usa un pacchetto Debian leggero generato da
+La v0.1.2 usa un pacchetto Debian leggero generato da
 `scripts/build-deb.sh`. Il pacchetto installa sorgenti, asset, file desktop,
 icone, documentazione e il wrapper `/usr/bin/gdlex-ocr`.
 

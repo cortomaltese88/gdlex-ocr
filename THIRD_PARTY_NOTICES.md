@@ -1,7 +1,7 @@
 # Licenze e componenti terzi
 
 Questo documento registra le licenze rilevate localmente per le dipendenze
-dirette di GD LEX OCR v0.1.1 e per gli strumenti di sistema opzionali. Non
+dirette di GD LEX OCR v0.1.2 e per gli strumenti di sistema opzionali. Non
 costituisce consulenza legale e non sostituisce i testi di licenza upstream.
 
 ## Componenti
