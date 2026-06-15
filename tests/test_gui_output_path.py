@@ -12,7 +12,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtCore import Qt
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication, QGroupBox
+from PySide6.QtWidgets import QApplication, QGroupBox, QPushButton
 
 from gdlex_ocr.gui import MainWindow, resolve_output_path, resolve_pdf_path
 
@@ -74,6 +74,45 @@ class OutputPathGuiTest(unittest.TestCase):
         self.assertTrue(self.window.searchable_checkbox.isEnabled())
         self.assertTrue(self.window.structured_output_checkbox.isEnabled())
         self.assertTrue(self.window.ocr_language_combo.isEnabled())
+
+    def test_action_buttons_use_separate_output_and_run_rows(self) -> None:
+        output_buttons = [
+            self.window.open_folder_button,
+            self.window.open_markdown_button,
+            self.window.open_pdf_button,
+            self.window.open_manifest_button,
+            self.window.open_log_button,
+            self.window.verify_outputs_button,
+        ]
+        run_buttons = [
+            self.window.start_button,
+            self.window.cancel_button,
+        ]
+
+        self.window.resize(self.window.minimumSize())
+        self.window.show()
+        self.app.processEvents()
+
+        self.assertTrue(
+            all(isinstance(button, QPushButton) for button in output_buttons)
+        )
+        self.assertTrue(
+            all(isinstance(button, QPushButton) for button in run_buttons)
+        )
+        self.assertEqual(1, len({button.geometry().top() for button in output_buttons}))
+        self.assertEqual(1, len({button.geometry().top() for button in run_buttons}))
+        self.assertLess(
+            output_buttons[0].geometry().top(),
+            run_buttons[0].geometry().top(),
+        )
+
+        for row in (output_buttons, run_buttons):
+            ordered = sorted(row, key=lambda button: button.geometry().left())
+            for left_button, right_button in zip(ordered, ordered[1:]):
+                self.assertLess(
+                    left_button.geometry().right(),
+                    right_button.geometry().left(),
+                )
 
     def test_manual_output_path_survives_pdf_selection(self) -> None:
         manual_path = "/tmp/output-personalizzato"

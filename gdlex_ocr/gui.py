@@ -409,60 +409,62 @@ class MainWindow(QMainWindow):
         log_layout.addWidget(self.log_view)
         root_layout.addWidget(log_group, 1)
 
-        button_row = QHBoxLayout()
-        button_row.setSpacing(10)
+        actions_layout = QVBoxLayout()
+        actions_layout.setSpacing(8)
+
+        output_buttons_row = QHBoxLayout()
+        output_buttons_row.setSpacing(10)
 
         self.open_folder_button = QPushButton("Apri cartella output")
-        self.open_folder_button.setMinimumWidth(170)
         self.open_folder_button.setEnabled(False)
         self.open_folder_button.clicked.connect(self._open_output_folder)
-        button_row.addWidget(self.open_folder_button)
+        output_buttons_row.addWidget(self.open_folder_button)
 
         self.open_markdown_button = QPushButton("Apri Markdown")
-        self.open_markdown_button.setMinimumWidth(170)
         self.open_markdown_button.setEnabled(False)
         self.open_markdown_button.clicked.connect(self._open_markdown)
-        button_row.addWidget(self.open_markdown_button)
+        output_buttons_row.addWidget(self.open_markdown_button)
 
         self.open_pdf_button = QPushButton("Apri PDF OCR")
-        self.open_pdf_button.setMinimumWidth(170)
         self.open_pdf_button.setEnabled(False)
         self.open_pdf_button.clicked.connect(self._open_searchable_pdf)
-        button_row.addWidget(self.open_pdf_button)
+        output_buttons_row.addWidget(self.open_pdf_button)
 
         self.open_manifest_button = QPushButton("Apri manifest")
-        self.open_manifest_button.setMinimumWidth(140)
         self.open_manifest_button.setEnabled(False)
         self.open_manifest_button.clicked.connect(self._open_manifest)
-        button_row.addWidget(self.open_manifest_button)
+        output_buttons_row.addWidget(self.open_manifest_button)
 
         self.open_log_button = QPushButton("Apri log")
-        self.open_log_button.setMinimumWidth(110)
         self.open_log_button.setEnabled(False)
         self.open_log_button.clicked.connect(self._open_log)
-        button_row.addWidget(self.open_log_button)
+        output_buttons_row.addWidget(self.open_log_button)
 
         self.verify_outputs_button = QPushButton("Verifica output")
-        self.verify_outputs_button.setMinimumWidth(140)
         self.verify_outputs_button.setEnabled(False)
         self.verify_outputs_button.clicked.connect(self._verify_outputs)
-        button_row.addWidget(self.verify_outputs_button)
+        output_buttons_row.addWidget(self.verify_outputs_button)
 
-        button_row.addStretch(1)
+        actions_layout.addLayout(output_buttons_row)
+
+        run_buttons_row = QHBoxLayout()
+        run_buttons_row.setSpacing(10)
+        run_buttons_row.addStretch(1)
 
         self.start_button = QPushButton("Avvia")
         self.start_button.setObjectName("primaryButton")
         self.start_button.setDefault(True)
         self.start_button.clicked.connect(self._start)
-        button_row.addWidget(self.start_button)
+        run_buttons_row.addWidget(self.start_button)
 
         self.cancel_button = QPushButton("Annulla")
         self.cancel_button.setObjectName("cancelButton")
         self.cancel_button.setEnabled(False)
         self.cancel_button.clicked.connect(self._cancel)
-        button_row.addWidget(self.cancel_button)
+        run_buttons_row.addWidget(self.cancel_button)
 
-        root_layout.addLayout(button_row)
+        actions_layout.addLayout(run_buttons_row)
+        root_layout.addLayout(actions_layout)
         self._setup_tray()
 
     # ------------------------------------------------------------------
