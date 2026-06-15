@@ -43,6 +43,28 @@ class ProcessingProfilesTest(unittest.TestCase):
         self.assertFalse(profile.enrich_chart)
         self.assertTrue(profile.structure_markdown)
 
+    def test_accurate_text_profile_defaults_create_searchable_pdf(self) -> None:
+        self.assertTrue(PROFILES["Accurato testo"].create_searchable_pdf)
+
+    def test_accurate_text_profile_defaults_use_searchable_as_source(self) -> None:
+        self.assertTrue(PROFILES["Accurato testo"].use_searchable_as_source)
+
+    def test_other_profiles_do_not_default_create_searchable_pdf(self) -> None:
+        for name in ("Veloce", "Bilanciato", "PDF già ricercabile", "Accurato"):
+            with self.subTest(profile=name):
+                self.assertFalse(PROFILES[name].create_searchable_pdf)
+
+    def test_other_profiles_do_not_default_use_searchable_as_source(self) -> None:
+        for name in ("Veloce", "Bilanciato", "PDF già ricercabile", "Accurato"):
+            with self.subTest(profile=name):
+                self.assertFalse(PROFILES[name].use_searchable_as_source)
+
+    def test_searchable_pdf_profile_no_use_searchable_as_source(self) -> None:
+        profile = PROFILES["PDF già ricercabile"]
+
+        self.assertFalse(profile.create_searchable_pdf)
+        self.assertFalse(profile.use_searchable_as_source)
+
     def test_structure_post_processing_is_profile_controlled(self) -> None:
         self.assertFalse(PROFILES["Veloce"].structure_markdown)
         self.assertTrue(PROFILES["Bilanciato"].structure_markdown)

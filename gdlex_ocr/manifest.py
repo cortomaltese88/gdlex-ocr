@@ -224,6 +224,11 @@ def build_initial_manifest(
             "count": 0,
             "fallback": False,
             "warnings": [],
+            "reason": (
+                None
+                if create_searchable
+                else "searchable_pdf_not_requested"
+            ),
         },
         "markdown_structure": {
             "enabled": profile.structure_markdown,

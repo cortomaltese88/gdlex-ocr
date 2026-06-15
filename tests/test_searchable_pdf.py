@@ -371,6 +371,7 @@ class SearchablePdfPipelineTest(unittest.TestCase):
                     "count": 3,
                     "fallback": False,
                     "warnings": [],
+                    "reason": None,
                 },
                 worker._manifest["bookmarks"],
             )

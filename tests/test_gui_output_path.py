@@ -373,6 +373,39 @@ class OutputPathGuiTest(unittest.TestCase):
             self.assertFalse(worker_cls.call_args.kwargs["structured_output"])
             worker.start.assert_called_once_with()
 
+    def test_accurate_text_profile_enables_searchable_checkbox(self) -> None:
+        self.window.profile_combo.setCurrentText("Accurato testo")
+
+        self.assertTrue(self.window.searchable_checkbox.isChecked())
+
+    def test_accurate_text_profile_enables_use_searchable_as_source_checkbox(
+        self,
+    ) -> None:
+        self.window.profile_combo.setCurrentText("Accurato testo")
+
+        self.assertTrue(
+            self.window.use_searchable_as_source_checkbox.isChecked()
+        )
+        self.assertTrue(
+            self.window.use_searchable_as_source_checkbox.isEnabled()
+        )
+
+    def test_balanced_profile_leaves_searchable_checkbox_unchecked(self) -> None:
+        self.window.profile_combo.setCurrentText("Accurato testo")
+        self.window.profile_combo.setCurrentText("Bilanciato")
+
+        self.assertFalse(self.window.searchable_checkbox.isChecked())
+
+    def test_searchable_pdf_profile_does_not_set_use_searchable_as_source(
+        self,
+    ) -> None:
+        self.window.profile_combo.setCurrentText("PDF già ricercabile")
+
+        self.assertFalse(self.window.searchable_checkbox.isChecked())
+        self.assertFalse(
+            self.window.use_searchable_as_source_checkbox.isChecked()
+        )
+
     def test_start_passes_structured_output_to_worker(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             pdf_path = Path(tmpdir) / "fascicolo.pdf"

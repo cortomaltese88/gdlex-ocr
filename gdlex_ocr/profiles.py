@@ -20,6 +20,8 @@ class ProcessingProfile:
     enrich_picture: bool
     enrich_chart: bool
     structure_markdown: bool
+    create_searchable_pdf: bool = False
+    use_searchable_as_source: bool = False
 
     def summary(self) -> str:
         pic = "sì" if self.enrich_picture else "no"
@@ -67,6 +69,8 @@ PROFILES: dict[str, ProcessingProfile] = {
         enrich_picture=False,
         enrich_chart=False,
         structure_markdown=True,
+        create_searchable_pdf=True,
+        use_searchable_as_source=True,
     ),
     "PDF già ricercabile": ProcessingProfile(
         name="PDF già ricercabile",

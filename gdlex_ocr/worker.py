@@ -390,6 +390,7 @@ class OcrWorker(QThread):
                     "count": len(bookmarks.items),
                     "fallback": bookmarks.fallback,
                     "warnings": list(bookmarks.warnings),
+                    "reason": None,
                 }
                 safe_write_manifest(self._manifest, self.output_dir)
             self.searchable_pdf_done.emit(str(searchable_path))

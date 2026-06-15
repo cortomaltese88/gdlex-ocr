@@ -1,4 +1,13 @@
-"""Interruptible subprocess wrapper for the local Docling CLI."""
+"""Interruptible subprocess wrapper for the local Docling CLI.
+
+TODO: Docling uses RapidOCR as its internal OCR engine when enable_ocr=True and
+the source PDF is scanned. There is currently no robust way to intercept which
+OCR engine Docling chose from the subprocess log lines (the strings are unstable
+across Docling versions). For Italian scanned PDFs, use the "Accurato testo"
+profile with create_searchable_pdf=True and use_searchable_as_source=True so
+that OCRmyPDF/Tesseract produces the searchable PDF first and Docling reads
+machine-readable text instead of running RapidOCR on raw scans.
+"""
 
 from __future__ import annotations
 

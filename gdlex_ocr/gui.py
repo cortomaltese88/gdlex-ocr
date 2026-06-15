@@ -679,6 +679,12 @@ class MainWindow(QMainWindow):
             return
         self.block_size_spin.setValue(profile.block_size)
         self.profile_summary_label.setText(profile.summary())
+        if not hasattr(self, "searchable_checkbox"):
+            return
+        self.searchable_checkbox.setChecked(profile.create_searchable_pdf)
+        self.use_searchable_as_source_checkbox.setChecked(
+            profile.use_searchable_as_source
+        )
 
     def _on_searchable_changed(self, checked: bool) -> None:
         self.ocr_language_combo.setEnabled(checked)

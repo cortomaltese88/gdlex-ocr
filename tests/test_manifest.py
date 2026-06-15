@@ -227,9 +227,48 @@ class BuildInitialManifestTest(unittest.TestCase):
                 "count": 0,
                 "fallback": False,
                 "warnings": [],
+                "reason": None,
             },
             m["bookmarks"],
         )
+
+    def test_bookmarks_reason_is_none_when_searchable_requested(self) -> None:
+        from gdlex_ocr.manifest import build_initial_manifest
+
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            pdf = root / "doc.pdf"
+            pdf.write_bytes(b"%PDF")
+            m = build_initial_manifest(
+                pdf_path=pdf,
+                output_dir=root / "out",
+                profile=_fake_profile(),
+                pages_per_block=10,
+                create_searchable=True,
+                ocr_language="ita",
+                app_version="0.1.4",
+            )
+
+        self.assertIsNone(m["bookmarks"]["reason"])
+
+    def test_bookmarks_reason_when_searchable_not_requested(self) -> None:
+        from gdlex_ocr.manifest import build_initial_manifest
+
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            pdf = root / "doc.pdf"
+            pdf.write_bytes(b"%PDF")
+            m = build_initial_manifest(
+                pdf_path=pdf,
+                output_dir=root / "out",
+                profile=_fake_profile(),
+                pages_per_block=10,
+                create_searchable=False,
+                ocr_language="ita",
+                app_version="0.1.4",
+            )
+
+        self.assertEqual("searchable_pdf_not_requested", m["bookmarks"]["reason"])
 
     def test_markdown_structure_metadata_is_additive(self) -> None:
         import tempfile
