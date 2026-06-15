@@ -4,6 +4,8 @@ Tutte le modifiche rilevanti del progetto saranno documentate in questo file.
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-06-15
+
 ### Funzionalità
 
 - Aggiunta la modalità fascicolo opzionale, disattivata per default, che
@@ -16,11 +18,22 @@ Tutte le modifiche rilevanti del progetto saranno documentate in questo file.
   dichiara la modalità strutturata e la directory effettiva del job.
 - Aggiunte utility pure per calcolare layout e nomi progressivi e una funzione
   separata per riservare senza sovrascrittura la directory del job.
+- Migliorata la gestione di manifest e verifica output, inclusa la durata dei
+  job terminati con errore o annullati.
+- Aggiunto il workflow manuale per pubblicare una release nel repository APT
+  GD LEX.
+
+### Interfaccia
+
+- Migliorati layout e contrasto delle checkbox nei temi Matrix e Chiaro.
+- Separati i pulsanti di apertura e verifica output dai pulsanti
+  **Avvia** e **Annulla**.
 
 ### Test
 
 - Estesi i test offline per layout legacy e strutturato, nomi con spazi e punti
-  multipli, directory progressive, worker, checkbox GUI e coerenza manifest.
+  multipli, directory progressive, worker, checkbox GUI, coerenza manifest e
+  payload Debian.
 
 ## [0.1.3] - 2026-06-14
 

@@ -91,18 +91,19 @@ I tool richiesti dal workflow sono `apt-ftparchive` (`apt-utils`), gli
 strumenti Debian (`dpkg-dev`), `gpg` (`gnupg`), `gzip`, `curl` e GitHub CLI
 `gh`.
 
-Per una release già pubblicata, l'avvio futuro del workflow è:
+Per una release già pubblicata, sostituire `<versione>` con la versione senza
+prefisso `v` e avviare il workflow:
 
 ```bash
-gh workflow run publish-apt-repo.yml -f version=0.1.3
+gh workflow run publish-apt-repo.yml -f version=<versione>
 gh run list --workflow publish-apt-repo.yml
 ```
 
 Questi comandi pubblicano realmente nel repository APT e devono essere
 eseguiti solo dopo approvazione esplicita. Prima dell'avvio occorre verificare
-che la release `v0.1.3` contenga esattamente
-`gdlex-ocr_0.1.3_all.deb` e che i secret siano configurati senza esporne il
-contenuto.
+che la release `v<versione>` contenga esattamente
+`gdlex-ocr_<versione>_all.deb` e che i secret siano configurati senza esporne
+il contenuto.
 
 La configurazione prevista per l'utente finale usa la chiave pubblica ospitata
 dal repository APT e `signed-by`:

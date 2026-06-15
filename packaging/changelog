@@ -1,3 +1,14 @@
+gdlex-ocr (0.1.4) unstable; urgency=medium
+
+  * Add optional structured output directories for individual jobs.
+  * Improve manifest handling and output verification.
+  * Open job outputs from their effective directory in the GUI.
+  * Improve checkbox contrast and separate output and run action buttons.
+  * Add a manual workflow for publishing releases to the GD LEX APT repository.
+  * Expand offline tests for output layout, manifests, GUI, and packaging.
+
+ -- Studio GD LEX <cortomaltese88@users.noreply.github.com>  Mon, 15 Jun 2026 16:49:01 +0200
+
 gdlex-ocr (0.1.3) unstable; urgency=medium
 
   * Add an auditable manifest.json for OCR and conversion jobs.
