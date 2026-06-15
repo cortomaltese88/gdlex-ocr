@@ -44,10 +44,10 @@ from gdlex_ocr.manifest import (
     load_manifest,
     verify_manifest_outputs,
 )
+from gdlex_ocr.ocr_backends import detect_ocr_backend
 from gdlex_ocr.output_layout import LOG_FILENAME, MANIFEST_FILENAME
 from gdlex_ocr.pdf_splitter import PdfSplitError, count_pdf_pages
 from gdlex_ocr.profiles import DEFAULT_PROFILE, PROFILE_NAMES, PROFILES
-from gdlex_ocr.searchable_pdf import INSTALL_HINT, is_ocrmypdf_available
 from gdlex_ocr.theme import (
     AVAILABLE_THEMES,
     apply_theme,
@@ -69,6 +69,11 @@ _OCR_LANGUAGES = [
     ("Spagnolo", "spa"),
     ("Francese", "fra"),
     ("Tedesco", "deu"),
+]
+_OCR_BACKENDS = [
+    ("Automatico (OCRmyPDF)", "auto"),
+    ("OCRmyPDF", "ocrmypdf"),
+    ("Comando esterno", "external"),
 ]
 
 
@@ -131,7 +136,8 @@ class AboutDialog(QDialog):
             "<b>Motore documentale:</b> Docling<br>"
             "<b>GUI:</b> PySide6<br>"
             "<b>OCR/PDF:</b> Docling / RapidOCR<br>"
-            "<b>PDF ricercabile (opzionale):</b> OCRmyPDF + Tesseract<br><br>"
+            "<b>PDF ricercabile (opzionale):</b> OCRmyPDF / backend locale "
+            "configurato<br><br>"
             "<b>Privacy:</b> elaborazione locale; nessun upload cloud "
             "effettuato dall'applicazione."
         )
@@ -346,9 +352,50 @@ class MainWindow(QMainWindow):
         self.ocr_language_combo.setMinimumWidth(220)
         pdf_options_layout.addWidget(self.ocr_language_combo, 0, 2)
 
-        engine_note = QLabel("Richiede: ocrmypdf + tesseract")
+        engine_note = QLabel("Backend locale opzionale")
         engine_note.setObjectName("sectionHint")
         pdf_options_layout.addWidget(engine_note, 0, 3)
+
+        backend_label = QLabel("Backend OCR")
+        backend_label.setObjectName("sectionHint")
+        pdf_options_layout.addWidget(backend_label, 1, 0)
+        self.ocr_backend_combo = QComboBox()
+        for display, backend_name in _OCR_BACKENDS:
+            self.ocr_backend_combo.addItem(display, userData=backend_name)
+        self.ocr_backend_combo.currentIndexChanged.connect(
+            self._on_ocr_backend_changed
+        )
+        self.ocr_backend_combo.setEnabled(False)
+        pdf_options_layout.addWidget(self.ocr_backend_combo, 1, 1)
+
+        self.external_ocr_command_edit = QLineEdit()
+        self.external_ocr_command_edit.setPlaceholderText(
+            "tool --input {input} --output {output} --lang {language}"
+        )
+        self.external_ocr_command_edit.setToolTip(
+            "Comando locale senza shell; richiede {input} e {output}."
+        )
+        self.external_ocr_command_edit.setEnabled(False)
+        pdf_options_layout.addWidget(self.external_ocr_command_edit, 1, 2, 1, 2)
+
+        self.use_searchable_as_source_checkbox = QCheckBox(
+            "Usa il PDF ricercabile come sorgente Docling"
+        )
+        self.use_searchable_as_source_checkbox.setChecked(False)
+        self.use_searchable_as_source_checkbox.setEnabled(False)
+        pdf_options_layout.addWidget(
+            self.use_searchable_as_source_checkbox,
+            2,
+            0,
+            1,
+            2,
+        )
+
+        source_note = QLabel(
+            "Utile con Accurato testo o con un backend esterno configurato"
+        )
+        source_note.setObjectName("sectionHint")
+        pdf_options_layout.addWidget(source_note, 2, 2, 1, 2)
 
         self.structured_output_checkbox = QCheckBox(
             "Crea cartella fascicolo per ogni elaborazione"
@@ -358,13 +405,13 @@ class MainWindow(QMainWindow):
             "Organizza Markdown, log, manifest e PDF ricercabile "
             "in una sottocartella dedicata."
         )
-        pdf_options_layout.addWidget(self.structured_output_checkbox, 1, 0)
+        pdf_options_layout.addWidget(self.structured_output_checkbox, 3, 0)
 
         structured_output_note = QLabel(
             "Organizza output in sottocartella dedicata"
         )
         structured_output_note.setObjectName("sectionHint")
-        pdf_options_layout.addWidget(structured_output_note, 1, 1, 1, 3)
+        pdf_options_layout.addWidget(structured_output_note, 3, 1, 1, 3)
         root_layout.addWidget(self.pdf_output_group)
 
         # --- Avanzamento ---
@@ -621,6 +668,15 @@ class MainWindow(QMainWindow):
 
     def _on_searchable_changed(self, checked: bool) -> None:
         self.ocr_language_combo.setEnabled(checked)
+        self.ocr_backend_combo.setEnabled(checked)
+        self.use_searchable_as_source_checkbox.setEnabled(checked)
+        self._on_ocr_backend_changed()
+
+    def _on_ocr_backend_changed(self) -> None:
+        backend = self.ocr_backend_combo.currentData() or "auto"
+        self.external_ocr_command_edit.setEnabled(
+            self.searchable_checkbox.isChecked() and backend == "external"
+        )
 
     # ------------------------------------------------------------------
     # File / folder selectors
@@ -744,15 +800,22 @@ class MainWindow(QMainWindow):
 
         self.output_edit.setText(str(output_dir))
         create_searchable = self.searchable_checkbox.isChecked()
-        if create_searchable and not is_ocrmypdf_available():
-            QMessageBox.warning(
-                self,
-                "OCRmyPDF non disponibile",
-                f"OCRmyPDF non è installato sul sistema.\n\n"
-                f"La generazione del PDF ricercabile verrà saltata.\n\n"
-                f"{INSTALL_HINT}",
+        ocr_backend = self.ocr_backend_combo.currentData() or "auto"
+        external_ocr_command = self.external_ocr_command_edit.text().strip() or None
+        if create_searchable:
+            backend = detect_ocr_backend(
+                ocr_backend,
+                external_command=external_ocr_command,
             )
-            create_searchable = False
+            if not backend.runnable:
+                detail = "\n".join(backend.warnings) or "Backend non disponibile."
+                QMessageBox.warning(
+                    self,
+                    "Backend OCR non disponibile",
+                    f"{detail}\n\n"
+                    "La generazione del PDF ricercabile verrà saltata.",
+                )
+                create_searchable = False
 
         ocr_language = self.ocr_language_combo.currentData() or "ita"
         self._create_searchable_requested = create_searchable
@@ -783,6 +846,12 @@ class MainWindow(QMainWindow):
             create_searchable=create_searchable,
             ocr_language=ocr_language,
             structured_output=self.structured_output_checkbox.isChecked(),
+            ocr_backend=ocr_backend,
+            external_ocr_command=external_ocr_command,
+            use_searchable_as_source=(
+                create_searchable
+                and self.use_searchable_as_source_checkbox.isChecked()
+            ),
             parent=self,
         )
         self._worker.log_message.connect(self._append_log)
@@ -930,6 +999,17 @@ class MainWindow(QMainWindow):
         self.profile_combo.setEnabled(not running)
         self.block_size_spin.setEnabled(not running)
         self.searchable_checkbox.setEnabled(not running)
+        self.ocr_backend_combo.setEnabled(
+            not running and self.searchable_checkbox.isChecked()
+        )
+        self.external_ocr_command_edit.setEnabled(
+            not running
+            and self.searchable_checkbox.isChecked()
+            and (self.ocr_backend_combo.currentData() or "auto") == "external"
+        )
+        self.use_searchable_as_source_checkbox.setEnabled(
+            not running and self.searchable_checkbox.isChecked()
+        )
         self.structured_output_checkbox.setEnabled(not running)
         self.start_button.setEnabled(not running)
         self.cancel_button.setEnabled(running)
@@ -943,6 +1023,7 @@ class MainWindow(QMainWindow):
             self.verify_outputs_button.setEnabled(False)
         else:
             self.ocr_language_combo.setEnabled(self.searchable_checkbox.isChecked())
+            self._on_ocr_backend_changed()
 
     # ------------------------------------------------------------------
     # Open-file / open-folder handlers

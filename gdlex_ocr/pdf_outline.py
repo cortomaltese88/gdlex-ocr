@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from pypdf import PdfReader, PdfWriter
+from pypdf.generic import Destination, NameObject
 
 
 @dataclass(frozen=True, slots=True)
@@ -15,17 +16,39 @@ class PdfOutlineItem:
     page_index: int
 
 
+def extract_outline_items(pdf_path: str | Path) -> list[PdfOutlineItem]:
+    """Return valid native outline destinations from *pdf_path*, flattened."""
+    reader = PdfReader(Path(pdf_path))
+    items: list[PdfOutlineItem] = []
+
+    def visit(nodes: list[object]) -> None:
+        for node in nodes:
+            if isinstance(node, list):
+                visit(node)
+                continue
+            if not isinstance(node, Destination):
+                continue
+            page_index = reader.get_destination_page_number(node)
+            title = str(node.title).strip()
+            if title and page_index is not None and page_index >= 0:
+                items.append(PdfOutlineItem(title, page_index))
+
+    visit(reader.outline)
+    return items
+
+
 def add_outline_items(
     pdf_path: str | Path,
     items: Iterable[PdfOutlineItem],
 ) -> None:
-    """Add *items* to *pdf_path*, replacing the file in-place."""
+    """Replace the PDF outline with *items*, replacing the file in-place."""
     path = Path(pdf_path)
     reader = PdfReader(path)
     page_count = len(reader.pages)
 
     writer = PdfWriter()
     writer.clone_document_from_reader(reader)
+    writer.root_object.pop(NameObject("/Outlines"), None)
 
     for item in items:
         if not item.title.strip():

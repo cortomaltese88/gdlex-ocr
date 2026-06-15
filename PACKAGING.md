@@ -46,6 +46,11 @@ OCRmyPDF, Tesseract e il modello linguistico italiano restano componenti di
 sistema opzionali dichiarati come `Suggests`. La conversione Markdown continua
 a funzionare in loro assenza.
 
+Backend OCR locali esterni possono essere configurati dall'utente tramite la
+GUI, ma non sono dipendenze del pacchetto. Comandi proprietari, licenze e
+installazioni restano sotto il controllo dell'utente; non viene usata
+automazione GUI.
+
 Il `.deb` non contiene `.venv`, cache Python, repository Git, modelli, PDF,
 output OCR, log o file `manifest.json`. Il manifest è un file di output
 runtime scritto nella cartella dell'utente durante l'elaborazione e non viene

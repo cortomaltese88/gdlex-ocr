@@ -12,7 +12,12 @@ from pathlib import Path
 
 from pypdf import PdfReader, PdfWriter
 
-from gdlex_ocr.pdf_outline import add_technical_fallback_bookmarks
+from gdlex_ocr.pdf_outline import (
+    PdfOutlineItem,
+    add_outline_items,
+    add_technical_fallback_bookmarks,
+    extract_outline_items,
+)
 
 
 def _synthetic_pdf(num_pages: int) -> bytes:
@@ -26,6 +31,41 @@ def _synthetic_pdf(num_pages: int) -> bytes:
 
 
 class AddBlockBookmarksTest(unittest.TestCase):
+    def test_extracts_native_outline_title_and_page(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            pdf_path = Path(tmpdir) / "test.pdf"
+            writer = PdfWriter()
+            for _ in range(4):
+                writer.add_blank_page(width=595, height=842)
+            writer.add_outline_item("Capitolo nativo", 2)
+            with pdf_path.open("wb") as output:
+                writer.write(output)
+
+            items = extract_outline_items(pdf_path)
+
+            self.assertEqual(
+                [("Capitolo nativo", 2)],
+                [(item.title, item.page_index) for item in items],
+            )
+
+    def test_replaces_existing_outline_without_duplicates(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            pdf_path = Path(tmpdir) / "test.pdf"
+            writer = PdfWriter()
+            for _ in range(3):
+                writer.add_blank_page(width=595, height=842)
+            writer.add_outline_item("Vecchio", 0)
+            with pdf_path.open("wb") as output:
+                writer.write(output)
+
+            add_outline_items(
+                pdf_path,
+                [PdfOutlineItem("Nuovo", 1)],
+            )
+
+            outline = PdfReader(pdf_path).outline
+            self.assertEqual(["Nuovo"], [item.title for item in outline])
+
     def test_bookmarks_are_added(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             pdf_path = Path(tmpdir) / "test.pdf"

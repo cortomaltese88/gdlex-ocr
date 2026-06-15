@@ -11,6 +11,7 @@ from gdlex_ocr.docling_runner import (
     DoclingRunner,
     build_docling_command,
 )
+from gdlex_ocr.profiles import PROFILES
 
 
 class _SuccessfulProcess:
@@ -62,6 +63,26 @@ class DoclingCommandTest(unittest.TestCase):
         self.assertIn("--no-ocr", command)
         self.assertNotIn("--ocr", command)
         self.assertOptionValue(command, "--table-mode", "accurate")
+
+    def test_accurate_text_profile_uses_placeholder_without_enrichment(self) -> None:
+        profile = PROFILES["Accurato testo"]
+        command = build_docling_command(
+            "docling",
+            "input.pdf",
+            "output",
+            table_mode=profile.table_mode,
+            num_threads=profile.num_threads,
+            page_batch_size=profile.page_batch_size,
+            enable_ocr=profile.enable_ocr,
+            enrich_picture=profile.enrich_picture,
+            enrich_chart=profile.enrich_chart,
+        )
+
+        self.assertOptionValue(command, "--image-export-mode", "placeholder")
+        self.assertNotIn("embedded", command)
+        self.assertIn("--no-enrich-picture-classes", command)
+        self.assertIn("--no-enrich-picture-description", command)
+        self.assertIn("--no-enrich-chart-extraction", command)
 
     def test_runner_uses_argument_list_without_shell(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:

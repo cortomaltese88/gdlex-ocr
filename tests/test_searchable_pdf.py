@@ -15,6 +15,7 @@ from unittest.mock import patch
 from pypdf import PdfReader, PdfWriter
 
 from gdlex_ocr.profiles import PROFILES
+from gdlex_ocr.ocr_backends import OcrBackend, OcrBackendRun
 from gdlex_ocr.searchable_pdf import (
     INSTALL_HINT,
     SearchablePdfError,
@@ -67,6 +68,90 @@ class StructuredOutputWorkerTest(unittest.TestCase):
                 expected / "fascicolo_ocr.md",
                 worker._output_layout["markdown"],
             )
+
+    def test_markdown_post_processing_updates_file_manifest_and_log(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            source_pdf = root / "fascicolo.pdf"
+            markdown = root / "fascicolo_ocr.md"
+            source_pdf.write_bytes(b"%PDF")
+            markdown.write_text(
+                "Testo.\n\nCAPITOLO PRIMO\n\nContenuto.\n",
+                encoding="utf-8",
+            )
+            worker = OcrWorker(
+                str(source_pdf),
+                str(root),
+                pages_per_block=3,
+                profile=PROFILES["Accurato testo"],
+            )
+            worker._manifest = {"markdown_structure": {}}
+            log_messages: list[str] = []
+            worker._write_log = log_messages.append
+
+            worker._post_process_markdown(markdown)
+
+            self.assertIn(
+                "## CAPITOLO PRIMO",
+                markdown.read_text(encoding="utf-8"),
+            )
+            self.assertEqual(
+                {
+                    "enabled": True,
+                    "post_processed": True,
+                    "headings_added": 1,
+                    "strategy": "conservative_heading_detection",
+                    "warnings": [],
+                },
+                worker._manifest["markdown_structure"],
+            )
+            self.assertTrue(
+                any("aggiunti 1 heading strutturali" in item
+                    for item in log_messages)
+            )
+
+    def test_unavailable_source_backend_falls_back_to_original_pdf(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            source_pdf = root / "fascicolo.pdf"
+            source_pdf.write_bytes(_synthetic_pdf(1))
+            worker = OcrWorker(
+                str(source_pdf),
+                str(root),
+                pages_per_block=3,
+                profile=PROFILES["Accurato testo"],
+                create_searchable=True,
+                use_searchable_as_source=True,
+            )
+            worker._ocr_backend = OcrBackend(
+                "auto",
+                False,
+                None,
+                None,
+                False,
+                ("Nessun backend disponibile.",),
+            )
+            worker._manifest = {
+                "warnings": [],
+                "ocr_backend": {
+                    "warnings": [],
+                },
+            }
+            log_messages: list[str] = []
+            worker._write_log = log_messages.append
+
+            with patch(
+                "gdlex_ocr.ocr_backends.subprocess.Popen",
+            ) as popen:
+                result = worker._prepare_searchable_source()
+
+            self.assertEqual(source_pdf, result)
+            self.assertTrue(worker._source_backend_failed)
+            self.assertTrue(worker._manifest["warnings"])
+            self.assertTrue(
+                any("uso il PDF originale" in item for item in log_messages)
+            )
+            popen.assert_not_called()
 
 
 class BuildOcrmypdfCommandTest(unittest.TestCase):
@@ -182,7 +267,7 @@ class MakeProgressiveOutputPathTest(unittest.TestCase):
 
 
 class SearchablePdfPipelineTest(unittest.TestCase):
-    def test_uses_only_technical_bookmarks_and_keeps_act_index(self) -> None:
+    def test_uses_markdown_headings_for_pdf_and_index(self) -> None:
         markdown = """\
 ## Blocco 1 - Pagine 1-3
 
@@ -206,11 +291,50 @@ class SearchablePdfPipelineTest(unittest.TestCase):
                 profile=PROFILES["Bilanciato"],
                 create_searchable=True,
             )
+            worker._manifest = {
+                "outputs": {
+                    "searchable_pdf": None,
+                    "index_markdown": None,
+                },
+                "bookmarks": {},
+                "ocr_backend": {},
+            }
+            log_messages: list[str] = []
+            worker._write_log = log_messages.append
 
             def fake_ocr(input_path, output_path, **_kwargs) -> None:
                 Path(output_path).write_bytes(Path(input_path).read_bytes())
 
-            with patch("gdlex_ocr.worker.run_ocrmypdf", side_effect=fake_ocr):
+            backend = OcrBackend(
+                "ocrmypdf",
+                True,
+                "/usr/bin/ocrmypdf",
+                None,
+                True,
+            )
+
+            def fake_backend(
+                _backend,
+                input_path,
+                output_path,
+                **_kwargs,
+            ) -> OcrBackendRun:
+                fake_ocr(input_path, output_path)
+                return OcrBackendRun(
+                    "ocrmypdf",
+                    ("ocrmypdf", str(input_path), str(output_path)),
+                )
+
+            with (
+                patch(
+                    "gdlex_ocr.worker.detect_ocr_backend",
+                    return_value=backend,
+                ),
+                patch(
+                    "gdlex_ocr.worker.run_ocr_backend",
+                    side_effect=fake_backend,
+                ),
+            ):
                 worker._build_searchable_pdf(6, markdown_path)
 
             searchable_path = root / "fascicolo_searchable.pdf"
@@ -223,25 +347,44 @@ class SearchablePdfPipelineTest(unittest.TestCase):
 
             self.assertEqual(
                 [
-                    "Fallback tecnico - Pagine 1–3",
-                    "Fallback tecnico - Pagine 4–6",
+                    "Annotazione di P.G",
+                    "Verbale di sommarie informazioni",
+                    "Richiesta di archiviazione",
                 ],
                 titles,
             )
-            self.assertEqual([0, 3], destinations)
-            self.assertEqual(len(destinations), len(set(destinations)))
-            self.assertNotIn("Annotazione di P.G", titles)
-            self.assertNotIn("Verbale di sommarie informazioni", titles)
+            self.assertEqual([0, 0, 3], destinations)
 
             index_path = root / "fascicolo_ocr_index.md"
             self.assertTrue(index_path.is_file())
             index = index_path.read_text(encoding="utf-8")
-            self.assertIn("| Annotazione di P.G | 1 | 1 |", index)
+            self.assertIn("`markdown_headings`", index)
+            self.assertIn("| Annotazione di P.G | 1 |", index)
             self.assertIn(
-                "| Verbale di sommarie informazioni | 1 | 1 |",
+                "| Verbale di sommarie informazioni | 1 |",
                 index,
             )
-            self.assertIn("| Richiesta di archiviazione | 4 | 2 |", index)
+            self.assertIn("| Richiesta di archiviazione | 4 |", index)
+            self.assertEqual(
+                {
+                    "strategy": "markdown_headings",
+                    "count": 3,
+                    "fallback": False,
+                    "warnings": [],
+                },
+                worker._manifest["bookmarks"],
+            )
+            self.assertTrue(worker._manifest["ocr_backend"]["used"])
+            self.assertEqual(
+                "ocrmypdf",
+                worker._manifest["ocr_backend"]["name"],
+            )
+            self.assertTrue(
+                any(
+                    "strategia markdown_headings, 3 voci" in message
+                    for message in log_messages
+                )
+            )
 
 
 if __name__ == "__main__":

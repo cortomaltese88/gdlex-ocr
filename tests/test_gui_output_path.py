@@ -61,19 +61,56 @@ class OutputPathGuiTest(unittest.TestCase):
 
     def test_pdf_output_controls_keep_running_state_behavior(self) -> None:
         self.assertFalse(self.window.ocr_language_combo.isEnabled())
+        self.assertFalse(self.window.ocr_backend_combo.isEnabled())
 
         self.window.searchable_checkbox.setChecked(True)
         self.assertTrue(self.window.ocr_language_combo.isEnabled())
+        self.assertTrue(self.window.ocr_backend_combo.isEnabled())
+        self.assertTrue(
+            self.window.use_searchable_as_source_checkbox.isEnabled()
+        )
 
         self.window._set_running(True)
         self.assertFalse(self.window.searchable_checkbox.isEnabled())
         self.assertFalse(self.window.structured_output_checkbox.isEnabled())
         self.assertFalse(self.window.ocr_language_combo.isEnabled())
+        self.assertFalse(self.window.ocr_backend_combo.isEnabled())
 
         self.window._set_running(False)
         self.assertTrue(self.window.searchable_checkbox.isEnabled())
         self.assertTrue(self.window.structured_output_checkbox.isEnabled())
         self.assertTrue(self.window.ocr_language_combo.isEnabled())
+        self.assertTrue(self.window.ocr_backend_combo.isEnabled())
+
+    def test_external_backend_controls_and_worker_configuration(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            pdf_path = Path(tmpdir) / "fascicolo.pdf"
+            pdf_path.touch()
+            self.window.pdf_edit.setText(str(pdf_path))
+            self.window.output_edit.setText(str(Path(tmpdir) / "output"))
+            self.window.searchable_checkbox.setChecked(True)
+            external_index = self.window.ocr_backend_combo.findData("external")
+            self.window.ocr_backend_combo.setCurrentIndex(external_index)
+            command = "local-ocr {input} {output} --lang {language}"
+            self.window.external_ocr_command_edit.setText(command)
+            self.window.use_searchable_as_source_checkbox.setChecked(True)
+            worker = MagicMock()
+            worker.isRunning.return_value = False
+
+            with (
+                patch("gdlex_ocr.gui.count_pdf_pages", return_value=3),
+                patch("gdlex_ocr.gui.detect_ocr_backend") as detect,
+                patch("gdlex_ocr.gui.OcrWorker", return_value=worker) as worker_cls,
+            ):
+                detect.return_value.runnable = True
+                detect.return_value.warnings = ()
+                self.window._start()
+
+            kwargs = worker_cls.call_args.kwargs
+            self.assertEqual("external", kwargs["ocr_backend"])
+            self.assertEqual(command, kwargs["external_ocr_command"])
+            self.assertTrue(kwargs["use_searchable_as_source"])
+            worker.start.assert_called_once_with()
 
     def test_action_buttons_use_separate_output_and_run_rows(self) -> None:
         output_buttons = [

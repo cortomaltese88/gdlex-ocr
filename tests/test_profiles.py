@@ -10,7 +10,13 @@ from gdlex_ocr.profiles import DEFAULT_PROFILE, PROFILES
 class ProcessingProfilesTest(unittest.TestCase):
     def test_expected_profiles_and_default_exist(self) -> None:
         self.assertEqual(
-            {"Veloce", "Bilanciato", "Accurato"},
+            {
+                "Veloce",
+                "Bilanciato",
+                "Accurato testo",
+                "PDF già ricercabile",
+                "Accurato",
+            },
             set(PROFILES),
         )
         self.assertEqual("Bilanciato", DEFAULT_PROFILE)
@@ -23,9 +29,33 @@ class ProcessingProfilesTest(unittest.TestCase):
         self.assertEqual(10, profile.num_threads)
         self.assertEqual(6, profile.page_batch_size)
         self.assertEqual("fast", profile.table_mode)
+        self.assertTrue(profile.structure_markdown)
 
     def test_accurate_profile_uses_accurate_tables(self) -> None:
         self.assertEqual("accurate", PROFILES["Accurato"].table_mode)
+
+    def test_accurate_text_profile_excludes_image_enrichment(self) -> None:
+        profile = PROFILES["Accurato testo"]
+
+        self.assertEqual("accurate", profile.table_mode)
+        self.assertTrue(profile.enable_ocr)
+        self.assertFalse(profile.enrich_picture)
+        self.assertFalse(profile.enrich_chart)
+        self.assertTrue(profile.structure_markdown)
+
+    def test_structure_post_processing_is_profile_controlled(self) -> None:
+        self.assertFalse(PROFILES["Veloce"].structure_markdown)
+        self.assertTrue(PROFILES["Bilanciato"].structure_markdown)
+        self.assertTrue(PROFILES["Accurato testo"].structure_markdown)
+        self.assertFalse(PROFILES["Accurato"].structure_markdown)
+
+    def test_searchable_pdf_profile_disables_docling_ocr(self) -> None:
+        profile = PROFILES["PDF già ricercabile"]
+
+        self.assertFalse(profile.enable_ocr)
+        self.assertTrue(profile.structure_markdown)
+        self.assertFalse(profile.enrich_picture)
+        self.assertFalse(profile.enrich_chart)
 
     def test_summaries_are_non_empty_and_informative(self) -> None:
         for name, profile in PROFILES.items():

@@ -58,6 +58,7 @@ def _fake_profile() -> MagicMock:
     p.table_mode = "fast"
     p.enrich_picture = False
     p.enrich_chart = False
+    p.structure_markdown = True
     return p
 
 
@@ -213,6 +214,59 @@ class BuildInitialManifestTest(unittest.TestCase):
             m = self._build(Path(td))
         self.assertEqual([], m["warnings"])
         self.assertEqual([], m["errors"])
+
+    def test_bookmark_metadata_is_additive(self) -> None:
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as td:
+            m = self._build(Path(td))
+
+        self.assertEqual(
+            {
+                "strategy": None,
+                "count": 0,
+                "fallback": False,
+                "warnings": [],
+            },
+            m["bookmarks"],
+        )
+
+    def test_markdown_structure_metadata_is_additive(self) -> None:
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as td:
+            m = self._build(Path(td))
+
+        self.assertEqual(
+            {
+                "enabled": True,
+                "post_processed": False,
+                "headings_added": 0,
+                "strategy": "conservative_heading_detection",
+                "warnings": [],
+            },
+            m["markdown_structure"],
+        )
+        self.assertTrue(m["profile"]["options"]["structure_markdown"])
+
+    def test_ocr_backend_metadata_is_additive(self) -> None:
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as td:
+            m = self._build(Path(td))
+
+        self.assertEqual(
+            {
+                "requested": "auto",
+                "name": None,
+                "command": None,
+                "available": False,
+                "used": False,
+                "use_as_source": False,
+                "warnings": [],
+            },
+            m["ocr_backend"],
+        )
 
     def test_job_id_is_uuid_string(self) -> None:
         import tempfile
@@ -432,6 +486,19 @@ class ManifestVerificationTest(unittest.TestCase):
             loaded = load_manifest(path)
 
         self.assertEqual(1, loaded["schema_version"])
+
+    def test_load_legacy_manifest_without_bookmarks(self) -> None:
+        from gdlex_ocr.manifest import load_manifest
+
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "manifest.json"
+            path.write_text(
+                '{"schema_version": 1, "outputs": {}}',
+                encoding="utf-8",
+            )
+            loaded = load_manifest(path)
+
+        self.assertNotIn("bookmarks", loaded)
 
     def test_load_manifest_rejects_invalid_json(self) -> None:
         from gdlex_ocr.manifest import load_manifest

@@ -16,6 +16,12 @@ costituisce consulenza legale e non sostituisce i testi di licenza upstream.
 | Tesseract OCR 5.3.4-1build5 | Motore OCR usato da OCRmyPDF | Apache-2.0 (copyright del pacchetto Debian/Ubuntu) | Dipendenza di sistema esterna; non inclusa nel repository | Installato e aggiornato tramite il gestore pacchetti di sistema. |
 | Tesseract dati italiani 4.1.0-2 | Modello linguistico italiano per Tesseract | Apache-2.0 (copyright del pacchetto Debian/Ubuntu) | Dipendenza di sistema esterna; non inclusa nel repository | Pacchetto `tesseract-ocr-ita`, installato separatamente. |
 
+Eventuali backend esterni configurati dall'utente, inclusi prodotti
+proprietari, non sono distribuiti né licenziati da GD LEX OCR. L'utente deve
+verificarne licenza, documentazione CLI e condizioni d'uso. Master PDF Editor
+e PDF Studio non vengono automatizzati in assenza di una CLI OCR batch
+verificata.
+
 ## Fonti locali consultate
 
 Le rilevazioni sono state eseguite il 14 giugno 2026 con:

@@ -34,6 +34,20 @@ if (( missing )); then
     echo
     echo "Per installare i prerequisiti:"
     echo "sudo apt install ocrmypdf tesseract-ocr tesseract-ocr-ita"
+fi
+
+echo
+echo "Backend PDF/OCR esterni opzionali (solo rilevamento):"
+for candidate in masterpdfeditor masterpdfeditor5 pdfstudio; do
+    if command -v "${candidate}" >/dev/null 2>&1; then
+        printf '  %s: %s\n' "${candidate}" "$(command -v "${candidate}")"
+    else
+        printf '  %s: non trovato\n' "${candidate}"
+    fi
+done
+echo "Gli strumenti proprietari non vengono avviati né automatizzati."
+
+if (( missing )); then
     exit 1
 fi
 

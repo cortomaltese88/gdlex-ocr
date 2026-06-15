@@ -23,10 +23,10 @@ l'applicazione e la conversione PDF → Markdown, sono:
 | PySide6        | 6.11.1    | Interfaccia grafica                      |
 | pypdf          | 6.13.2    | Suddivisione in blocchi PDF e segnalibri |
 
-### Strumenti di sistema opzionali (PDF ricercabile)
+### Backend OCR locali opzionali
 
-Per la funzione **PDF ricercabile OCR** sono necessari strumenti di sistema
-non inclusi in `requirements.txt`:
+La pipeline predefinita resta libera e usa OCRmyPDF con Tesseract, installati
+separatamente dal pacchetto:
 
 ```bash
 sudo apt install ocrmypdf tesseract-ocr tesseract-ocr-ita
@@ -36,16 +36,39 @@ sudo apt install ocrmypdf tesseract-ocr tesseract-ocr-ita
 - `tesseract-ocr` — motore OCR usato da OCRmyPDF
 - `tesseract-ocr-ita` — modello linguistico italiano per Tesseract
 
-La funzione è opzionale: se non installata, la generazione Markdown Docling
-rimane pienamente funzionante. Il PDF ricercabile viene creato dall'originale
-senza modificarlo; l'output è `<nome>_searchable.pdf` nella cartella di output.
-Attualmente il PDF riceve esclusivamente segnalibri tecnici affidabili per
-intervalli di pagine, ad esempio `Fallback tecnico - Pagine 1–15`. Accanto al
-Markdown viene creato anche `<stem>_index.md`: è un indice atti sperimentale e
-auditabile, nel quale la pagina indicata è soltanto la stima dell'inizio del
-blocco Docling. I segnalibri PDF content-aware sono rimandati a una versione
-futura, quando saranno disponibili riferimenti di pagina intra-blocco
-affidabili.
+La GUI permette di scegliere:
+
+- **Automatico**: usa OCRmyPDF quando disponibile;
+- **OCRmyPDF**: selezione esplicita del backend libero;
+- **Comando esterno**: template locale esplicito, eseguito senza shell, che
+  deve contenere `{input}` e `{output}`; `{language}` è facoltativo.
+
+Un backend esterno deve essere già installato e regolarmente licenziato
+dall'utente. GD LEX OCR non installa, aggira licenze o automatizza interfacce
+grafiche. Se il backend non è disponibile, la conversione Markdown continua
+dal PDF originale con un warning chiaro.
+
+L'opzione **Usa il PDF ricercabile come sorgente Docling** crea prima il PDF
+con il backend selezionato e poi lo usa per la conversione. È pensata
+soprattutto per **Accurato testo**. Il PDF originale non viene modificato.
+
+Tesseract viene rilevato come motore OCR, ma non è usato direttamente come
+backend PDF multipagina: tale integrazione resta affidata a OCRmyPDF.
+
+#### Master PDF Editor e altri strumenti proprietari
+
+Nel sistema di sviluppo `masterpdfeditor5` è stato rilevato, ma le opzioni
+`--help` e `--version` non hanno esposto una CLI OCR batch utilizzabile.
+Pertanto non viene automatizzato. Workflow manuale supportato:
+
+1. aprire il PDF in Master PDF Editor;
+2. eseguire l'OCR secondo la licenza del prodotto;
+3. salvare un nuovo PDF ricercabile;
+4. aprirlo in GD LEX OCR con il profilo **PDF già ricercabile**, che disattiva
+   l'OCR Docling e mantiene il post-processing strutturale Markdown.
+
+Lo stesso criterio vale per PDF Studio o altri prodotti: integrazione
+automatica solo in presenza di una CLI locale, documentata e stabile.
 
 Per verificare installazione, versioni e lingue Tesseract disponibili senza
 installare né modificare nulla:
@@ -191,13 +214,15 @@ bash scripts/smoke.sh
 
 ## Profili di elaborazione
 
-L'applicazione offre tre profili selezionabili dalla GUI. Il default è **Bilanciato**.
+L'applicazione offre cinque profili selezionabili dalla GUI. Il default è **Bilanciato**.
 
-| Profilo     | Blocco | Thread | Batch | Tabelle  | Immagini | Grafici |
-|-------------|-------:|-------:|------:|----------|----------|---------|
-| Veloce      |  25 p. |     12 |     8 | fast     | no       | no      |
-| Bilanciato  |  15 p. |     10 |     6 | fast     | no       | no      |
-| Accurato    |  10 p. |      6 |     4 | accurate | sì       | sì      |
+| Profilo     | Blocco | Thread | Batch | Tabelle  | Immagini | Grafici | Struttura MD |
+|-------------|-------:|-------:|------:|----------|----------|---------|--------------|
+| Veloce      |  25 p. |     12 |     8 | fast     | no       | no      | no           |
+| Bilanciato  |  15 p. |     10 |     6 | fast     | no       | no      | sì           |
+| Accurato testo | 10 p. |      6 |     4 | accurate | no       | no      | sì           |
+| PDF già ricercabile | 15 p. | 10 | 6 | accurate | no | no | sì |
+| Accurato    |  10 p. |      6 |     4 | accurate | sì       | sì      | no           |
 
 Il cambio profilo aggiorna automaticamente la dimensione blocco. La dimensione
 può essere modificata manualmente dopo aver selezionato il profilo.
@@ -207,6 +232,19 @@ e usando blocchi grandi. Adatto a documenti con prevalente contenuto testuale.
 
 **Bilanciato** (default) bilancia velocità e qualità; ottimizzato per fascicoli
 di uso comune.
+
+**Accurato testo** usa tabelle accurate, batch e blocchi più piccoli, senza
+analisi di immagini o grafici. È il profilo indicato quando la priorità è la
+qualità del testo Markdown senza contenuti immagine incorporati.
+
+**PDF già ricercabile** disattiva l'OCR Docling e usa il layer testuale già
+presente, mantenendo tabelle accurate e struttura Markdown conservativa.
+
+I profili **Bilanciato** e **Accurato testo** applicano inoltre un
+post-processing strutturale conservativo al Markdown finale. Righe isolate e
+chiaramente riconoscibili come titoli (capitoli, sezioni, articoli e
+numerazioni) vengono promosse a heading senza riscrivere il testo. Tabelle,
+blocchi codice, citazioni, URL, email, hash e payload base64 sono esclusi.
 
 **Accurato** attiva l'analisi di immagini e grafici e usa blocchi più piccoli per
 maggiore robustezza. Adatto a documenti con tabelle complesse o contenuto misto.
@@ -234,10 +272,9 @@ GD LEX OCR è © 2026 Studio GD LEX - Avv. Marco Gianese ed è rilasciato con
 licenza MIT; il testo completo è nel file `LICENSE`.
 
 L'applicazione usa dipendenze Python installate nell'ambiente virtuale
-(`docling`, `onnxruntime`, `PySide6` e `pypdf`). OCRmyPDF, Tesseract e il
-modello linguistico italiano sono invece strumenti di sistema opzionali,
-richiamati solo quando viene richiesta la creazione del PDF ricercabile e non
-sono inclusi nel repository.
+(`docling`, `onnxruntime`, `PySide6` e `pypdf`). OCRmyPDF, Tesseract, modelli
+linguistici ed eventuali backend esterni sono strumenti di sistema opzionali,
+richiamati solo su richiesta e non inclusi nel repository.
 
 Licenze rilevate, modalità di distribuzione e note operative sono raccolte in
 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md). Le dipendenze transitive e

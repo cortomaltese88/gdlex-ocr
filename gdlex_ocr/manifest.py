@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from gdlex_ocr.markdown_structure import STRUCTURE_STRATEGY
 from gdlex_ocr.output_layout import MANIFEST_FILENAME, build_output_layout
 
 SCHEMA_VERSION = 1
@@ -146,6 +147,9 @@ def build_initial_manifest(
     ocr_language: str,
     app_version: str,
     structured_output: bool = False,
+    ocr_backend: str = "auto",
+    external_ocr_command: str | None = None,
+    use_searchable_as_source: bool = False,
 ) -> dict[str, Any]:
     """Return a new manifest dict at job start.
 
@@ -193,6 +197,7 @@ def build_initial_manifest(
                 "table_mode": profile.table_mode,
                 "enrich_picture": profile.enrich_picture,
                 "enrich_chart": profile.enrich_chart,
+                "structure_markdown": profile.structure_markdown,
             },
         },
         "processing": {
@@ -213,6 +218,32 @@ def build_initial_manifest(
         "output_layout": {
             "structured": structured_output,
             "job_output_dir": str(output_dir),
+        },
+        "bookmarks": {
+            "strategy": None,
+            "count": 0,
+            "fallback": False,
+            "warnings": [],
+        },
+        "markdown_structure": {
+            "enabled": profile.structure_markdown,
+            "post_processed": False,
+            "headings_added": 0,
+            "strategy": (
+                STRUCTURE_STRATEGY
+                if profile.structure_markdown
+                else None
+            ),
+            "warnings": [],
+        },
+        "ocr_backend": {
+            "requested": ocr_backend,
+            "name": None,
+            "command": external_ocr_command,
+            "available": False,
+            "used": False,
+            "use_as_source": use_searchable_as_source,
+            "warnings": [],
         },
         "warnings": [],
         "errors": [],

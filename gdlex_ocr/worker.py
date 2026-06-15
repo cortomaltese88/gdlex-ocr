@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import shlex
 import tempfile
 import time
 from datetime import datetime
@@ -10,7 +11,7 @@ from typing import Any
 
 from PySide6.QtCore import QThread, Signal
 
-from gdlex_ocr.act_outline import write_act_index
+from gdlex_ocr.bookmarks import select_bookmarks, write_bookmark_index
 from gdlex_ocr.docling_runner import (
     DoclingCancelled,
     DoclingError,
@@ -27,19 +28,23 @@ from gdlex_ocr.markdown_merge import (
     merge_markdown,
 )
 from gdlex_ocr.markdown_sanitize import sanitize_markdown_file
+from gdlex_ocr.markdown_structure import structure_markdown_file
+from gdlex_ocr.ocr_backends import (
+    OcrBackend,
+    OcrBackendError,
+    backend_manifest,
+    detect_ocr_backend,
+    run_ocr_backend,
+)
 from gdlex_ocr.output_layout import (
     build_job_output_dir,
     build_output_layout,
     create_unique_output_dir,
 )
-from gdlex_ocr.pdf_outline import add_technical_fallback_bookmarks
+from gdlex_ocr.pdf_outline import add_outline_items
 from gdlex_ocr.pdf_splitter import PdfSplitError, count_pdf_pages, split_pdf
 from gdlex_ocr.profiles import ProcessingProfile
-from gdlex_ocr.searchable_pdf import (
-    SearchablePdfError,
-    make_progressive_output_path,
-    run_ocrmypdf,
-)
+from gdlex_ocr.searchable_pdf import make_progressive_output_path
 from gdlex_ocr.version import APP_VERSION
 
 
@@ -64,6 +69,9 @@ class OcrWorker(QThread):
         parent=None,
         *,
         structured_output: bool = False,
+        ocr_backend: str = "auto",
+        external_ocr_command: str | None = None,
+        use_searchable_as_source: bool = False,
     ) -> None:
         super().__init__(parent)
         self.pdf_path = Path(pdf_path)
@@ -74,6 +82,12 @@ class OcrWorker(QThread):
         self._create_searchable = create_searchable
         self._ocr_language = ocr_language
         self._structured_output = structured_output
+        self._ocr_backend_name = ocr_backend
+        self._external_ocr_command = external_ocr_command
+        self._use_searchable_as_source = use_searchable_as_source
+        self._ocr_backend: OcrBackend | None = None
+        self._prepared_searchable_path: Path | None = None
+        self._source_backend_failed = False
         self._runner = DoclingRunner()
         self._work_dir: Path | None = None
         self._output_layout = build_output_layout(
@@ -104,6 +118,9 @@ class OcrWorker(QThread):
                 ocr_language=self._ocr_language,
                 app_version=APP_VERSION,
                 structured_output=self._structured_output,
+                ocr_backend=self._ocr_backend_name,
+                external_ocr_command=self._external_ocr_command,
+                use_searchable_as_source=self._use_searchable_as_source,
             )
             safe_write_manifest(self._manifest, self.output_dir)
 
@@ -114,7 +131,19 @@ class OcrWorker(QThread):
             )
             self._write_log(f"Profilo: {self._profile.name}")
 
-            total_pages = count_pdf_pages(self.pdf_path)
+            processing_pdf = self.pdf_path
+            if self._create_searchable:
+                self._ocr_backend = detect_ocr_backend(
+                    self._ocr_backend_name,
+                    external_command=self._external_ocr_command,
+                )
+                self._manifest["ocr_backend"].update(
+                    backend_manifest(self._ocr_backend)
+                )
+                if self._use_searchable_as_source:
+                    processing_pdf = self._prepare_searchable_source()
+
+            total_pages = count_pdf_pages(processing_pdf)
             self._manifest["input"]["page_count"] = total_pages
             self._write_log(f"Pagine totali: {total_pages}")
             self._work_dir = Path(
@@ -129,7 +158,7 @@ class OcrWorker(QThread):
             self._write_log(f"Directory output parziali: {self._work_dir}")
 
             blocks = split_pdf(
-                self.pdf_path,
+                processing_pdf,
                 pdf_blocks_dir,
                 self.pages_per_block,
                 on_block_created=lambda block: self._write_log(
@@ -211,6 +240,8 @@ class OcrWorker(QThread):
                 final_output_path,
                 self.pdf_path.name,
             )
+            if self._profile.structure_markdown:
+                self._post_process_markdown(final_path)
 
             total_seconds = time.monotonic() - total_started
             pages_per_min = (
@@ -247,8 +278,12 @@ class OcrWorker(QThread):
                 speed_text,
             )
 
-            if self._create_searchable:
-                self._build_searchable_pdf(total_pages, final_path)
+            if self._create_searchable and not self._source_backend_failed:
+                self._build_searchable_pdf(
+                    total_pages,
+                    final_path,
+                    searchable_path=self._prepared_searchable_path,
+                )
 
         except DoclingCancelled:
             if self._manifest is not None:
@@ -263,6 +298,7 @@ class OcrWorker(QThread):
             PdfSplitError,
             DoclingError,
             MarkdownMergeError,
+            OcrBackendError,
             OSError,
             ValueError,
         ) as exc:
@@ -306,39 +342,58 @@ class OcrWorker(QThread):
         self,
         total_pages: int,
         markdown_path: Path,
+        *,
+        searchable_path: Path | None = None,
     ) -> None:
         try:
             self._write_log("─" * 60)
-            self._write_log("Creazione PDF ricercabile OCR...")
-            searchable_path = make_progressive_output_path(
-                self.output_dir, self.pdf_path.stem
-            )
-            run_ocrmypdf(
+            if searchable_path is None:
+                self._write_log("Creazione PDF ricercabile OCR...")
+                searchable_path = make_progressive_output_path(
+                    self.output_dir, self.pdf_path.stem
+                )
+                self._run_selected_backend(self.pdf_path, searchable_path)
+            else:
+                self._write_log(
+                    "Uso del PDF ricercabile preparato come sorgente Docling."
+                )
+            bookmarks = select_bookmarks(
                 self.pdf_path,
-                searchable_path,
-                language=self._ocr_language,
-                log_callback=self._write_log,
+                markdown_path,
+                block_size=self.pages_per_block,
+                total_pages=total_pages,
             )
-            add_technical_fallback_bookmarks(
-                searchable_path,
-                self.pages_per_block,
-                total_pages,
-            )
+            add_outline_items(searchable_path, bookmarks.items)
+            index_path = write_bookmark_index(markdown_path, bookmarks)
+            if bookmarks.fallback:
+                self._write_log(
+                    "Indice/segnalibri: fallback tecnico "
+                    f"{bookmarks.strategy}, {len(bookmarks.items)} voci."
+                )
+            else:
+                self._write_log(
+                    "Indice/segnalibri: strategia "
+                    f"{bookmarks.strategy}, {len(bookmarks.items)} voci."
+                )
+            for warning in bookmarks.warnings:
+                self._write_log(f"Warning segnalibri: {warning}")
             self._write_log(
-                "Aggiunti segnalibri PDF tecnici per intervalli di pagine."
-            )
-            index = write_act_index(markdown_path)
-            self._write_log(
-                f"Indice atti Markdown sperimentale creato: {index.index_path}"
+                f"Indice Markdown creato: {index_path}"
             )
             self._write_log(f"PDF ricercabile creato: {searchable_path}")
             self._write_log("─" * 60)
             if self._manifest is not None:
                 self._manifest["outputs"]["searchable_pdf"] = str(searchable_path)
-                self._manifest["outputs"]["index_markdown"] = str(index.index_path)
+                self._manifest["outputs"]["index_markdown"] = str(index_path)
+                self._manifest["bookmarks"] = {
+                    "strategy": bookmarks.strategy,
+                    "count": len(bookmarks.items),
+                    "fallback": bookmarks.fallback,
+                    "warnings": list(bookmarks.warnings),
+                }
                 safe_write_manifest(self._manifest, self.output_dir)
             self.searchable_pdf_done.emit(str(searchable_path))
-        except (SearchablePdfError, OSError, ValueError) as exc:
+        except (OcrBackendError, OSError, ValueError) as exc:
             self._write_log(f"ERRORE PDF ricercabile: {exc}")
             if self._manifest is not None:
                 self._manifest["warnings"].append(
@@ -353,6 +408,76 @@ class OcrWorker(QThread):
                 self._manifest["warnings"].append(message)
                 safe_write_manifest(self._manifest, self.output_dir)
             self.searchable_pdf_error.emit(message)
+
+    def _prepare_searchable_source(self) -> Path:
+        searchable_path = make_progressive_output_path(
+            self.output_dir,
+            self.pdf_path.stem,
+        )
+        self._write_log(
+            "Preparazione PDF ricercabile come sorgente della conversione..."
+        )
+        try:
+            self._run_selected_backend(self.pdf_path, searchable_path)
+        except OcrBackendError as exc:
+            self._source_backend_failed = True
+            message = (
+                f"Backend OCR non disponibile; uso il PDF originale: {exc}"
+            )
+            self._write_log(f"Warning: {message}")
+            if self._manifest is not None:
+                self._manifest["warnings"].append(message)
+                self._manifest["ocr_backend"]["warnings"].append(str(exc))
+                safe_write_manifest(self._manifest, self.output_dir)
+            self.searchable_pdf_error.emit(str(exc))
+            return self.pdf_path
+        self._prepared_searchable_path = searchable_path
+        return searchable_path
+
+    def _run_selected_backend(
+        self,
+        input_pdf: Path,
+        output_pdf: Path,
+    ) -> None:
+        backend = self._ocr_backend or detect_ocr_backend(
+            self._ocr_backend_name,
+            external_command=self._external_ocr_command,
+        )
+        self._ocr_backend = backend
+        if self._manifest is not None:
+            self._manifest["ocr_backend"].update(backend_manifest(backend))
+        result = run_ocr_backend(
+            backend,
+            input_pdf,
+            output_pdf,
+            language=self._ocr_language,
+            log_callback=self._write_log,
+        )
+        if self._manifest is not None:
+            self._manifest["ocr_backend"].update({
+                "name": result.name,
+                "command": shlex.join(result.command),
+                "available": True,
+                "used": True,
+                "warnings": list(backend.warnings),
+            })
+        self._write_log(f"Backend OCR usato: {result.name}.")
+
+    def _post_process_markdown(self, markdown_path: Path) -> None:
+        result = structure_markdown_file(markdown_path)
+        if self._manifest is not None:
+            self._manifest["markdown_structure"] = {
+                "enabled": True,
+                "post_processed": True,
+                "headings_added": result.headings_added,
+                "strategy": result.strategy,
+                "warnings": list(result.warnings),
+            }
+        self._write_log(
+            "Markdown: aggiunti "
+            f"{result.headings_added} heading strutturali "
+            "con euristiche conservative."
+        )
 
     def _raise_if_cancelled(self) -> None:
         if self.isInterruptionRequested():
