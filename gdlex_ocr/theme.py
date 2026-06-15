@@ -182,6 +182,27 @@ QLineEdit[readOnly="true"] {{
     color: {TEXT};
 }}
 
+QCheckBox::indicator {{
+    width: 16px;
+    height: 16px;
+    border-radius: 3px;
+}}
+
+QCheckBox::indicator:unchecked {{
+    background-color: #152019;
+    border: 2px solid #67bd7e;
+}}
+
+QCheckBox::indicator:checked {{
+    background-color: {GREEN};
+    border: 2px solid {GREEN_BRIGHT};
+}}
+
+QCheckBox::indicator:disabled {{
+    background-color: #182019;
+    border: 2px solid #425849;
+}}
+
 QAbstractSpinBox {{
     padding-right: 31px;
 }}
@@ -541,6 +562,27 @@ QLineEdit:focus, QSpinBox:focus, QTextEdit:focus, QComboBox:focus {
 QLineEdit:disabled, QSpinBox:disabled, QComboBox:disabled {
     color: #89948e;
     background-color: #e7ebe8;
+}
+
+QCheckBox::indicator {
+    width: 16px;
+    height: 16px;
+    border-radius: 3px;
+}
+
+QCheckBox::indicator:unchecked {
+    background-color: #ffffff;
+    border: 2px solid #668372;
+}
+
+QCheckBox::indicator:checked {
+    background-color: #287a4d;
+    border: 2px solid #174d31;
+}
+
+QCheckBox::indicator:disabled {
+    background-color: #e1e6e3;
+    border: 2px solid #aeb9b2;
 }
 
 QSpinBox {

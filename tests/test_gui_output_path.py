@@ -12,7 +12,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtCore import Qt
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QGroupBox
 
 from gdlex_ocr.gui import MainWindow, resolve_output_path, resolve_pdf_path
 
@@ -34,14 +34,46 @@ class OutputPathGuiTest(unittest.TestCase):
         self.assertFalse(self.window.output_edit.isReadOnly())
         self.assertIn("incolla", self.window.output_edit.placeholderText())
 
-    def test_structured_output_checkbox_is_disabled_by_default(self) -> None:
-        checkbox = self.window.structured_output_checkbox
+    def test_pdf_and_output_checkboxes_are_unchecked_by_default(self) -> None:
+        searchable = self.window.searchable_checkbox
+        structured = self.window.structured_output_checkbox
+
+        self.assertEqual("Crea PDF ricercabile OCR", searchable.text())
+        self.assertFalse(searchable.isChecked())
         self.assertEqual(
             "Crea cartella fascicolo per ogni elaborazione",
-            checkbox.text(),
+            structured.text(),
         )
-        self.assertFalse(checkbox.isChecked())
-        self.assertIn("sottocartella dedicata", checkbox.toolTip())
+        self.assertFalse(structured.isChecked())
+        self.assertIn("sottocartella dedicata", structured.toolTip())
+
+    def test_structured_output_checkbox_is_inside_pdf_output_group(self) -> None:
+        group = self.window.pdf_output_group
+
+        self.assertIsInstance(group, QGroupBox)
+        self.assertEqual("PDF e output", group.title())
+        self.assertIs(self.window.searchable_checkbox.parentWidget(), group)
+        self.assertIs(self.window.structured_output_checkbox.parentWidget(), group)
+        self.assertGreaterEqual(
+            group.layout().indexOf(self.window.structured_output_checkbox),
+            0,
+        )
+
+    def test_pdf_output_controls_keep_running_state_behavior(self) -> None:
+        self.assertFalse(self.window.ocr_language_combo.isEnabled())
+
+        self.window.searchable_checkbox.setChecked(True)
+        self.assertTrue(self.window.ocr_language_combo.isEnabled())
+
+        self.window._set_running(True)
+        self.assertFalse(self.window.searchable_checkbox.isEnabled())
+        self.assertFalse(self.window.structured_output_checkbox.isEnabled())
+        self.assertFalse(self.window.ocr_language_combo.isEnabled())
+
+        self.window._set_running(False)
+        self.assertTrue(self.window.searchable_checkbox.isEnabled())
+        self.assertTrue(self.window.structured_output_checkbox.isEnabled())
+        self.assertTrue(self.window.ocr_language_combo.isEnabled())
 
     def test_manual_output_path_survives_pdf_selection(self) -> None:
         manual_path = "/tmp/output-personalizzato"

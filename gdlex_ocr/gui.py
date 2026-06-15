@@ -321,15 +321,16 @@ class MainWindow(QMainWindow):
 
         self._on_profile_changed(DEFAULT_PROFILE)
 
-        # --- Opzioni PDF ricercabile ---
-        pdf_group = QGroupBox("PDF ricercabile (opzionale)")
-        pdf_options_layout = QGridLayout(pdf_group)
+        # --- PDF ricercabile e organizzazione output ---
+        self.pdf_output_group = QGroupBox("PDF e output")
+        pdf_options_layout = QGridLayout(self.pdf_output_group)
         pdf_options_layout.setContentsMargins(18, 8, 18, 8)
         pdf_options_layout.setHorizontalSpacing(14)
+        pdf_options_layout.setVerticalSpacing(8)
         pdf_options_layout.setColumnMinimumWidth(2, 220)
         pdf_options_layout.setColumnStretch(2, 1)
 
-        self.searchable_checkbox = QCheckBox("Crea anche PDF ricercabile OCR")
+        self.searchable_checkbox = QCheckBox("Crea PDF ricercabile OCR")
         self.searchable_checkbox.setChecked(False)
         self.searchable_checkbox.toggled.connect(self._on_searchable_changed)
         pdf_options_layout.addWidget(self.searchable_checkbox, 0, 0)
@@ -348,7 +349,6 @@ class MainWindow(QMainWindow):
         engine_note = QLabel("Richiede: ocrmypdf + tesseract")
         engine_note.setObjectName("sectionHint")
         pdf_options_layout.addWidget(engine_note, 0, 3)
-        root_layout.addWidget(pdf_group)
 
         self.structured_output_checkbox = QCheckBox(
             "Crea cartella fascicolo per ogni elaborazione"
@@ -358,7 +358,14 @@ class MainWindow(QMainWindow):
             "Organizza Markdown, log, manifest e PDF ricercabile "
             "in una sottocartella dedicata."
         )
-        root_layout.addWidget(self.structured_output_checkbox)
+        pdf_options_layout.addWidget(self.structured_output_checkbox, 1, 0)
+
+        structured_output_note = QLabel(
+            "Organizza output in sottocartella dedicata"
+        )
+        structured_output_note.setObjectName("sectionHint")
+        pdf_options_layout.addWidget(structured_output_note, 1, 1, 1, 3)
+        root_layout.addWidget(self.pdf_output_group)
 
         # --- Avanzamento ---
         progress_group = QGroupBox("Avanzamento")
