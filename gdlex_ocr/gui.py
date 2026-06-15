@@ -333,30 +333,31 @@ class MainWindow(QMainWindow):
         pdf_options_layout.setContentsMargins(18, 8, 18, 8)
         pdf_options_layout.setHorizontalSpacing(14)
         pdf_options_layout.setVerticalSpacing(8)
-        pdf_options_layout.setColumnMinimumWidth(2, 220)
-        pdf_options_layout.setColumnStretch(2, 1)
+        pdf_options_layout.setColumnMinimumWidth(0, 150)
+        pdf_options_layout.setColumnMinimumWidth(3, 220)
+        pdf_options_layout.setColumnStretch(1, 1)
+        pdf_options_layout.setColumnStretch(3, 1)
 
         self.searchable_checkbox = QCheckBox("Crea PDF ricercabile OCR")
         self.searchable_checkbox.setChecked(False)
         self.searchable_checkbox.toggled.connect(self._on_searchable_changed)
-        pdf_options_layout.addWidget(self.searchable_checkbox, 0, 0)
+        pdf_options_layout.addWidget(self.searchable_checkbox, 0, 0, 1, 2)
 
-        lang_label = QLabel("Lingua OCR")
+        lang_label = QLabel("Lingua OCR:")
         lang_label.setObjectName("sectionHint")
-        pdf_options_layout.addWidget(lang_label, 0, 1)
+        lang_label.setAlignment(
+            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+        )
+        pdf_options_layout.addWidget(lang_label, 0, 2)
         self.ocr_language_combo = QComboBox()
         for display, code in _OCR_LANGUAGES:
             self.ocr_language_combo.addItem(display, userData=code)
         self.ocr_language_combo.setCurrentIndex(0)
         self.ocr_language_combo.setEnabled(False)
         self.ocr_language_combo.setMinimumWidth(220)
-        pdf_options_layout.addWidget(self.ocr_language_combo, 0, 2)
+        pdf_options_layout.addWidget(self.ocr_language_combo, 0, 3)
 
-        engine_note = QLabel("Backend locale opzionale")
-        engine_note.setObjectName("sectionHint")
-        pdf_options_layout.addWidget(engine_note, 0, 3)
-
-        backend_label = QLabel("Backend OCR")
+        backend_label = QLabel("Backend OCR:")
         backend_label.setObjectName("sectionHint")
         pdf_options_layout.addWidget(backend_label, 1, 0)
         self.ocr_backend_combo = QComboBox()
@@ -366,8 +367,14 @@ class MainWindow(QMainWindow):
             self._on_ocr_backend_changed
         )
         self.ocr_backend_combo.setEnabled(False)
-        pdf_options_layout.addWidget(self.ocr_backend_combo, 1, 1)
+        self.ocr_backend_combo.setToolTip(
+            "Seleziona il backend OCR locale opzionale."
+        )
+        pdf_options_layout.addWidget(self.ocr_backend_combo, 1, 1, 1, 3)
 
+        external_command_label = QLabel("Comando esterno:")
+        external_command_label.setObjectName("sectionHint")
+        pdf_options_layout.addWidget(external_command_label, 2, 0, 1, 4)
         self.external_ocr_command_edit = QLineEdit()
         self.external_ocr_command_edit.setPlaceholderText(
             "tool --input {input} --output {output} --lang {language}"
@@ -376,26 +383,23 @@ class MainWindow(QMainWindow):
             "Comando locale senza shell; richiede {input} e {output}."
         )
         self.external_ocr_command_edit.setEnabled(False)
-        pdf_options_layout.addWidget(self.external_ocr_command_edit, 1, 2, 1, 2)
+        pdf_options_layout.addWidget(self.external_ocr_command_edit, 3, 0, 1, 4)
 
         self.use_searchable_as_source_checkbox = QCheckBox(
             "Usa il PDF ricercabile come sorgente Docling"
         )
         self.use_searchable_as_source_checkbox.setChecked(False)
         self.use_searchable_as_source_checkbox.setEnabled(False)
+        self.use_searchable_as_source_checkbox.setToolTip(
+            "Utile con Accurato testo o con un backend esterno configurato."
+        )
         pdf_options_layout.addWidget(
             self.use_searchable_as_source_checkbox,
-            2,
+            4,
             0,
             1,
-            2,
+            4,
         )
-
-        source_note = QLabel(
-            "Utile con Accurato testo o con un backend esterno configurato"
-        )
-        source_note.setObjectName("sectionHint")
-        pdf_options_layout.addWidget(source_note, 2, 2, 1, 2)
 
         self.structured_output_checkbox = QCheckBox(
             "Crea cartella fascicolo per ogni elaborazione"
@@ -405,13 +409,17 @@ class MainWindow(QMainWindow):
             "Organizza Markdown, log, manifest e PDF ricercabile "
             "in una sottocartella dedicata."
         )
-        pdf_options_layout.addWidget(self.structured_output_checkbox, 3, 0)
+        pdf_options_layout.addWidget(self.structured_output_checkbox, 5, 0, 1, 4)
 
         structured_output_note = QLabel(
             "Organizza output in sottocartella dedicata"
         )
         structured_output_note.setObjectName("sectionHint")
-        pdf_options_layout.addWidget(structured_output_note, 3, 1, 1, 3)
+        structured_output_note.setContentsMargins(24, 0, 0, 0)
+        pdf_options_layout.addWidget(structured_output_note, 6, 0, 1, 4)
+        self.pdf_output_group.setMinimumHeight(
+            self.pdf_output_group.sizeHint().height()
+        )
         root_layout.addWidget(self.pdf_output_group)
 
         # --- Avanzamento ---

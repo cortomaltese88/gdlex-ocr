@@ -12,7 +12,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtCore import Qt
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication, QGroupBox, QPushButton
+from PySide6.QtWidgets import QApplication, QGridLayout, QGroupBox, QPushButton
 
 from gdlex_ocr.gui import MainWindow, resolve_output_path, resolve_pdf_path
 
@@ -59,6 +59,45 @@ class OutputPathGuiTest(unittest.TestCase):
             0,
         )
 
+    def test_pdf_output_layout_keeps_external_command_on_its_own_row(self) -> None:
+        layout = self.window.pdf_output_group.layout()
+
+        self.assertIsInstance(layout, QGridLayout)
+        backend_position = layout.getItemPosition(
+            layout.indexOf(self.window.ocr_backend_combo)
+        )
+        command_position = layout.getItemPosition(
+            layout.indexOf(self.window.external_ocr_command_edit)
+        )
+        self.assertNotEqual(backend_position[0], command_position[0])
+        self.assertEqual((3, 0, 1, 4), command_position)
+
+        self.window.resize(self.window.minimumSize())
+        self.window.show()
+        self.app.processEvents()
+
+        self.assertGreaterEqual(self.window.external_ocr_command_edit.width(), 600)
+        self.assertGreaterEqual(
+            self.window.external_ocr_command_edit.height(),
+            self.window.external_ocr_command_edit.minimumSizeHint().height(),
+        )
+        self.assertLess(
+            self.window.ocr_backend_combo.geometry().bottom(),
+            self.window.external_ocr_command_edit.geometry().top(),
+        )
+        self.assertLess(
+            self.window.external_ocr_command_edit.geometry().bottom(),
+            self.window.use_searchable_as_source_checkbox.geometry().top(),
+        )
+
+    def test_main_window_has_reasonable_minimum_size(self) -> None:
+        minimum = self.window.minimumSize()
+
+        self.assertGreaterEqual(minimum.width(), 900)
+        self.assertLessEqual(minimum.width(), 1100)
+        self.assertGreaterEqual(minimum.height(), 700)
+        self.assertLessEqual(minimum.height(), 900)
+
     def test_pdf_output_controls_keep_running_state_behavior(self) -> None:
         self.assertFalse(self.window.ocr_language_combo.isEnabled())
         self.assertFalse(self.window.ocr_backend_combo.isEnabled())
@@ -75,12 +114,19 @@ class OutputPathGuiTest(unittest.TestCase):
         self.assertFalse(self.window.structured_output_checkbox.isEnabled())
         self.assertFalse(self.window.ocr_language_combo.isEnabled())
         self.assertFalse(self.window.ocr_backend_combo.isEnabled())
+        self.assertFalse(self.window.external_ocr_command_edit.isEnabled())
 
         self.window._set_running(False)
         self.assertTrue(self.window.searchable_checkbox.isEnabled())
         self.assertTrue(self.window.structured_output_checkbox.isEnabled())
         self.assertTrue(self.window.ocr_language_combo.isEnabled())
         self.assertTrue(self.window.ocr_backend_combo.isEnabled())
+
+        external_index = self.window.ocr_backend_combo.findData("external")
+        self.window.ocr_backend_combo.setCurrentIndex(external_index)
+        self.assertTrue(self.window.external_ocr_command_edit.isEnabled())
+        self.window._set_running(True)
+        self.assertFalse(self.window.external_ocr_command_edit.isEnabled())
 
     def test_external_backend_controls_and_worker_configuration(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
