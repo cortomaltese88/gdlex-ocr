@@ -12,7 +12,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtCore import Qt
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication, QGridLayout, QGroupBox, QPushButton
+from PySide6.QtWidgets import QApplication, QGroupBox, QPushButton, QTabWidget
 
 from gdlex_ocr.gui import MainWindow, resolve_output_path, resolve_pdf_path
 
@@ -47,47 +47,82 @@ class OutputPathGuiTest(unittest.TestCase):
         self.assertFalse(structured.isChecked())
         self.assertIn("sottocartella dedicata", structured.toolTip())
 
-    def test_structured_output_checkbox_is_inside_pdf_output_group(self) -> None:
+    def test_pdf_output_group_contains_base_and_backend_tabs(self) -> None:
         group = self.window.pdf_output_group
+        tabs = group.findChild(QTabWidget)
 
         self.assertIsInstance(group, QGroupBox)
         self.assertEqual("PDF e output", group.title())
-        self.assertIs(self.window.searchable_checkbox.parentWidget(), group)
-        self.assertIs(self.window.structured_output_checkbox.parentWidget(), group)
-        self.assertGreaterEqual(
-            group.layout().indexOf(self.window.structured_output_checkbox),
-            0,
+        self.assertIs(tabs, self.window.pdf_output_tabs)
+        self.assertEqual(2, tabs.count())
+        self.assertEqual(
+            ["Base", "Backend OCR"],
+            [tabs.tabText(index) for index in range(tabs.count())],
         )
 
-    def test_pdf_output_layout_keeps_external_command_on_its_own_row(self) -> None:
-        layout = self.window.pdf_output_group.layout()
+    def test_pdf_output_controls_are_in_the_expected_tabs(self) -> None:
+        base_tab = self.window.pdf_output_base_tab
+        backend_tab = self.window.pdf_output_backend_tab
 
-        self.assertIsInstance(layout, QGridLayout)
-        backend_position = layout.getItemPosition(
-            layout.indexOf(self.window.ocr_backend_combo)
-        )
-        command_position = layout.getItemPosition(
-            layout.indexOf(self.window.external_ocr_command_edit)
-        )
-        self.assertNotEqual(backend_position[0], command_position[0])
-        self.assertEqual((3, 0, 1, 4), command_position)
+        for widget in (
+            self.window.searchable_checkbox,
+            self.window.ocr_language_combo,
+            self.window.use_searchable_as_source_checkbox,
+            self.window.structured_output_checkbox,
+        ):
+            self.assertIs(widget.parentWidget(), base_tab)
 
+        for widget in (
+            self.window.ocr_backend_combo,
+            self.window.external_ocr_command_edit,
+        ):
+            self.assertIs(widget.parentWidget(), backend_tab)
+
+    def test_external_command_does_not_occupy_space_in_base_tab(self) -> None:
+        tabs = self.window.pdf_output_tabs
+        tabs.setCurrentWidget(self.window.pdf_output_base_tab)
+        self.window.show()
+        self.app.processEvents()
+
+        self.assertTrue(self.window.pdf_output_base_tab.isVisible())
+        self.assertFalse(self.window.pdf_output_backend_tab.isVisible())
+        self.assertFalse(self.window.external_ocr_command_edit.isVisible())
+
+    def test_pdf_output_tabs_keep_controls_visible_without_overlap(self) -> None:
+        tabs = self.window.pdf_output_tabs
+        self.window.resize(self.window.minimumSize())
+        self.window.show()
+
+        tabs.setCurrentWidget(self.window.pdf_output_base_tab)
+        self.app.processEvents()
+        base_controls = (
+            self.window.searchable_checkbox,
+            self.window.ocr_language_combo,
+            self.window.use_searchable_as_source_checkbox,
+            self.window.structured_output_checkbox,
+        )
+        self.assertTrue(all(widget.isVisible() for widget in base_controls))
+        ordered_base_controls = sorted(
+            base_controls,
+            key=lambda widget: widget.geometry().top(),
+        )
+        for upper, lower in zip(ordered_base_controls, ordered_base_controls[1:]):
+            if upper.geometry().top() != lower.geometry().top():
+                self.assertLess(upper.geometry().bottom(), lower.geometry().top())
+
+        tabs.setCurrentWidget(self.window.pdf_output_backend_tab)
+        self.app.processEvents()
+        self.assertTrue(self.window.external_ocr_command_edit.isVisible())
+        self.assertGreaterEqual(self.window.external_ocr_command_edit.width(), 600)
+
+    def test_pdf_output_group_does_not_overlap_progress_at_minimum_size(self) -> None:
         self.window.resize(self.window.minimumSize())
         self.window.show()
         self.app.processEvents()
 
-        self.assertGreaterEqual(self.window.external_ocr_command_edit.width(), 600)
-        self.assertGreaterEqual(
-            self.window.external_ocr_command_edit.height(),
-            self.window.external_ocr_command_edit.minimumSizeHint().height(),
-        )
         self.assertLess(
-            self.window.ocr_backend_combo.geometry().bottom(),
-            self.window.external_ocr_command_edit.geometry().top(),
-        )
-        self.assertLess(
-            self.window.external_ocr_command_edit.geometry().bottom(),
-            self.window.use_searchable_as_source_checkbox.geometry().top(),
+            self.window.pdf_output_group.geometry().bottom(),
+            self.window.progress_group.geometry().top(),
         )
 
     def test_main_window_has_reasonable_minimum_size(self) -> None:
