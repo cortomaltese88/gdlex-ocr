@@ -145,6 +145,7 @@ def build_initial_manifest(
     create_searchable: bool,
     ocr_language: str,
     app_version: str,
+    structured_output: bool = False,
 ) -> dict[str, Any]:
     """Return a new manifest dict at job start.
 
@@ -208,6 +209,10 @@ def build_initial_manifest(
             "searchable_pdf": None,
             "run_log": str(layout["run_log"]),
             "manifest": str(layout["manifest"]),
+        },
+        "output_layout": {
+            "structured": structured_output,
+            "job_output_dir": str(output_dir),
         },
         "warnings": [],
         "errors": [],

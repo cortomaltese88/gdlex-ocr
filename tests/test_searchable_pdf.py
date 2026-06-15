@@ -6,6 +6,7 @@ No real OCR is executed; no user PDFs are read.
 from __future__ import annotations
 
 import io
+import inspect
 import tempfile
 import unittest
 from pathlib import Path
@@ -32,6 +33,40 @@ def _synthetic_pdf(num_pages: int) -> bytes:
     output = io.BytesIO()
     writer.write(output)
     return output.getvalue()
+
+
+class StructuredOutputWorkerTest(unittest.TestCase):
+    def test_structured_output_defaults_to_false(self) -> None:
+        parameter = inspect.signature(OcrWorker.__init__).parameters[
+            "structured_output"
+        ]
+        self.assertIs(False, parameter.default)
+
+    def test_prepare_output_dir_reserves_progressive_job_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            source_pdf = root / "fascicolo.pdf"
+            source_pdf.write_bytes(b"%PDF")
+            output_root = root / "output"
+            (output_root / "fascicolo_ocr_job").mkdir(parents=True)
+            worker = OcrWorker(
+                str(source_pdf),
+                str(output_root),
+                pages_per_block=3,
+                profile=PROFILES["Bilanciato"],
+                structured_output=True,
+            )
+
+            worker._prepare_output_dir()
+
+            expected = output_root / "fascicolo_ocr_job_2"
+            self.assertEqual(expected, worker.output_dir)
+            self.assertTrue(expected.is_dir())
+            self.assertEqual(expected / "run.log", worker._log_path)
+            self.assertEqual(
+                expected / "fascicolo_ocr.md",
+                worker._output_layout["markdown"],
+            )
 
 
 class BuildOcrmypdfCommandTest(unittest.TestCase):

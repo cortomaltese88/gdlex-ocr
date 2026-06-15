@@ -148,6 +148,55 @@ class BuildInitialManifestTest(unittest.TestCase):
         self.assertIn("run.log", m["outputs"]["run_log"])
         self.assertIn("manifest.json", m["outputs"]["manifest"])
 
+    def test_legacy_output_layout_metadata_is_additive(self) -> None:
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as td:
+            m = self._build(Path(td))
+
+        self.assertEqual(
+            {
+                "structured": False,
+                "job_output_dir": m["outputs"]["output_dir"],
+            },
+            m["output_layout"],
+        )
+
+    def test_structured_output_paths_are_coherent(self) -> None:
+        from gdlex_ocr.manifest import build_initial_manifest
+
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            pdf = root / "fascicolo.pdf"
+            pdf.write_bytes(b"%PDF")
+            job_dir = root / "output" / "fascicolo_ocr_job"
+            m = build_initial_manifest(
+                pdf_path=pdf,
+                output_dir=job_dir,
+                profile=_fake_profile(),
+                pages_per_block=15,
+                create_searchable=False,
+                ocr_language="ita",
+                app_version="0.1.3",
+                structured_output=True,
+            )
+
+            self.assertEqual(1, m["schema_version"])
+            self.assertTrue(m["output_layout"]["structured"])
+            self.assertEqual(str(job_dir), m["outputs"]["output_dir"])
+            self.assertEqual(
+                str(job_dir),
+                m["output_layout"]["job_output_dir"],
+            )
+            self.assertEqual(
+                str(job_dir / "run.log"),
+                m["outputs"]["run_log"],
+            )
+            self.assertEqual(
+                str(job_dir / "manifest.json"),
+                m["outputs"]["manifest"],
+            )
+
     def test_no_document_content(self) -> None:
         """Manifest must not contain OCR text or extracted document content."""
         import tempfile
@@ -392,6 +441,25 @@ class ManifestVerificationTest(unittest.TestCase):
             path.write_text("{invalid", encoding="utf-8")
             with self.assertRaises(json.JSONDecodeError):
                 load_manifest(path)
+
+    def test_verifies_outputs_in_structured_job_directory(self) -> None:
+        from gdlex_ocr.manifest import verify_manifest_outputs
+
+        with tempfile.TemporaryDirectory() as td:
+            job_dir = Path(td) / "sample_ocr_job"
+            job_dir.mkdir()
+            manifest = self._manifest(job_dir)
+            manifest["output_layout"] = {
+                "structured": True,
+                "job_output_dir": str(job_dir),
+            }
+            for name in ("sample_ocr.md", "run.log", "manifest.json"):
+                (job_dir / name).touch()
+
+            report = verify_manifest_outputs(manifest)
+
+        self.assertTrue(report["ok"])
+        self.assertEqual([], report["missing"])
 
     def test_success_with_required_files_present(self) -> None:
         from gdlex_ocr.manifest import verify_manifest_outputs

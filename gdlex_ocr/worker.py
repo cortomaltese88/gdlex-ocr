@@ -27,7 +27,11 @@ from gdlex_ocr.markdown_merge import (
     merge_markdown,
 )
 from gdlex_ocr.markdown_sanitize import sanitize_markdown_file
-from gdlex_ocr.output_layout import build_output_layout
+from gdlex_ocr.output_layout import (
+    build_job_output_dir,
+    build_output_layout,
+    create_unique_output_dir,
+)
 from gdlex_ocr.pdf_outline import add_technical_fallback_bookmarks
 from gdlex_ocr.pdf_splitter import PdfSplitError, count_pdf_pages, split_pdf
 from gdlex_ocr.profiles import ProcessingProfile
@@ -58,14 +62,18 @@ class OcrWorker(QThread):
         create_searchable: bool = False,
         ocr_language: str = "ita",
         parent=None,
+        *,
+        structured_output: bool = False,
     ) -> None:
         super().__init__(parent)
         self.pdf_path = Path(pdf_path)
-        self.output_dir = Path(output_dir)
+        self.output_root = Path(output_dir)
+        self.output_dir = self.output_root
         self.pages_per_block = pages_per_block
         self._profile = profile
         self._create_searchable = create_searchable
         self._ocr_language = ocr_language
+        self._structured_output = structured_output
         self._runner = DoclingRunner()
         self._work_dir: Path | None = None
         self._output_layout = build_output_layout(
@@ -84,20 +92,21 @@ class OcrWorker(QThread):
         self._runner.cancel()
 
     def run(self) -> None:
-        self.output_dir.mkdir(parents=True, exist_ok=True)
-        self._manifest = build_initial_manifest(
-            pdf_path=self.pdf_path,
-            output_dir=self.output_dir,
-            profile=self._profile,
-            pages_per_block=self.pages_per_block,
-            create_searchable=self._create_searchable,
-            ocr_language=self._ocr_language,
-            app_version=APP_VERSION,
-        )
-        safe_write_manifest(self._manifest, self.output_dir)
-
         job_started = time.monotonic()
         try:
+            self._prepare_output_dir()
+            self._manifest = build_initial_manifest(
+                pdf_path=self.pdf_path,
+                output_dir=self.output_dir,
+                profile=self._profile,
+                pages_per_block=self.pages_per_block,
+                create_searchable=self._create_searchable,
+                ocr_language=self._ocr_language,
+                app_version=APP_VERSION,
+                structured_output=self._structured_output,
+            )
+            safe_write_manifest(self._manifest, self.output_dir)
+
             self._write_log("=" * 72)
             self._write_log(
                 f"Avvio elaborazione: {self.pdf_path.name} "
@@ -279,6 +288,19 @@ class OcrWorker(QThread):
                 self._manifest["errors"].append(message)
                 safe_write_manifest(self._manifest, self.output_dir)
             self.failed.emit(message)
+
+    def _prepare_output_dir(self) -> None:
+        if self._structured_output:
+            self.output_dir = create_unique_output_dir(
+                build_job_output_dir(self.pdf_path, self.output_root)
+            )
+        else:
+            self.output_dir.mkdir(parents=True, exist_ok=True)
+        self._output_layout = build_output_layout(
+            self.pdf_path,
+            self.output_dir,
+        )
+        self._log_path = self._output_layout["run_log"]
 
     def _build_searchable_pdf(
         self,

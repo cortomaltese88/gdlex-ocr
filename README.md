@@ -150,6 +150,13 @@ La GUI consente di aprire direttamente `manifest.json` e `run.log`. Il pulsante
 **Verifica output** controlla che i file dichiarati esistano e siano file
 regolari, senza leggere il contenuto OCR o documentale.
 
+La checkbox **Crea cartella fascicolo per ogni elaborazione**, disattivata per
+default, organizza tutti gli output del job in una sottocartella dedicata:
+`<stem>_ocr_job`, poi `<stem>_ocr_job_2`, `<stem>_ocr_job_3` e così via se il
+nome è già occupato. Markdown, indice, PDF ricercabile, `run.log` e
+`manifest.json` restano così separati dagli output dei job precedenti. Con la
+checkbox disattivata il layout storico nella cartella di output non cambia.
+
 Il manifest è un file runtime e non viene incluso nel pacchetto Debian.
 
 ## Test

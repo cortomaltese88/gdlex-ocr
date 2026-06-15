@@ -4,6 +4,24 @@ Tutte le modifiche rilevanti del progetto saranno documentate in questo file.
 
 ## [Unreleased]
 
+### Funzionalità
+
+- Aggiunta la modalità fascicolo opzionale, disattivata per default, che
+  raccoglie ogni elaborazione in una sottocartella progressiva
+  `<stem>_ocr_job[_N]`.
+- Aggiunta in GUI la checkbox **Crea cartella fascicolo per ogni elaborazione**;
+  apertura cartella, log, manifest e verifica output seguono la directory
+  effettiva del job.
+- Esteso additivamente il manifest schema version 1 con `output_layout`, che
+  dichiara la modalità strutturata e la directory effettiva del job.
+- Aggiunte utility pure per calcolare layout e nomi progressivi e una funzione
+  separata per riservare senza sovrascrittura la directory del job.
+
+### Test
+
+- Estesi i test offline per layout legacy e strutturato, nomi con spazi e punti
+  multipli, directory progressive, worker, checkbox GUI e coerenza manifest.
+
 ## [0.1.3] - 2026-06-14
 
 ### Funzionalità

@@ -34,6 +34,15 @@ class OutputPathGuiTest(unittest.TestCase):
         self.assertFalse(self.window.output_edit.isReadOnly())
         self.assertIn("incolla", self.window.output_edit.placeholderText())
 
+    def test_structured_output_checkbox_is_disabled_by_default(self) -> None:
+        checkbox = self.window.structured_output_checkbox
+        self.assertEqual(
+            "Crea cartella fascicolo per ogni elaborazione",
+            checkbox.text(),
+        )
+        self.assertFalse(checkbox.isChecked())
+        self.assertIn("sottocartella dedicata", checkbox.toolTip())
+
     def test_manual_output_path_survives_pdf_selection(self) -> None:
         manual_path = "/tmp/output-personalizzato"
         self.window.output_edit.setText(manual_path)
@@ -103,6 +112,26 @@ class OutputPathGuiTest(unittest.TestCase):
 
             self.assertTrue(expected_output.is_dir())
             self.assertEqual(str(expected_output), worker_cls.call_args.args[1])
+            self.assertFalse(worker_cls.call_args.kwargs["structured_output"])
+            worker.start.assert_called_once_with()
+
+    def test_start_passes_structured_output_to_worker(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            pdf_path = Path(tmpdir) / "fascicolo.pdf"
+            pdf_path.touch()
+            self.window.pdf_edit.setText(str(pdf_path))
+            self.window.output_edit.setText(str(Path(tmpdir) / "output"))
+            self.window.structured_output_checkbox.setChecked(True)
+            worker = MagicMock()
+            worker.isRunning.return_value = False
+
+            with (
+                patch("gdlex_ocr.gui.count_pdf_pages", return_value=3),
+                patch("gdlex_ocr.gui.OcrWorker", return_value=worker) as worker_cls,
+            ):
+                self.window._start()
+
+            self.assertTrue(worker_cls.call_args.kwargs["structured_output"])
             worker.start.assert_called_once_with()
 
 
@@ -277,6 +306,27 @@ class OpenLocalPathsGuiTest(unittest.TestCase):
         self.assertTrue(self.window.verify_outputs_button.isEnabled())
         self.assertEqual(str(manifest_path), self.window._manifest_path)
 
+    def test_structured_job_enables_its_log_and_manifest(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_root = Path(tmpdir)
+            job_dir = output_root / "fascicolo_ocr_job"
+            job_dir.mkdir()
+            manifest_path = job_dir / "manifest.json"
+            log_path = job_dir / "run.log"
+            manifest_path.touch()
+            log_path.touch()
+            self.window.output_edit.setText(str(output_root))
+            self.window._job_output_dir = str(job_dir)
+
+            self.window._enable_manifest_button()
+            self.window._enable_log_button()
+
+        self.assertEqual(str(manifest_path), self.window._manifest_path)
+        self.assertEqual(str(log_path), self.window._log_path)
+        self.assertTrue(self.window.open_manifest_button.isEnabled())
+        self.assertTrue(self.window.open_log_button.isEnabled())
+        self.assertTrue(self.window.verify_outputs_button.isEnabled())
+
     def test_verify_outputs_shows_formatted_report(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             manifest_path = Path(tmpdir) / "manifest.json"
@@ -319,6 +369,21 @@ class OpenLocalPathsGuiTest(unittest.TestCase):
         opened_url = open_url.call_args.args[0]
         self.assertTrue(opened_url.isLocalFile())
         self.assertEqual(tmpdir, opened_url.toLocalFile())
+
+    def test_open_output_folder_prefers_structured_job_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            job_dir = Path(tmpdir) / "fascicolo_ocr_job"
+            job_dir.mkdir()
+            self.window.output_edit.setText(tmpdir)
+            self.window._job_output_dir = str(job_dir)
+
+            with patch(
+                "gdlex_ocr.gui.QDesktopServices.openUrl",
+                return_value=True,
+            ) as open_url:
+                self.window._open_output_folder()
+
+        self.assertEqual(str(job_dir), open_url.call_args.args[0].toLocalFile())
 
     def test_open_markdown_reports_open_url_failure(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

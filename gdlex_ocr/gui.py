@@ -157,6 +157,7 @@ class MainWindow(QMainWindow):
         self._searchable_pdf_path: str | None = None
         self._manifest_path: str | None = None
         self._log_path: str | None = None
+        self._job_output_dir: str | None = None
         self._create_searchable_requested = False
         self._output_path_customized = False
         self._theme_actions: dict[str, QAction] = {}
@@ -348,6 +349,16 @@ class MainWindow(QMainWindow):
         engine_note.setObjectName("sectionHint")
         pdf_options_layout.addWidget(engine_note, 0, 3)
         root_layout.addWidget(pdf_group)
+
+        self.structured_output_checkbox = QCheckBox(
+            "Crea cartella fascicolo per ogni elaborazione"
+        )
+        self.structured_output_checkbox.setChecked(False)
+        self.structured_output_checkbox.setToolTip(
+            "Organizza Markdown, log, manifest e PDF ricercabile "
+            "in una sottocartella dedicata."
+        )
+        root_layout.addWidget(self.structured_output_checkbox)
 
         # --- Avanzamento ---
         progress_group = QGroupBox("Avanzamento")
@@ -741,6 +752,7 @@ class MainWindow(QMainWindow):
         self._searchable_pdf_path = None
         self._manifest_path = None
         self._log_path = None
+        self._job_output_dir = None
         self.open_folder_button.setEnabled(False)
         self.open_markdown_button.setEnabled(False)
         self.open_pdf_button.setEnabled(False)
@@ -761,6 +773,7 @@ class MainWindow(QMainWindow):
             profile,
             create_searchable=create_searchable,
             ocr_language=ocr_language,
+            structured_output=self.structured_output_checkbox.isChecked(),
             parent=self,
         )
         self._worker.log_message.connect(self._append_log)
@@ -803,6 +816,7 @@ class MainWindow(QMainWindow):
         speed_text: str,
     ) -> None:
         self._final_markdown_path = final_path
+        self._job_output_dir = str(Path(final_path).parent)
         self.open_folder_button.setEnabled(True)
         self.open_markdown_button.setEnabled(True)
         self._enable_manifest_button()
@@ -833,6 +847,7 @@ class MainWindow(QMainWindow):
             )
 
     def _cancelled(self, work_dir: str) -> None:
+        self._remember_worker_output_dir()
         self.status_label.setText("Elaborazione annullata")
         self.eta_label.setText("ETA: --")
         self._enable_manifest_button()
@@ -844,6 +859,7 @@ class MainWindow(QMainWindow):
         )
 
     def _failed(self, message: str) -> None:
+        self._remember_worker_output_dir()
         self.status_label.setText("Elaborazione terminata con errore")
         self.eta_label.setText("ETA: --")
         self._enable_manifest_button()
@@ -905,6 +921,7 @@ class MainWindow(QMainWindow):
         self.profile_combo.setEnabled(not running)
         self.block_size_spin.setEnabled(not running)
         self.searchable_checkbox.setEnabled(not running)
+        self.structured_output_checkbox.setEnabled(not running)
         self.start_button.setEnabled(not running)
         self.cancel_button.setEnabled(running)
         if running:
@@ -924,12 +941,23 @@ class MainWindow(QMainWindow):
 
     def _resolve_existing_output_file(self, filename: str) -> Path | None:
         """Return output_dir / filename if it is a regular file, else None."""
-        try:
-            output_dir = resolve_output_path(self.output_edit.text())
-        except ValueError:
+        output_dir = self._current_output_dir()
+        if output_dir is None:
             return None
         path = output_dir / filename
         return path if path.is_file() else None
+
+    def _remember_worker_output_dir(self) -> None:
+        if self._worker is not None:
+            self._job_output_dir = str(self._worker.output_dir)
+
+    def _current_output_dir(self) -> Path | None:
+        if self._job_output_dir:
+            return Path(self._job_output_dir)
+        try:
+            return resolve_output_path(self.output_edit.text())
+        except ValueError:
+            return None
 
     def _open_local_path(
         self,
@@ -950,10 +978,7 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(self, error_title, error_message)
 
     def _open_output_folder(self) -> None:
-        try:
-            folder: Path | None = resolve_output_path(self.output_edit.text())
-        except ValueError:
-            folder = None
+        folder = self._current_output_dir()
         if folder is None or not folder.is_dir():
             QMessageBox.warning(
                 self,
