@@ -137,6 +137,29 @@ Il comando restituisce `0` se tutti i controlli passano, `1` se mancano
 componenti essenziali e `2` se mancano soltanto OCRmyPDF, Tesseract o la lingua
 italiana. Questi strumenti di sistema restano opzionali.
 
+## Installazione tramite repository APT GD LEX
+
+Dopo la prima pubblicazione del pacchetto, il repository APT pubblico GD LEX
+userà la chiave dedicata e la configurazione `signed-by`. Per configurarlo su
+Debian/Ubuntu amd64:
+
+```bash
+curl -fsSL https://cortomaltese88.github.io/gdlex-apt-repo/keys/gdlex-archive-keyring.asc \
+  | gpg --dearmor \
+  | sudo tee /usr/share/keyrings/gdlex-archive-keyring.gpg >/dev/null
+
+echo "deb [arch=amd64 signed-by=/usr/share/keyrings/gdlex-archive-keyring.gpg] https://cortomaltese88.github.io/gdlex-apt-repo stable main" \
+  | sudo tee /etc/apt/sources.list.d/gdlex.list
+
+sudo apt update
+sudo apt install gdlex-ocr
+```
+
+Gli strumenti client necessari per aggiungere il repository sono `curl`, `gpg`
+e `sudo`. Il pacchetto `gdlex-ocr` ha architettura Debian `all`, mentre il
+repository GD LEX pubblica attualmente l'indice per client `amd64`.
+Non usare `trusted=yes`: la firma viene verificata tramite il keyring indicato.
+
 ## Output auditabile (manifest.json)
 
 Al termine di ogni elaborazione OCR/convert, nella cartella di output viene

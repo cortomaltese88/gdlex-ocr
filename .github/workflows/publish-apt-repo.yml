@@ -1,0 +1,277 @@
+name: publish-apt-repo
+
+permissions:
+  contents: read
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Versione da pubblicare (es. 0.1.3)"
+        required: true
+        type: string
+
+concurrency:
+  group: publish-apt-repo-${{ github.event.inputs.version }}
+  cancel-in-progress: true
+
+jobs:
+  publish-apt:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source repository
+        uses: actions/checkout@v4
+
+      - name: Resolve version and expected asset
+        id: ver
+        shell: bash
+        env:
+          INPUT_VERSION: ${{ github.event.inputs.version }}
+        run: |
+          set -euo pipefail
+
+          VERSION="${INPUT_VERSION#v}"
+          if [[ -z "${VERSION}" ]]; then
+            echo "Errore: input version non valido." >&2
+            exit 1
+          fi
+
+          DEB_NAME="gdlex-ocr_${VERSION}_all.deb"
+
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "tag=v${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "deb_name=${DEB_NAME}" >> "$GITHUB_OUTPUT"
+
+      - name: Download release asset
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ steps.ver.outputs.tag }}
+          DEB_NAME: ${{ steps.ver.outputs.deb_name }}
+        run: |
+          set -euo pipefail
+
+          mkdir -p release-artifacts
+          gh release download "$TAG" \
+            --repo "$REPO" \
+            --pattern "$DEB_NAME" \
+            --dir release-artifacts
+
+          test -f "release-artifacts/${DEB_NAME}"
+
+      - name: Verify Debian package metadata
+        id: deb
+        shell: bash
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+          DEB_NAME: ${{ steps.ver.outputs.deb_name }}
+        run: |
+          set -euo pipefail
+
+          deb_file="release-artifacts/${DEB_NAME}"
+          test -f "$deb_file"
+
+          package_name="$(dpkg-deb -f "$deb_file" Package)"
+          package_version="$(dpkg-deb -f "$deb_file" Version)"
+          package_architecture="$(dpkg-deb -f "$deb_file" Architecture)"
+
+          dpkg-deb -f "$deb_file"
+
+          if [[ "$package_name" != "gdlex-ocr" ]]; then
+            echo "ERRORE: Package Debian '$package_name' diverso da 'gdlex-ocr'." >&2
+            exit 1
+          fi
+
+          if [[ "$package_version" != "$VERSION" ]]; then
+            echo "ERRORE: Version Debian '$package_version' diversa dall'input '$VERSION'." >&2
+            exit 1
+          fi
+
+          if [[ "$package_architecture" != "all" ]]; then
+            echo "ERRORE: Architecture Debian '$package_architecture' diversa da 'all'." >&2
+            exit 1
+          fi
+
+          echo "deb_file=$deb_file" >> "$GITHUB_OUTPUT"
+
+      - name: Install APT repo tooling
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends apt-utils dpkg-dev gnupg gzip curl
+
+      - name: Preflight guard for APT repo token
+        shell: bash
+        env:
+          APT_TOKEN: ${{ secrets.GDLEX_APT_REPO_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "$APT_TOKEN" || { echo "Missing secret GDLEX_APT_REPO_TOKEN" >&2; exit 1; }
+
+      - name: Checkout APT repository
+        uses: actions/checkout@v4
+        with:
+          repository: cortomaltese88/gdlex-apt-repo
+          token: ${{ secrets.GDLEX_APT_REPO_TOKEN }}
+          path: gdlex-apt-repo
+
+      - name: Publish package and regenerate APT indexes
+        shell: bash
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+          DEB_NAME: ${{ steps.ver.outputs.deb_name }}
+          DEB_FILE: ${{ steps.deb.outputs.deb_file }}
+        run: |
+          set -euo pipefail
+
+          APT_REPO_DIR="gdlex-apt-repo"
+          POOL_DIR="$APT_REPO_DIR/pool/main/g/gdlex-ocr"
+          DIST_DIR="$APT_REPO_DIR/dists/stable/main/binary-amd64"
+          RELEASE_FILE="$APT_REPO_DIR/dists/stable/Release"
+          APT_CONF="$PWD/$APT_REPO_DIR/apt-ftparchive.conf"
+
+          mkdir -p "$POOL_DIR" "$DIST_DIR"
+          cp -f "$DEB_FILE" "$POOL_DIR/$DEB_NAME"
+
+          pushd "$APT_REPO_DIR" >/dev/null
+          rm -f dists/stable/main/binary-amd64/Packages.gz
+          apt-ftparchive packages pool > dists/stable/main/binary-amd64/Packages
+          gzip -9n -c dists/stable/main/binary-amd64/Packages > dists/stable/main/binary-amd64/Packages.gz
+          if [[ -f "$APT_CONF" ]]; then
+            apt-ftparchive -c "$APT_CONF" release dists/stable > dists/stable/Release
+          else
+            apt-ftparchive release dists/stable > dists/stable/Release
+          fi
+          popd >/dev/null
+
+          test -f "$POOL_DIR/$DEB_NAME"
+          test -s "$DIST_DIR/Packages"
+          test -s "$DIST_DIR/Packages.gz"
+          test -s "$RELEASE_FILE"
+          grep -q '^Origin: GDLEX$' "$RELEASE_FILE"
+          grep -q '^Label: GDLEX$' "$RELEASE_FILE"
+          grep -q '^Suite: stable$' "$RELEASE_FILE"
+          grep -q '^Codename: stable$' "$RELEASE_FILE"
+
+      - name: Sign APT Release metadata
+        shell: bash
+        env:
+          GDLEX_APT_GPG_PRIVATE_KEY_B64: ${{ secrets.GDLEX_APT_GPG_PRIVATE_KEY_B64 }}
+          GDLEX_APT_GPG_PASSPHRASE: ${{ secrets.GDLEX_APT_GPG_PASSPHRASE }}
+          GDLEX_APT_GPG_KEY_ID: ${{ secrets.GDLEX_APT_GPG_KEY_ID }}
+        run: |
+          set -euo pipefail
+
+          export GNUPGHOME="$(mktemp -d)"
+          chmod 700 "$GNUPGHOME"
+
+          cleanup() {
+            rm -rf "$GNUPGHOME"
+          }
+          trap cleanup EXIT
+
+          test -n "${GDLEX_APT_GPG_PRIVATE_KEY_B64:-}" || { echo "Missing secret GDLEX_APT_GPG_PRIVATE_KEY_B64" >&2; exit 1; }
+          test -n "${GDLEX_APT_GPG_PASSPHRASE:-}" || { echo "Missing secret GDLEX_APT_GPG_PASSPHRASE" >&2; exit 1; }
+          test -n "${GDLEX_APT_GPG_KEY_ID:-}" || { echo "Missing secret GDLEX_APT_GPG_KEY_ID" >&2; exit 1; }
+
+          printf '%s' "$GDLEX_APT_GPG_PRIVATE_KEY_B64" | base64 -d | gpg --batch --import
+
+          gpg --batch --yes --pinentry-mode loopback \
+            --passphrase "$GDLEX_APT_GPG_PASSPHRASE" \
+            --local-user "$GDLEX_APT_GPG_KEY_ID" \
+            --armor \
+            --detach-sign \
+            --output gdlex-apt-repo/dists/stable/Release.gpg \
+            gdlex-apt-repo/dists/stable/Release
+
+          gpg --batch --yes --pinentry-mode loopback \
+            --passphrase "$GDLEX_APT_GPG_PASSPHRASE" \
+            --local-user "$GDLEX_APT_GPG_KEY_ID" \
+            --clearsign \
+            --output gdlex-apt-repo/dists/stable/InRelease \
+            gdlex-apt-repo/dists/stable/Release
+
+          test -s gdlex-apt-repo/dists/stable/Release.gpg
+          test -s gdlex-apt-repo/dists/stable/InRelease
+
+          gpg --verify gdlex-apt-repo/dists/stable/Release.gpg gdlex-apt-repo/dists/stable/Release
+          gpg --verify gdlex-apt-repo/dists/stable/InRelease
+
+      - name: Hard checks on generated indexes
+        shell: bash
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+          DEB_NAME: ${{ steps.ver.outputs.deb_name }}
+        run: |
+          set -euo pipefail
+
+          DEB_FILE="gdlex-apt-repo/pool/main/g/gdlex-ocr/${DEB_NAME}"
+          PKG_FILE="gdlex-apt-repo/dists/stable/main/binary-amd64/Packages"
+          PKG_GZ="gdlex-apt-repo/dists/stable/main/binary-amd64/Packages.gz"
+          RELEASE_FILE="gdlex-apt-repo/dists/stable/Release"
+          INRELEASE_FILE="gdlex-apt-repo/dists/stable/InRelease"
+          RELEASE_SIG_FILE="gdlex-apt-repo/dists/stable/Release.gpg"
+          EXPECTED_FILENAME="pool/main/g/gdlex-ocr/${DEB_NAME}"
+
+          test -f "$DEB_FILE"
+          test -s "$PKG_FILE"
+          test -s "$PKG_GZ"
+          test -s "$RELEASE_FILE"
+          test -s "$INRELEASE_FILE"
+          test -s "$RELEASE_SIG_FILE"
+
+          awk \
+            -v expected_version="$VERSION" \
+            -v expected_filename="$EXPECTED_FILENAME" \
+            '
+              BEGIN { RS = ""; FS = "\n"; matches = 0 }
+              {
+                package = version = architecture = filename = ""
+                for (i = 1; i <= NF; i++) {
+                  if ($i ~ /^Package: /) {
+                    package = substr($i, 10)
+                  } else if ($i ~ /^Version: /) {
+                    version = substr($i, 10)
+                  } else if ($i ~ /^Architecture: /) {
+                    architecture = substr($i, 15)
+                  } else if ($i ~ /^Filename: /) {
+                    filename = substr($i, 11)
+                  }
+                }
+                if (package == "gdlex-ocr" &&
+                    version == expected_version &&
+                    architecture == "all" &&
+                    filename == expected_filename) {
+                  matches++
+                }
+              }
+              END { exit(matches == 1 ? 0 : 1) }
+            ' "$PKG_FILE"
+          grep -q 'main/binary-amd64/Packages' "$RELEASE_FILE"
+          grep -q 'main/binary-amd64/Packages.gz' "$RELEASE_FILE"
+          grep -q '^-----BEGIN PGP SIGNED MESSAGE-----' "$INRELEASE_FILE"
+          ! grep -RIn "trusted=yes" gdlex-apt-repo/dists gdlex-apt-repo/pool
+
+      - name: Commit and push APT repository
+        shell: bash
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          set -euo pipefail
+
+          pushd gdlex-apt-repo >/dev/null
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add pool dists
+          if git diff --cached --quiet; then
+            echo "Nessuna modifica da pubblicare nel repo APT."
+            popd >/dev/null
+            exit 0
+          fi
+
+          git commit -m "Publish gdlex-ocr ${VERSION} to APT repo"
+          git push origin main
+          popd >/dev/null
