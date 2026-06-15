@@ -12,9 +12,16 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtCore import Qt
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication, QGroupBox, QPushButton, QTabWidget
+from PySide6.QtWidgets import (
+    QApplication,
+    QGroupBox,
+    QPushButton,
+    QTabWidget,
+    QWidget,
+)
 
 from gdlex_ocr.gui import MainWindow, resolve_output_path, resolve_pdf_path
+from gdlex_ocr.theme import apply_theme
 
 
 class OutputPathGuiTest(unittest.TestCase):
@@ -29,6 +36,7 @@ class OutputPathGuiTest(unittest.TestCase):
         self.window.close()
         self.window.deleteLater()
         self.app.processEvents()
+        self.app.setStyleSheet("")
 
     def test_output_field_is_editable_with_clear_placeholder(self) -> None:
         self.assertFalse(self.window.output_edit.isReadOnly())
@@ -89,34 +97,95 @@ class OutputPathGuiTest(unittest.TestCase):
         self.assertFalse(self.window.external_ocr_command_edit.isVisible())
 
     def test_pdf_output_tabs_keep_controls_visible_without_overlap(self) -> None:
+        apply_theme(self.app, "Matrix")
         tabs = self.window.pdf_output_tabs
-        self.window.resize(self.window.minimumSize())
+        self.window.resize(1020, 780)
         self.window.show()
 
         tabs.setCurrentWidget(self.window.pdf_output_base_tab)
         self.app.processEvents()
         base_controls = (
             self.window.searchable_checkbox,
+            self.window.ocr_language_label,
             self.window.ocr_language_combo,
             self.window.use_searchable_as_source_checkbox,
             self.window.structured_output_checkbox,
         )
-        self.assertTrue(all(widget.isVisible() for widget in base_controls))
-        ordered_base_controls = sorted(
+        self._assert_widgets_fit_tab(
+            self.window.pdf_output_base_tab,
             base_controls,
-            key=lambda widget: widget.geometry().top(),
         )
-        for upper, lower in zip(ordered_base_controls, ordered_base_controls[1:]):
-            if upper.geometry().top() != lower.geometry().top():
-                self.assertLess(upper.geometry().bottom(), lower.geometry().top())
+        self._assert_rows_do_not_overlap(
+            (
+                (
+                    self.window.searchable_checkbox,
+                    self.window.ocr_language_label,
+                    self.window.ocr_language_combo,
+                ),
+                (
+                    self.window.use_searchable_as_source_checkbox,
+                    self.window.structured_output_checkbox,
+                ),
+            )
+        )
 
         tabs.setCurrentWidget(self.window.pdf_output_backend_tab)
         self.app.processEvents()
-        self.assertTrue(self.window.external_ocr_command_edit.isVisible())
+        backend_controls = (
+            self.window.ocr_backend_label,
+            self.window.ocr_backend_combo,
+            self.window.external_ocr_command_label,
+            self.window.external_ocr_command_edit,
+        )
+        self._assert_widgets_fit_tab(
+            self.window.pdf_output_backend_tab,
+            backend_controls,
+        )
+        self._assert_rows_do_not_overlap(
+            (
+                (
+                    self.window.ocr_backend_label,
+                    self.window.ocr_backend_combo,
+                ),
+                (
+                    self.window.external_ocr_command_label,
+                    self.window.external_ocr_command_edit,
+                ),
+            )
+        )
         self.assertGreaterEqual(self.window.external_ocr_command_edit.width(), 600)
 
+    def _assert_widgets_fit_tab(
+        self,
+        tab: QWidget,
+        widgets: tuple[QWidget, ...],
+    ) -> None:
+        for widget in widgets:
+            widget_name = widget.objectName() or widget.__class__.__name__
+            with self.subTest(widget=widget_name):
+                self.assertTrue(widget.isVisible())
+                self.assertGreaterEqual(
+                    widget.height(),
+                    widget.fontMetrics().height(),
+                )
+                self.assertLessEqual(
+                    widget.geometry().bottom(),
+                    tab.rect().bottom(),
+                )
+
+    def _assert_rows_do_not_overlap(
+        self,
+        rows: tuple[tuple[QWidget, ...], ...],
+    ) -> None:
+        for upper_row, lower_row in zip(rows, rows[1:]):
+            self.assertLess(
+                max(widget.geometry().bottom() for widget in upper_row),
+                min(widget.geometry().top() for widget in lower_row),
+            )
+
     def test_pdf_output_group_does_not_overlap_progress_at_minimum_size(self) -> None:
-        self.window.resize(self.window.minimumSize())
+        apply_theme(self.app, "Matrix")
+        self.window.resize(1020, 780)
         self.window.show()
         self.app.processEvents()
 

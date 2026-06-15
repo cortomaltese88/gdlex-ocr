@@ -728,6 +728,34 @@ QLabel#aboutDetails {
 }
 """
 
+PDF_OUTPUT_COMPACT_STYLE_SHEET = """
+QGroupBox#pdfOutputGroup {
+    margin-top: 6px;
+    padding-top: 6px;
+}
+
+QGroupBox#pdfOutputGroup QComboBox,
+QGroupBox#pdfOutputGroup QLineEdit {
+    min-height: 14px;
+    padding-top: 1px;
+    padding-bottom: 1px;
+}
+
+QGroupBox#pdfOutputGroup QCheckBox::indicator {
+    width: 14px;
+    height: 14px;
+}
+
+QTabWidget#pdfOutputTabs::pane {
+    top: -1px;
+}
+
+QTabWidget#pdfOutputTabs QTabBar::tab {
+    min-height: 14px;
+    padding: 1px 8px;
+}
+"""
+
 
 def load_theme_name() -> str:
     """Load the saved theme, falling back to Matrix."""
@@ -771,4 +799,5 @@ def apply_theme(app: QApplication, name: str = DEFAULT_THEME) -> None:
     palette.setColor(QPalette.ColorRole.Highlight, QColor(accent))
     palette.setColor(QPalette.ColorRole.HighlightedText, QColor(highlighted_text))
     app.setPalette(palette)
-    app.setStyleSheet(LIGHT_STYLE_SHEET if is_light else MATRIX_STYLE_SHEET)
+    theme_style_sheet = LIGHT_STYLE_SHEET if is_light else MATRIX_STYLE_SHEET
+    app.setStyleSheet(theme_style_sheet + PDF_OUTPUT_COMPACT_STYLE_SHEET)
