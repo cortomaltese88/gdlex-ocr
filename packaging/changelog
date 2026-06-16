@@ -1,3 +1,21 @@
+gdlex-ocr (0.1.5) unstable; urgency=medium
+
+  * Add optional local OCR backends and runtime diagnostics.
+  * Add the "PDF già ricercabile" profile for already-searchable PDFs.
+  * Improve "Accurato testo" so OCRmyPDF/Tesseract creates a searchable PDF
+    that is then used as the Docling source.
+  * Avoid using Docling/RapidOCR internal OCR as the primary source for
+    Italian scanned PDFs when using "Accurato testo".
+  * Extend manifests with OCR backend metadata, Markdown structure metadata,
+    and bookmarks.reason.
+  * Improve Markdown heading generation and bookmark strategy selection.
+  * Reorganize the "PDF e output" GUI section into Base and Backend OCR tabs.
+  * Add a GUI screenshot helper with automatic virtualenv re-exec.
+  * Document the future Portale/TIAP criminal case bundle milestone.
+  * Expand offline tests to 226.
+
+ -- Studio GD LEX <cortomaltese88@users.noreply.github.com>  Tue, 16 Jun 2026 18:06:01 +0200
+
 gdlex-ocr (0.1.4) unstable; urgency=medium
 
   * Add optional structured output directories for individual jobs.

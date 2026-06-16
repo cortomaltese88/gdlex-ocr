@@ -4,6 +4,33 @@ Tutte le modifiche rilevanti del progetto saranno documentate in questo file.
 
 ## [Unreleased]
 
+## [0.1.5] - 2026-06-16
+
+### Funzionalità
+
+- Aggiunti backend OCR opzionali e diagnostica locale per OCRmyPDF, Tesseract
+  e comandi esterni configurati dall'utente.
+- Aggiunto il profilo **PDF già ricercabile**, che usa il layer testuale
+  esistente e disattiva l'OCR interno Docling.
+- Migliorato il profilo **Accurato testo**: genera un PDF ricercabile con
+  OCRmyPDF/Tesseract e lo usa come sorgente Docling.
+- Evitato l'uso indesiderato dell'OCR interno Docling/RapidOCR come fonte
+  primaria nei PDF scannerizzati italiani quando si usa **Accurato testo**.
+- Esteso il manifest con metadati dei backend OCR, struttura Markdown e
+  `bookmarks.reason`.
+- Migliorate generazione struttura Markdown/heading e strategia segnalibri.
+
+### Interfaccia e strumenti
+
+- Riorganizzata la sezione GUI **PDF e output** con schede **Base** e
+  **Backend OCR**.
+- Aggiunto helper per screenshot GUI con uso automatico della venv.
+- Documentata la milestone futura per fascicoli penali Portale/TIAP.
+
+### Test
+
+- Estesi i test offline a 226 casi.
+
 ## [0.1.4] - 2026-06-15
 
 ### Funzionalità
