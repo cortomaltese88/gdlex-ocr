@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import sys
 
 from PySide6.QtCore import QTimer
@@ -18,8 +19,25 @@ from gdlex_ocr.theme import apply_theme, load_theme_name
 from gdlex_ocr.version import APP_NAME, APP_VERSION
 
 
-def main() -> int:
-    app = QApplication(sys.argv)
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(prog="gdlex-ocr")
+    parser.add_argument(
+        "--version",
+        action="store_true",
+        help="stampa la versione ed esce",
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv: list[str] | None = None) -> int:
+    cli_args = sys.argv[1:] if argv is None else argv
+    args = parse_args(cli_args)
+
+    if args.version:
+        print(APP_VERSION)
+        return 0
+
+    app = QApplication([sys.argv[0], *cli_args])
     app.setApplicationName(APP_NAME)
     app.setApplicationVersion(APP_VERSION)
     app.setOrganizationName("GD LEX")

@@ -146,6 +146,24 @@ doctor_check_file() {
     return 1
 }
 
+print_version() {
+    local version_file="${APP_DIR}/gdlex_ocr/version.py"
+    local version
+
+    if [[ ! -f "${version_file}" ]]; then
+        printf 'Errore: file versione mancante: %s\n' "${version_file}" >&2
+        return 1
+    fi
+
+    version="$(sed -n 's/^APP_VERSION = "\([^"]*\)"/\1/p' "${version_file}")"
+    if [[ -z "${version}" ]]; then
+        printf 'Errore: impossibile determinare la versione da: %s\n' \
+            "${version_file}" >&2
+        return 1
+    fi
+    printf '%s\n' "${version}"
+}
+
 run_doctor() {
     local essential_missing=0
     local optional_missing=0
@@ -236,6 +254,14 @@ case "${1:-}" in
             exit 1
         fi
         run_doctor
+        exit $?
+        ;;
+    --version)
+        if (( $# != 1 )); then
+            echo "Uso: gdlex-ocr --version" >&2
+            exit 1
+        fi
+        print_version
         exit $?
         ;;
 esac

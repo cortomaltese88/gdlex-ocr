@@ -26,6 +26,24 @@ def _select_debian_package() -> Path | None:
     return max(packages, key=lambda p: p.stat().st_mtime)
 
 
+def _extract_package_file(package: Path, installed_path: str) -> str:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        root = Path(tmpdir)
+        result = subprocess.run(
+            ["dpkg-deb", "-x", str(package), str(root)],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            raise AssertionError(
+                f"could not extract {package.name}: {result.stderr}"
+            )
+        return (root / installed_path.removeprefix("/")).read_text(
+            encoding="utf-8"
+        )
+
+
 class DebianPackagingTest(unittest.TestCase):
     def test_built_debian_package_payload(self) -> None:
         package = _select_debian_package()
@@ -139,7 +157,26 @@ class DebianPackagingTest(unittest.TestCase):
             'exec "${VENV_PYTHON}" "${APP_DIR}/app.py" "$@"',
             wrapper,
         )
+        self.assertNotIn('exec "${VENV_PYTHON}" "${APP_DIR}/app.py"\n', wrapper)
         self.assertNotIn("/usr/lib/gdlex-ocr/.venv", wrapper)
+
+    def test_built_wrapper_preserves_cli_arguments(self) -> None:
+        package = _select_debian_package()
+        if package is None:
+            self.skipTest("no Debian package found in dist/")
+        source_wrapper = PROJECT_ROOT / "packaging" / "gdlex-ocr"
+        if package.stat().st_mtime < source_wrapper.stat().st_mtime:
+            self.skipTest(f"{package.name} is older than packaging/gdlex-ocr")
+
+        wrapper = _extract_package_file(package, "/usr/bin/gdlex-ocr")
+
+        self.assertIn(
+            'exec "${VENV_PYTHON}" "${APP_DIR}/app.py" "$@"',
+            wrapper,
+        )
+        self.assertNotIn('exec "${VENV_PYTHON}" "${APP_DIR}/app.py"\n', wrapper)
+        self.assertIn("--doctor", wrapper)
+        self.assertIn("--version", wrapper)
 
     def test_setup_command_creates_user_venv_without_real_downloads(self) -> None:
         wrapper = PROJECT_ROOT / "packaging" / "gdlex-ocr"
@@ -216,6 +253,44 @@ fi
             self.assertIn("Venv utente", result.stdout)
             self.assertFalse((home / ".local/share/gdlex-ocr").exists())
 
+    def test_version_does_not_start_or_bootstrap_the_application(self) -> None:
+        wrapper = PROJECT_ROOT / "packaging" / "gdlex-ocr"
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            home = root / "home"
+            app_dir = root / "usr/lib/gdlex-ocr"
+            package_wrapper = root / "usr/bin/gdlex-ocr"
+            version_file = app_dir / "gdlex_ocr/version.py"
+            home.mkdir()
+            version_file.parent.mkdir(parents=True)
+            version_file.write_text(
+                'APP_VERSION = "0.1.5"\n',
+                encoding="utf-8",
+            )
+            package_wrapper.parent.mkdir(parents=True)
+            package_wrapper.write_text(
+                wrapper.read_text(encoding="utf-8").replace(
+                    'APP_DIR="/usr/lib/gdlex-ocr"',
+                    f'APP_DIR="{app_dir}"',
+                ),
+                encoding="utf-8",
+            )
+
+            environment = os.environ.copy()
+            environment["HOME"] = str(home)
+
+            result = subprocess.run(
+                ["bash", str(package_wrapper), "--version"],
+                check=False,
+                capture_output=True,
+                text=True,
+                env=environment,
+            )
+
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertEqual("0.1.5", result.stdout.strip())
+            self.assertFalse((home / ".local/share/gdlex-ocr").exists())
+
     def test_manual_page_documents_bootstrap_and_diagnostics(self) -> None:
         manual = (
             PROJECT_ROOT / "packaging" / "gdlex-ocr.1"
@@ -223,6 +298,7 @@ fi
 
         self.assertIn("\\-\\-setup\\-venv", manual)
         self.assertIn("\\-\\-doctor", manual)
+        self.assertIn("\\-\\-version", manual)
         self.assertIn("setup.log", manual)
         self.assertIn("requirements.txt", manual)
 

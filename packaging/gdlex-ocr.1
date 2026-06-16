@@ -29,6 +29,10 @@ Print runtime diagnostics without starting the graphical application.
 Exit status is 0 when all checks pass, 1 when essential runtime components
 are missing, and 2 when only optional OCR tools or the Italian Tesseract
 language are missing.
+.TP
+.B \-\-version
+Print the installed application version without starting the graphical
+application.
 .SH FILES
 .TP
 .I ~/.local/share/gdlex-ocr/venv
@@ -49,6 +53,8 @@ Pinned Python runtime dependencies.
 .B gdlex-ocr \-\-doctor
 returns 0 when all checks pass, 1 for missing essential components, and 2
 when only optional OCR support is incomplete.
+.B gdlex-ocr \-\-version
+returns 0 when the installed version file can be read.
 Setup or application startup failures return a non-zero status.
 .SH SEE ALSO
 .BR ocrmypdf (1),
