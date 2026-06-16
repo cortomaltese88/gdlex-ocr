@@ -1,3 +1,18 @@
+gdlex-ocr (0.1.6) unstable; urgency=medium
+
+  * Preserve CLI arguments in the Debian launcher and make CLI handling safer.
+  * Add gdlex-ocr --help, --version, and safe app.py --doctor behavior.
+  * Add OCRmyPDF timeout handling.
+  * Add output SHA-256 fields to the job manifest.
+  * Add desktop launcher keywords.
+  * Improve public documentation, English README, local-first/privacy notes,
+    OCR limitations, and troubleshooting.
+  * Update third-party notices and credits.
+  * Clarify project license versus third-party components in the About dialog.
+  * Document updated GitHub repository metadata.
+
+ -- Studio GD LEX <cortomaltese88@users.noreply.github.com>  Tue, 16 Jun 2026 19:43:06 +0200
+
 gdlex-ocr (0.1.5) unstable; urgency=medium
 
   * Add optional local OCR backends and runtime diagnostics.

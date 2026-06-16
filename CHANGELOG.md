@@ -4,6 +4,30 @@ Tutte le modifiche rilevanti del progetto saranno documentate in questo file.
 
 ## [Unreleased]
 
+## [0.1.6] - 2026-06-16
+
+### Correzioni
+
+- Corretto il launcher Debian per preservare gli argomenti CLI e rafforzata
+  la gestione sicura delle opzioni.
+- Aggiunti `gdlex-ocr --help`, `gdlex-ocr --version` e comportamento sicuro
+  per `app.py --doctor`.
+- Aggiunta gestione del timeout OCRmyPDF.
+
+### Funzionalità
+
+- Aggiunti campi SHA-256 degli output nel manifest del job.
+- Aggiunte keyword al launcher desktop.
+
+### Documentazione e metadati
+
+- Migliorata la documentazione pubblica, incluso README inglese, note
+  local-first/privacy, limiti OCR e troubleshooting.
+- Aggiornati avvisi e crediti di terze parti.
+- Chiarita nella finestra Informazioni la distinzione tra licenza del progetto
+  e componenti di terze parti.
+- Documentati i metadati aggiornati del repository GitHub.
+
 ## [0.1.5] - 2026-06-16
 
 ### Funzionalità

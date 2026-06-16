@@ -1,12 +1,12 @@
-# Checklist release v0.1.5 / preparazione v0.1.6
+# Checklist release v0.1.6
 
-La release `v0.1.5` è già stata taggata. Gli item aperti rimangono promemoria
-operativi per audit manuale o preparazione `v0.1.6`; non vanno barrati senza
-una nuova verifica effettiva.
+La release `v0.1.6` è in preparazione. Gli item aperti rimangono promemoria
+operativi per audit manuale o pubblicazione; non vanno barrati senza una nuova
+verifica effettiva.
 
-## Pre-release v0.1.5
+## Pre-release v0.1.6
 
-- [x] Verificare che `gdlex_ocr/version.py` riporti `0.1.5`.
+- [x] Verificare che `gdlex_ocr/version.py` riporti `0.1.6`.
 - [x] Verificare coerenza tra README, changelog e comportamento della GUI.
 - [x] Controllare che `requirements.txt` contenga versioni fissate e installabili.
 - [x] Rileggere `THIRD_PARTY_NOTICES.md` e aggiornare le evidenze di licenza.
@@ -33,7 +33,7 @@ scripts/capture-gui-screenshots.py
 - [ ] Controllare manualmente screenshot e metadati delle immagini prima della
   prossima pubblicazione.
 
-## Perimetro test v0.1.5
+## Perimetro test v0.1.6
 
 - [x] Non eseguire OCR reale durante la preparazione della release.
 - [x] Usare esclusivamente smoke test e fixture sintetiche.
@@ -65,7 +65,7 @@ git diff
 ## Packaging
 
 - [x] Applicare la scelta descritta in `PACKAGING.md`.
-- [x] Non incorporare la `.venv` nel pacchetto v0.1.5.
+- [x] Non incorporare la `.venv` nel pacchetto v0.1.6.
 - [ ] Se viene creato un nuovo `.deb`, verificarne contenuto, dipendenze e
   copyright in ambiente pulito.
 - [x] Verificare il `.deb` con `dpkg-deb`, estrazione temporanea e `lintian`.
@@ -77,11 +77,11 @@ git diff
 
 ```bash
 bash scripts/build-deb.sh
-dpkg-deb --info dist/gdlex-ocr_0.1.5_all.deb
-dpkg-deb --contents dist/gdlex-ocr_0.1.5_all.deb | \
+dpkg-deb --info dist/gdlex-ocr_0.1.6_all.deb
+dpkg-deb --contents dist/gdlex-ocr_0.1.6_all.deb | \
   grep -E '(\.venv|__pycache__|\.git|run\.log|manifest\.json|Fascicolo|Downloads|Documenti)' || true
-(cd dist && sha256sum -c gdlex-ocr_0.1.5_all.deb.sha256)
-sudo apt install ./dist/gdlex-ocr_0.1.5_all.deb
+(cd dist && sha256sum -c gdlex-ocr_0.1.6_all.deb.sha256)
+sudo apt install ./dist/gdlex-ocr_0.1.6_all.deb
 /usr/bin/gdlex-ocr --doctor
 ```
 
@@ -89,7 +89,7 @@ sudo apt install ./dist/gdlex-ocr_0.1.5_all.deb
 
 Questi comandi sono promemoria e non fanno parte delle verifiche automatiche.
 Eseguirli solo dopo approvazione esplicita e dopo aver creato il commit di
-release. Aggiornare tag e versione prima di riusarli per `v0.1.6` o successive:
+release. Aggiornare tag e versione prima di riusarli per release successive:
 
 ```bash
 git tag -a vX.Y.Z -m "GD LEX OCR vX.Y.Z"

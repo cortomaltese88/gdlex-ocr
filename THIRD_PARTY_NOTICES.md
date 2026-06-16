@@ -1,6 +1,6 @@
 # Licenze e componenti terzi
 
-Questo documento registra le licenze rilevate localmente per GD LEX OCR v0.1.5
+Questo documento registra le licenze rilevate localmente per GD LEX OCR v0.1.6
 e per lo stato post-audit successivo. Non costituisce consulenza legale e non
 sostituisce i testi di licenza upstream.
 
@@ -41,7 +41,7 @@ verificata.
 
 | Componente | Uso nel progetto | Licenza rilevata | Distribuzione | Note operative |
 |---|---|---|---|---|
-| RapidOCR / OCR interno usato da Docling | OCR interno nella pipeline Docling, quando abilitato dal profilo e dalla configurazione Docling | Da verificare nei pacchetti transitivi effettivamente installati | Dipendenza transitiva/runtime di Docling; non dichiarata direttamente in `requirements.txt` | Non viene vendored nel repository. Dopo v0.1.5 il profilo **Accurato testo** privilegia OCRmyPDF/Tesseract per creare un PDF ricercabile prima della conversione; altri profili possono ancora usare l'OCR interno di Docling. Verificare i file upstream per termini autorevoli. |
+| RapidOCR / OCR interno usato da Docling | OCR interno nella pipeline Docling, quando abilitato dal profilo e dalla configurazione Docling | Da verificare nei pacchetti transitivi effettivamente installati | Dipendenza transitiva/runtime di Docling; non dichiarata direttamente in `requirements.txt` | Non viene vendored nel repository. Dal ciclo v0.1.5 / v0.1.6 il profilo **Accurato testo** privilegia OCRmyPDF/Tesseract per creare un PDF ricercabile prima della conversione; altri profili possono ancora usare l'OCR interno di Docling. Verificare i file upstream per termini autorevoli. |
 | Python 3.12 | Runtime dell'applicazione e della venv utente | Python Software Foundation License e licenze correlate, secondo la build installata | Runtime esterno; non incluso nel repository | Il pacchetto Debian leggero usa l'interprete di sistema e crea una venv utente. Verificare la licenza della distribuzione Python usata nel sistema di destinazione. |
 | Dipendenze transitive Python | Librerie richieste da Docling, ONNX Runtime, PySide6 e pypdf | Variabile per pacchetto | Installate nella venv da `pip` | Questo documento non è un SBOM completo. Prima di redistribuire una venv o un bundle autonomo, generare e verificare l'inventario completo delle dipendenze transitive e dei relativi avvisi. |
 | Modelli Docling/OCR eventualmente scaricati | Modelli usati da componenti upstream al primo utilizzo | Variabile per modello | Cache/runtime upstream; non inclusi nel repository | L'applicazione non effettua upload cloud dei documenti, ma Docling può scaricare modelli dai servizi upstream da cui dipende. Verificare licenze, cache e condizioni di distribuzione dei modelli separatamente. |
