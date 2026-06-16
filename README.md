@@ -212,6 +212,15 @@ La suite smoke offline usa solo fixture sintetiche e non avvia Docling:
 bash scripts/smoke.sh
 ```
 
+Per rigenerare gli screenshot diagnostici della GUI senza OCR reale:
+
+```bash
+scripts/capture-gui-screenshots.py
+```
+
+Se la venv di progetto non esiste, crearla o avviare esplicitamente con
+`.venv/bin/python scripts/capture-gui-screenshots.py`.
+
 ## Profili di elaborazione
 
 L'applicazione offre cinque profili selezionabili dalla GUI. Il default è **Bilanciato**.
