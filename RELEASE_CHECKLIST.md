@@ -1,12 +1,17 @@
-# Checklist release v0.1.5
+# Checklist release v0.1.5 / preparazione v0.1.6
 
-## Pre-release
+La release `v0.1.5` è già stata taggata. Gli item aperti rimangono promemoria
+operativi per audit manuale o preparazione `v0.1.6`; non vanno barrati senza
+una nuova verifica effettiva.
+
+## Pre-release v0.1.5
 
 - [x] Verificare che `gdlex_ocr/version.py` riporti `0.1.5`.
 - [x] Verificare coerenza tra README, changelog e comportamento della GUI.
 - [x] Controllare che `requirements.txt` contenga versioni fissate e installabili.
 - [x] Rileggere `THIRD_PARTY_NOTICES.md` e aggiornare le evidenze di licenza.
-- [ ] Verificare launcher, icone e installazione/rimozione desktop per utente.
+- [ ] Verificare nuovamente launcher, icone e installazione/rimozione desktop
+  per utente prima della prossima release.
 - [x] Eseguire i test senza OCR reale:
 
 ```bash
@@ -25,7 +30,8 @@ scripts/capture-gui-screenshots.py
 - [x] Usare solo fixture sintetiche o non sensibili nei test e negli esempi.
 - [x] Non includere PDF originali, output OCR, Markdown generati o `run.log`.
 - [x] Verificare che directory temporanee `.gdlex_ocr_*` non siano incluse.
-- [ ] Controllare manualmente screenshot e metadati delle immagini prima della pubblicazione.
+- [ ] Controllare manualmente screenshot e metadati delle immagini prima della
+  prossima pubblicazione.
 
 ## Perimetro test v0.1.5
 
@@ -60,12 +66,14 @@ git diff
 
 - [x] Applicare la scelta descritta in `PACKAGING.md`.
 - [x] Non incorporare la `.venv` nel pacchetto v0.1.5.
-- [ ] Se viene creato un `.deb`, verificarne contenuto, dipendenze e copyright in ambiente pulito.
+- [ ] Se viene creato un nuovo `.deb`, verificarne contenuto, dipendenze e
+  copyright in ambiente pulito.
 - [x] Verificare il `.deb` con `dpkg-deb`, estrazione temporanea e `lintian`.
 - [x] Non includere modelli Docling/ONNX senza inventario e verifica delle licenze.
 - [x] Confermare che OCRmyPDF e Tesseract restino dipendenze opzionali di sistema.
-- [ ] Installare il pacchetto v0.1.5 con `sudo apt install`.
-- [ ] Eseguire `gdlex-ocr --doctor` sulla v0.1.5 installata.
+- [ ] Installare manualmente il pacchetto pubblicato con `sudo apt install`.
+- [ ] Eseguire `/usr/bin/gdlex-ocr --doctor` sul pacchetto installato,
+  controllando che non venga usato un wrapper `~/.local/bin/gdlex-ocr`.
 
 ```bash
 bash scripts/build-deb.sh
@@ -81,13 +89,13 @@ sudo apt install ./dist/gdlex-ocr_0.1.5_all.deb
 
 Questi comandi sono promemoria e non fanno parte delle verifiche automatiche.
 Eseguirli solo dopo approvazione esplicita e dopo aver creato il commit di
-release:
+release. Aggiornare tag e versione prima di riusarli per `v0.1.6` o successive:
 
 ```bash
-git tag -a v0.1.5 -m "GD LEX OCR v0.1.5"
+git tag -a vX.Y.Z -m "GD LEX OCR vX.Y.Z"
 git push origin main
-git push origin v0.1.5
-gh release create v0.1.5 --title "GD LEX OCR v0.1.5" \
+git push origin vX.Y.Z
+gh release create vX.Y.Z --title "GD LEX OCR vX.Y.Z" \
   --notes-file CHANGELOG.md
 ```
 

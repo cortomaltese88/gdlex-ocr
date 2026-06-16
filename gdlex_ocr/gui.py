@@ -133,7 +133,8 @@ class AboutDialog(QDialog):
 
         details = QLabel(
             "<b>© 2026 Studio GD LEX - Avv. Marco Gianese</b><br><br>"
-            "<b>Licenza:</b> MIT<br>"
+            "<b>Licenza progetto:</b> MIT<br>"
+            "<b>Componenti terzi:</b> vedere THIRD_PARTY_NOTICES.md<br>"
             "<b>Motore documentale:</b> Docling<br>"
             "<b>GUI:</b> PySide6<br>"
             "<b>OCR/PDF:</b> Docling / RapidOCR<br>"

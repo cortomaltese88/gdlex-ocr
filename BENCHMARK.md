@@ -1,5 +1,10 @@
 # Benchmark GD LEX OCR
 
+I benchmark sono preliminari e servono solo come riferimento interno. Non
+includere nel repository contenuti OCR, PDF reali, log o dati sensibili.
+Confrontare i risultati solo sullo stesso documento, stessa macchina e stessa
+configurazione.
+
 ## Baseline reale - 2026-06-14
 
 Documento: Fascicolo_PM.pdf
@@ -30,3 +35,14 @@ stessa macchina (CPU).
 
 Registrare qui il risultato quando disponibile, senza includere contenuti del
 documento né dati sensibili.
+
+## Stato post v0.1.5
+
+La v0.1.5 ha introdotto il profilo **PDF già ricercabile** e ha migliorato
+**Accurato testo**, che ora può creare un PDF ricercabile tramite
+OCRmyPDF/Tesseract e usarlo come sorgente Docling. Non ci sono ancora dati
+comparabili e ripetibili nel repository per questi profili.
+
+TODO: eseguire un benchmark ripetibile su fixture o documento locale non
+sensibile, registrando almeno profilo, versione, backend OCR, numero pagine,
+CPU, durata totale e pagine/minuto.

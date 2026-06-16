@@ -1,9 +1,13 @@
 # GD LEX OCR
 
+[English README](README.en.md)
+
 ## Versione 0.1.5
 
 GD LEX OCR è un'applicazione desktop locale in Python e PySide6 per
-convertire fascicoli e documenti PDF in Markdown tramite Docling.
+convertire fascicoli e documenti PDF in Markdown tramite Docling. È pensata
+per workflow legali in cui servono elaborazione locale, output verificabile e
+tracciabilità tecnica del risultato, senza modificare il PDF originale.
 
 ## Prerequisiti minimi
 
@@ -25,7 +29,7 @@ l'applicazione e la conversione PDF → Markdown, sono:
 
 ### Backend OCR locali opzionali
 
-La pipeline predefinita resta libera e usa OCRmyPDF con Tesseract, installati
+Per creare PDF ricercabili la pipeline usa OCRmyPDF con Tesseract, installati
 separatamente dal pacchetto:
 
 ```bash
@@ -54,6 +58,11 @@ soprattutto per **Accurato testo**. Il PDF originale non viene modificato.
 
 Tesseract viene rilevato come motore OCR, ma non è usato direttamente come
 backend PDF multipagina: tale integrazione resta affidata a OCRmyPDF.
+
+Docling può inoltre usare componenti OCR interni o transitivi, inclusi
+RapidOCR e ONNX Runtime, secondo il profilo selezionato e la configurazione
+upstream. Il profilo **Accurato testo** privilegia OCRmyPDF/Tesseract per
+creare un PDF ricercabile locale e usarlo come sorgente della conversione.
 
 #### Master PDF Editor e altri strumenti proprietari
 
@@ -160,6 +169,18 @@ Il comando restituisce `0` se tutti i controlli passano, `1` se mancano
 componenti essenziali e `2` se mancano soltanto OCRmyPDF, Tesseract o la lingua
 italiana. Questi strumenti di sistema restano opzionali.
 
+Per controllare la versione installata:
+
+```bash
+gdlex-ocr --version
+```
+
+Se dopo l'installazione APT parte una vecchia copia di sviluppo, verificare il
+`PATH`: un wrapper `~/.local/bin/gdlex-ocr` può avere precedenza su
+`/usr/bin/gdlex-ocr`. In quel caso usare `/usr/bin/gdlex-ocr --doctor` oppure
+rimuovere il wrapper locale con `bash scripts/uninstall-desktop.sh` dalla copia
+di sviluppo.
+
 ## Installazione tramite repository APT GD LEX
 
 Il repository APT pubblico GD LEX usa una chiave dedicata e la configurazione
@@ -204,6 +225,10 @@ nome è già occupato. Markdown, indice, PDF ricercabile, `run.log` e
 checkbox disattivata il layout storico nella cartella di output non cambia.
 
 Il manifest è un file runtime e non viene incluso nel pacchetto Debian.
+
+Gli hash SHA-256 registrati nel manifest permettono di verificare quale input
+è stato elaborato e quali output sono stati prodotti, senza includere nel
+repository documenti, log o risultati OCR.
 
 ## Test
 
@@ -259,7 +284,7 @@ blocchi codice, citazioni, URL, email, hash e payload base64 sono esclusi.
 **Accurato** attiva l'analisi di immagini e grafici e usa blocchi più piccoli per
 maggiore robustezza. Adatto a documenti con tabelle complesse o contenuto misto.
 
-## Elaborazione locale
+## Elaborazione locale e privacy
 
 L'OCR viene eseguito localmente: nessun documento viene caricato su servizi
 cloud. Il PDF originale viene solo letto; i blocchi PDF e Markdown intermedi
@@ -275,6 +300,16 @@ Al primo avvio, Docling può scaricare modelli dai servizi upstream da cui
 dipende. L'applicazione non effettua upload cloud dei documenti; download,
 cache e gestione di dipendenze e modelli restano soggetti al comportamento e
 alle configurazioni dei relativi progetti upstream.
+
+## Limiti noti OCR
+
+L'OCR è uno strumento di supporto e richiede verifica umana, soprattutto in
+ambito legale. La qualità può variare in presenza di scansioni scure o storte,
+documenti fotografati, timbri, annotazioni manuali, tabelle complesse, layout
+multi-colonna, allegati con immagini, pagine ruotate o fascicoli molto grandi.
+
+Il Markdown finale va sempre confrontato con il PDF originale prima di usarlo
+per deposito, pareri, atti, ricerche probatorie o altri usi professionali.
 
 ## Licenze e componenti terzi
 
