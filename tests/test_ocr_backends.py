@@ -134,11 +134,11 @@ class OcrBackendDetectionTest(unittest.TestCase):
 
     def test_external_backend_run_uses_fake_subprocess_only(self) -> None:
         class SuccessfulProcess:
-            stdout: list[str] = []
+            returncode = 0
 
             @staticmethod
-            def wait() -> int:
-                return 0
+            def communicate(timeout=None):
+                return ("", None)
 
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
@@ -167,6 +167,33 @@ class OcrBackendDetectionTest(unittest.TestCase):
         self.assertEqual("external", result.name)
         self.assertIsInstance(popen.call_args.args[0], list)
         self.assertIsNot(popen.call_args.kwargs.get("shell"), True)
+
+    def test_timeout_kills_process_and_raises_ocr_backend_error(self) -> None:
+        import subprocess as _subprocess
+        from unittest.mock import MagicMock
+
+        with patch(
+            "gdlex_ocr.ocr_backends.shutil.which",
+            return_value="/usr/bin/ocrmypdf",
+        ):
+            backend = detect_ocr_backend("ocrmypdf")
+
+        with patch(
+            "gdlex_ocr.ocr_backends.subprocess.Popen",
+        ) as mock_popen:
+            mock_proc = MagicMock()
+            # First call raises TimeoutExpired; second call (drain after kill) succeeds.
+            mock_proc.communicate.side_effect = [
+                _subprocess.TimeoutExpired(cmd="ocrmypdf", timeout=1),
+                ("", None),
+            ]
+            mock_popen.return_value = mock_proc
+
+            with self.assertRaises(OcrBackendError) as ctx:
+                run_ocr_backend(backend, "in.pdf", "out.pdf", timeout_seconds=1)
+
+            self.assertIn("timeout", str(ctx.exception).lower())
+            mock_proc.kill.assert_called_once()
 
 
 if __name__ == "__main__":

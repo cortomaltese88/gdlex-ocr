@@ -250,6 +250,11 @@ def build_initial_manifest(
             "use_as_source": use_searchable_as_source,
             "warnings": [],
         },
+        "output_sha256": {
+            "markdown": None,
+            "searchable_pdf": None,
+            "index_markdown": None,
+        },
         "warnings": [],
         "errors": [],
     }

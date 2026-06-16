@@ -26,6 +26,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="stampa la versione ed esce",
     )
+    parser.add_argument(
+        "--doctor",
+        action="store_true",
+        help="rimanda alla diagnostica del launcher installato ed esce",
+    )
     return parser.parse_args(argv)
 
 
@@ -35,6 +40,13 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.version:
         print(APP_VERSION)
+        return 0
+
+    if args.doctor:
+        print(
+            "La diagnostica completa è disponibile dal launcher installato:\n"
+            "  gdlex-ocr --doctor"
+        )
         return 0
 
     app = QApplication([sys.argv[0], *cli_args])

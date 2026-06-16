@@ -215,6 +215,16 @@ class BuildInitialManifestTest(unittest.TestCase):
         self.assertEqual([], m["warnings"])
         self.assertEqual([], m["errors"])
 
+    def test_output_sha256_initial_values_are_none(self) -> None:
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as td:
+            m = self._build(Path(td))
+        sha = m["output_sha256"]
+        self.assertIsNone(sha["markdown"])
+        self.assertIsNone(sha["searchable_pdf"])
+        self.assertIsNone(sha["index_markdown"])
+
     def test_bookmark_metadata_is_additive(self) -> None:
         import tempfile
 

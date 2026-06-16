@@ -24,6 +24,19 @@ class AppCliTest(unittest.TestCase):
         self.assertEqual(0, status)
         self.assertEqual(f"{APP_VERSION}\n", output.getvalue())
 
+    def test_doctor_prints_redirect_without_starting_gui(self) -> None:
+        output = io.StringIO()
+
+        with redirect_stdout(output), patch(
+            "app.QApplication",
+            side_effect=AssertionError("GUI should not start for --doctor"),
+        ):
+            status = app.main(["--doctor"])
+
+        self.assertEqual(0, status)
+        self.assertIn("gdlex-ocr --doctor", output.getvalue())
+        self.assertIn("launcher", output.getvalue())
+
     def test_no_arguments_still_starts_gui(self) -> None:
         with patch("app.QApplication") as qapplication, patch(
             "app.application_icon"

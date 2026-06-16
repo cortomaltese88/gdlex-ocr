@@ -19,6 +19,7 @@ from gdlex_ocr.docling_runner import (
 )
 from gdlex_ocr.manifest import (
     build_initial_manifest,
+    file_sha256,
     safe_write_manifest,
     utc_now_iso,
 )
@@ -268,6 +269,12 @@ class OcrWorker(QThread):
             self._manifest["job"]["finished_at"] = utc_now_iso()
             self._manifest["job"]["duration_seconds"] = round(total_seconds, 3)
             self._manifest["outputs"]["markdown"] = str(final_path)
+            sha_dict = self._manifest.get("output_sha256")
+            if sha_dict is not None:
+                try:
+                    sha_dict["markdown"] = file_sha256(final_path)
+                except OSError:
+                    pass
             safe_write_manifest(self._manifest, self.output_dir)
 
             self.progress_changed.emit(100, "Completato")
@@ -392,6 +399,16 @@ class OcrWorker(QThread):
                     "warnings": list(bookmarks.warnings),
                     "reason": None,
                 }
+                sha_dict = self._manifest.get("output_sha256")
+                if sha_dict is not None:
+                    for sha_key, sha_path in (
+                        ("searchable_pdf", searchable_path),
+                        ("index_markdown", index_path),
+                    ):
+                        try:
+                            sha_dict[sha_key] = file_sha256(sha_path)
+                        except OSError:
+                            pass
                 safe_write_manifest(self._manifest, self.output_dir)
             self.searchable_pdf_done.emit(str(searchable_path))
         except (OcrBackendError, OSError, ValueError) as exc:

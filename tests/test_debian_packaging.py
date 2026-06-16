@@ -150,6 +150,7 @@ class DebianPackagingTest(unittest.TestCase):
         self.assertIn("setup.lock", wrapper)
         self.assertIn("--setup-venv", wrapper)
         self.assertIn("--doctor", wrapper)
+        self.assertIn("--help", wrapper)
         self.assertNotIn("Preparare una venv utente", wrapper)
         self.assertNotIn("sudo", wrapper)
         self.assertIn('APP_DIR="/usr/lib/gdlex-ocr"', wrapper)
@@ -291,6 +292,29 @@ fi
             self.assertEqual("0.1.5", result.stdout.strip())
             self.assertFalse((home / ".local/share/gdlex-ocr").exists())
 
+    def test_help_does_not_start_or_bootstrap_the_application(self) -> None:
+        wrapper = PROJECT_ROOT / "packaging" / "gdlex-ocr"
+        with tempfile.TemporaryDirectory() as tmpdir:
+            home = Path(tmpdir) / "home"
+            home.mkdir()
+            environment = os.environ.copy()
+            environment["HOME"] = str(home)
+
+            result = subprocess.run(
+                ["bash", str(wrapper), "--help"],
+                check=False,
+                capture_output=True,
+                text=True,
+                env=environment,
+            )
+
+            self.assertEqual(0, result.returncode)
+            self.assertIn("--setup-venv", result.stdout)
+            self.assertIn("--doctor", result.stdout)
+            self.assertIn("--version", result.stdout)
+            self.assertIn("--help", result.stdout)
+            self.assertFalse((home / ".local/share/gdlex-ocr").exists())
+
     def test_manual_page_documents_bootstrap_and_diagnostics(self) -> None:
         manual = (
             PROJECT_ROOT / "packaging" / "gdlex-ocr.1"
@@ -299,6 +323,7 @@ fi
         self.assertIn("\\-\\-setup\\-venv", manual)
         self.assertIn("\\-\\-doctor", manual)
         self.assertIn("\\-\\-version", manual)
+        self.assertIn("\\-\\-help", manual)
         self.assertIn("setup.log", manual)
         self.assertIn("requirements.txt", manual)
 

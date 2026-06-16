@@ -240,6 +240,21 @@ run_doctor() {
 }
 
 case "${1:-}" in
+    --help|-h)
+        cat <<'EOF'
+Uso: gdlex-ocr [OPZIONE]
+
+  gdlex-ocr                Avvia l'applicazione desktop GD LEX OCR.
+  gdlex-ocr --setup-venv   Crea o aggiorna l'ambiente Python utente ed esce.
+  gdlex-ocr --doctor       Stampa la diagnostica runtime ed esce (exit 0/1/2).
+  gdlex-ocr --version      Stampa la versione installata ed esce.
+  gdlex-ocr --help         Mostra questo messaggio ed esce.
+
+L'ambiente Python utente viene creato in ~/.local/share/gdlex-ocr/venv al
+primo avvio. I log di setup sono in ~/.local/state/gdlex-ocr/setup.log.
+EOF
+        exit 0
+        ;;
     --setup-venv)
         if (( $# != 1 )); then
             echo "Uso: gdlex-ocr --setup-venv" >&2

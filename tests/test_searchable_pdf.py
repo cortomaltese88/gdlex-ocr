@@ -17,6 +17,7 @@ from pypdf import PdfReader, PdfWriter
 from gdlex_ocr.profiles import PROFILES
 from gdlex_ocr.ocr_backends import OcrBackend, OcrBackendRun
 from gdlex_ocr.searchable_pdf import (
+    DEFAULT_OCRMYPDF_TIMEOUT_SECONDS,
     INSTALL_HINT,
     SearchablePdfError,
     build_ocrmypdf_command,
@@ -234,6 +235,34 @@ class RunOcrmypdfTest(unittest.TestCase):
                 INSTALL_HINT,
             ):
                 run_ocrmypdf("in.pdf", "out.pdf")
+
+    def test_default_timeout_constant_is_positive_integer(self) -> None:
+        self.assertIsInstance(DEFAULT_OCRMYPDF_TIMEOUT_SECONDS, int)
+        self.assertGreater(DEFAULT_OCRMYPDF_TIMEOUT_SECONDS, 0)
+
+    def test_timeout_kills_process_and_raises_searchable_pdf_error(self) -> None:
+        import subprocess as _subprocess
+        from unittest.mock import MagicMock
+
+        with patch(
+            "gdlex_ocr.searchable_pdf.is_ocrmypdf_available",
+            return_value=True,
+        ), patch(
+            "gdlex_ocr.searchable_pdf.subprocess.Popen",
+        ) as mock_popen:
+            mock_proc = MagicMock()
+            # First call raises TimeoutExpired; second call (drain after kill) succeeds.
+            mock_proc.communicate.side_effect = [
+                _subprocess.TimeoutExpired(cmd="ocrmypdf", timeout=1),
+                ("", None),
+            ]
+            mock_popen.return_value = mock_proc
+
+            with self.assertRaises(SearchablePdfError) as ctx:
+                run_ocrmypdf("in.pdf", "out.pdf", timeout_seconds=1)
+
+            self.assertIn("timeout", str(ctx.exception))
+            mock_proc.kill.assert_called_once()
 
 
 class MakeProgressiveOutputPathTest(unittest.TestCase):

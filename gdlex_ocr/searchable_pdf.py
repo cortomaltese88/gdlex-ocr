@@ -12,6 +12,8 @@ INSTALL_HINT = (
     "Installa: sudo apt install ocrmypdf tesseract-ocr tesseract-ocr-ita"
 )
 
+DEFAULT_OCRMYPDF_TIMEOUT_SECONDS = 1800
+
 
 class SearchablePdfError(RuntimeError):
     """Raised when OCRmyPDF fails or is not available."""
@@ -67,10 +69,11 @@ def run_ocrmypdf(
     language: str = "ita",
     jobs: int | None = None,
     log_callback: Callable[[str], None] | None = None,
+    timeout_seconds: int = DEFAULT_OCRMYPDF_TIMEOUT_SECONDS,
 ) -> None:
-    """Run OCRmyPDF, streaming output to *log_callback*.
+    """Run OCRmyPDF, collecting output into *log_callback*.
 
-    Raises SearchablePdfError if ocrmypdf is not installed or fails.
+    Raises SearchablePdfError if ocrmypdf is not installed, times out, or fails.
     """
     if not is_ocrmypdf_available():
         raise SearchablePdfError(
@@ -87,21 +90,28 @@ def run_ocrmypdf(
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
-            bufsize=1,
         )
     except OSError as exc:
         raise SearchablePdfError(
             f"Impossibile avviare OCRmyPDF: {exc}"
         ) from exc
 
-    if proc.stdout is not None:
-        for raw_line in proc.stdout:
+    try:
+        stdout, _ = proc.communicate(timeout=timeout_seconds)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        proc.communicate()
+        raise SearchablePdfError(
+            f"OCRmyPDF timeout dopo {timeout_seconds}s; processo terminato."
+        )
+
+    if log_callback:
+        for raw_line in stdout.splitlines():
             line = raw_line.rstrip()
-            if line and log_callback:
+            if line:
                 log_callback(f"ocrmypdf: {line}")
 
-    return_code = proc.wait()
-    if return_code != 0:
+    if proc.returncode != 0:
         raise SearchablePdfError(
-            f"OCRmyPDF è terminato con codice {return_code}"
+            f"OCRmyPDF è terminato con codice {proc.returncode}"
         )

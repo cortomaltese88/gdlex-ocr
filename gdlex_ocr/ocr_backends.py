@@ -9,7 +9,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
-from gdlex_ocr.searchable_pdf import build_ocrmypdf_command
+from gdlex_ocr.searchable_pdf import (
+    DEFAULT_OCRMYPDF_TIMEOUT_SECONDS,
+    build_ocrmypdf_command,
+)
 
 SUPPORTED_BACKENDS = ("auto", "ocrmypdf", "external")
 DIAGNOSTIC_BACKENDS = ("tesseract", "masterpdf", "pdfstudio")
@@ -160,8 +163,12 @@ def run_ocr_backend(
     *,
     language: str = "ita",
     log_callback: Callable[[str], None] | None = None,
+    timeout_seconds: int = DEFAULT_OCRMYPDF_TIMEOUT_SECONDS,
 ) -> OcrBackendRun:
-    """Run a configured local backend using an argument list."""
+    """Run a configured local backend using an argument list.
+
+    Raises OcrBackendError if the backend times out, fails, or produces no output.
+    """
     command = build_backend_command(backend, input_pdf, output_pdf, language)
     if log_callback:
         log_callback(
@@ -173,22 +180,31 @@ def run_ocr_backend(
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
-            bufsize=1,
         )
     except OSError as exc:
         raise OcrBackendError(
             f"Impossibile avviare il backend OCR {backend.name}: {exc}"
         ) from exc
 
-    if process.stdout is not None:
-        for raw_line in process.stdout:
-            line = raw_line.rstrip()
-            if line and log_callback:
-                log_callback(f"{backend.name}: {line}")
-    return_code = process.wait()
-    if return_code != 0:
+    try:
+        stdout, _ = process.communicate(timeout=timeout_seconds)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        process.communicate()
         raise OcrBackendError(
-            f"Backend OCR {backend.name} terminato con codice {return_code}"
+            f"Backend OCR {backend.name} timeout dopo {timeout_seconds}s; "
+            "processo terminato."
+        )
+
+    if log_callback:
+        for raw_line in stdout.splitlines():
+            line = raw_line.rstrip()
+            if line:
+                log_callback(f"{backend.name}: {line}")
+
+    if process.returncode != 0:
+        raise OcrBackendError(
+            f"Backend OCR {backend.name} terminato con codice {process.returncode}"
         )
     if not Path(output_pdf).is_file():
         raise OcrBackendError(
