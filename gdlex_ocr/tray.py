@@ -34,7 +34,7 @@ class GdlexOcrTray:
         if self._icon.isNull() or not self.is_system_tray_available():
             return
 
-        self.tray_icon = QSystemTrayIcon(parent)
+        self.tray_icon = QSystemTrayIcon(self._icon, parent)
         self.tray_icon.setIcon(self._icon)
         self.tray_icon.setToolTip(APP_NAME)
         self.tray_icon.activated.connect(self._on_activated)

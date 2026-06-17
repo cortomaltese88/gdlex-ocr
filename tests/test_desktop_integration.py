@@ -3,17 +3,26 @@
 from __future__ import annotations
 
 import configparser
+import os
 import unittest
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
-from gdlex_ocr.icons import application_icon_paths, tray_icon_path
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
+from PySide6.QtWidgets import QApplication
+
+from gdlex_ocr.icons import application_icon_paths, tray_icon, tray_icon_path
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
 class ApplicationIconTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.app = QApplication.instance() or QApplication([])
+
     def test_svg_has_expected_viewbox_and_vector_content(self) -> None:
         icon_path = PROJECT_ROOT / "assets" / "icon.svg"
         root = ET.parse(icon_path).getroot()
@@ -45,6 +54,12 @@ class ApplicationIconTest(unittest.TestCase):
 
         self.assertEqual(PROJECT_ROOT / "assets" / "icon-64.png", path)
         self.assertTrue(path.is_file())
+
+    def test_tray_icon_helper_loads_valid_raster_icon(self) -> None:
+        icon = tray_icon()
+
+        self.assertIsNotNone(icon)
+        self.assertFalse(icon.isNull())
 
 
 class DesktopFileTest(unittest.TestCase):

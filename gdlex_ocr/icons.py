@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from PySide6.QtCore import QSize
-from PySide6.QtGui import QIcon, QPixmap
+from PySide6.QtGui import QIcon, QImageReader
 
 _ASSETS_DIR = Path(__file__).resolve().parent.parent / "assets"
 _APPLICATION_ICON_SIZES = (32, 48, 64, 128, 256)
@@ -40,9 +40,14 @@ def tray_icon_path() -> Path:
     return _ASSETS_DIR / f"icon-{_TRAY_ICON_SIZE}.png"
 
 
-def tray_icon() -> QIcon:
-    """Load a fixed-size raster icon for the system tray."""
+def tray_icon() -> QIcon | None:
+    """Load a valid fixed-size raster icon for the system tray."""
     path = tray_icon_path()
     if not path.is_file():
-        return QIcon()
-    return QIcon(QPixmap(str(path)))
+        return None
+    if not QImageReader(str(path)).canRead():
+        return None
+    icon = QIcon(str(path))
+    if icon.isNull():
+        return None
+    return icon

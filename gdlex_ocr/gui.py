@@ -930,9 +930,12 @@ class MainWindow(QMainWindow):
     def _setup_tray(self) -> None:
         if not _tray_enabled():
             return
+        icon = tray_icon()
+        if icon is None:
+            return
         self.tray = GdlexOcrTray(
             self,
-            icon=tray_icon(),
+            icon=icon,
             toggle_window=self._toggle_window_from_tray,
             show_window=self._show_window_from_tray,
             open_output_folder=self._open_output_folder,

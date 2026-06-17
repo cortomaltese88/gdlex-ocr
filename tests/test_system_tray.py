@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import os
+import inspect
+import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -14,6 +16,7 @@ from PySide6.QtGui import QIcon, QKeySequence
 from PySide6.QtWidgets import QApplication, QMessageBox, QWidget
 
 from gdlex_ocr.gui import MainWindow
+import gdlex_ocr.icons as icons
 from gdlex_ocr.icons import tray_icon, tray_icon_path
 from gdlex_ocr.tray import GdlexOcrTray
 
@@ -77,9 +80,11 @@ class SystemTrayTest(unittest.TestCase):
             patch("gdlex_ocr.tray.QSystemTrayIcon") as tray_icon_class,
         ):
             parent = QWidget()
+            icon = tray_icon()
+            self.assertIsNotNone(icon)
             tray = GdlexOcrTray(
                 parent,
-                icon=tray_icon(),
+                icon=icon,
                 toggle_window=lambda: None,
                 show_window=lambda: None,
                 open_output_folder=lambda: None,
@@ -88,6 +93,7 @@ class SystemTrayTest(unittest.TestCase):
 
         self.assertTrue(tray.is_available())
         self.assertFalse(tray._icon.isNull())
+        tray_icon_class.assert_called_once_with(tray._icon, parent)
         tray_icon_class.return_value.setIcon.assert_called_once_with(tray._icon)
         method_names = [
             call[0] for call in tray_icon_class.return_value.method_calls
@@ -142,6 +148,21 @@ class SystemTrayTest(unittest.TestCase):
 
         self.assertNotIn(".svg", source)
 
+    def test_tray_icon_helper_does_not_return_empty_qicon_fallback(self) -> None:
+        source = inspect.getsource(icons.tray_icon)
+
+        self.assertIn("return None", source)
+        self.assertNotIn("return QIcon()", source)
+        self.assertNotIn("icon.svg", source)
+
+    def test_tray_icon_helper_returns_none_when_png_is_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            missing_path = Path(tmpdir) / "missing-icon-64.png"
+            with patch.object(icons, "tray_icon_path", return_value=missing_path):
+                icon = icons.tray_icon()
+
+        self.assertIsNone(icon)
+
     def test_main_window_initializes_available_tray_without_crashing(self) -> None:
         fake_tray = MagicMock()
         fake_tray.is_available.return_value = True
@@ -159,6 +180,18 @@ class SystemTrayTest(unittest.TestCase):
         self.assertIs(fake_tray, window.tray)
         self.assertFalse(self.app.quitOnLastWindowClosed())
         window.tray = None
+        window.deleteLater()
+
+    def test_main_window_does_not_create_tray_when_icon_is_missing(self) -> None:
+        with (
+            patch("gdlex_ocr.gui._tray_enabled", return_value=True),
+            patch("gdlex_ocr.gui.tray_icon", return_value=None),
+            patch("gdlex_ocr.gui.GdlexOcrTray") as tray_cls,
+        ):
+            window = MainWindow()
+
+        self.assertIsNone(window.tray)
+        tray_cls.assert_not_called()
         window.deleteLater()
 
     def test_close_during_processing_hides_to_available_tray(self) -> None:
