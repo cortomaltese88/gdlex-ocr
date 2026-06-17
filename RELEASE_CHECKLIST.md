@@ -1,15 +1,14 @@
-# Checklist release v0.1.8
+# Checklist release v0.1.9
 
-La release `v0.1.8` è in preparazione. Gli item aperti rimangono promemoria
+La release `v0.1.9` è in preparazione. Gli item aperti rimangono promemoria
 operativi per audit manuale o pubblicazione; non vanno barrati senza una nuova
 verifica effettiva.
 
-## Pre-release v0.1.8
+## Pre-release v0.1.9
 
-- [x] Verificare che `gdlex_ocr/version.py` riporti `0.1.8`.
+- [x] Verificare che `gdlex_ocr/version.py` riporti `0.1.9`.
 - [x] Verificare coerenza tra README, changelog e comportamento della GUI.
 - [x] Controllare che `requirements.txt` contenga versioni fissate e installabili.
-- [x] Rileggere `THIRD_PARTY_NOTICES.md` e aggiornare le evidenze di licenza.
 - [ ] Verificare nuovamente launcher, icone e installazione/rimozione desktop
   per utente prima della prossima release.
 - [x] Eseguire i test senza OCR reale:
@@ -38,13 +37,14 @@ git status -sb
 - [ ] Controllare manualmente screenshot e metadati delle immagini prima della
   prossima pubblicazione.
 
-## Perimetro test v0.1.8
+## Perimetro test v0.1.9
 
 - [x] Non eseguire OCR reale durante la preparazione della release.
 - [x] Usare esclusivamente smoke test e fixture sintetiche.
 - [x] Verificare identità/versione, integrazione desktop, splash, system tray,
   discovery `unittest`, opzioni OCRmyPDF GUI, profilo **Fascicolo legale**,
-  payload Debian e benchmark sintetico tramite la suite offline.
+  payload Debian, benchmark sintetico e stress test subprocess tramite la suite
+  offline.
 
 ## File sensibili e contenuto release
 
@@ -71,7 +71,7 @@ git diff
 ## Packaging
 
 - [x] Applicare la scelta descritta in `PACKAGING.md`.
-- [x] Non incorporare la `.venv` nel pacchetto v0.1.8.
+- [x] Non incorporare la `.venv` nel pacchetto v0.1.9.
 - [ ] Se viene creato un nuovo `.deb`, verificarne contenuto, dipendenze e
   copyright in ambiente pulito.
 - [x] Verificare il `.deb` con `dpkg-deb`, estrazione temporanea e `lintian`.
@@ -83,11 +83,11 @@ git diff
 
 ```bash
 bash scripts/build-deb.sh
-dpkg-deb -f dist/gdlex-ocr_0.1.8_all.deb Package Version Architecture Depends Suggests
-dpkg-deb --contents dist/gdlex-ocr_0.1.8_all.deb | \
+dpkg-deb -f dist/gdlex-ocr_0.1.9_all.deb Package Version Architecture Depends Suggests
+dpkg-deb --contents dist/gdlex-ocr_0.1.9_all.deb | \
   grep -E '(\.venv|__pycache__|\.git|run\.log|manifest\.json|Fascicolo|Downloads|Documenti)' || true
-sha256sum dist/gdlex-ocr_0.1.8_all.deb
-sudo apt install ./dist/gdlex-ocr_0.1.8_all.deb
+sha256sum dist/gdlex-ocr_0.1.9_all.deb
+sudo apt install ./dist/gdlex-ocr_0.1.9_all.deb
 /usr/bin/gdlex-ocr --doctor
 ```
 

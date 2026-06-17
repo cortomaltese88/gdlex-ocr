@@ -4,6 +4,27 @@ Tutte le modifiche rilevanti del progetto saranno documentate in questo file.
 
 ## [Unreleased]
 
+## [0.1.9] - 2026-06-17
+
+### Correzioni e hardening
+
+- Corretta inizializzazione system tray icon per evitare doppia registrazione
+  su KDE.
+- Rimossa notifica KDE hide-to-tray che causava l'icona "i" indesiderata nella
+  tray.
+- Icone cartella tematizzate nei file dialog Qt per seguire il tema di sistema.
+- Hardening subprocess OCRmyPDF: encoding UTF-8 esplicito con
+  `errors="replace"`, terminazione del processo in caso di eccezione nel
+  callback, separatore `--` prima dei path.
+- Guard `isVisible()` sul controllo di `_cancelled` per evitare accessi a
+  widget già distrutti.
+
+### Strumenti e test
+
+- Aggiunto stress test offline per subprocess OCRmyPDF: copertura di percorsi
+  di errore e casi limite di encoding.
+- Aggiunta copertura packaging e doctor per l'asset `folder-matrix.svg`.
+
 ## [0.1.8] - 2026-06-17
 
 ### Funzionalità

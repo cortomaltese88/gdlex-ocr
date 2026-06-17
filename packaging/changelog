@@ -1,3 +1,18 @@
+gdlex-ocr (0.1.9) unstable; urgency=low
+
+  * Fix system tray icon initialization to prevent double-registration on KDE.
+  * Remove KDE hide-to-tray notification that caused an unwanted "i" icon badge.
+  * Theme folder icons in Qt file dialogs to match the system icon theme.
+  * Harden OCRmyPDF subprocess: explicit UTF-8 encoding with errors="replace",
+    process termination on callback exception, and "--" separator before paths.
+  * Guard _cancelled visibility check with isVisible() to avoid late widget
+    access after window close.
+  * Add offline subprocess stress test covering error-path and encoding edge
+    cases.
+  * Cover folder-matrix.svg asset in packaging and doctor checks.
+
+ -- Studio GD LEX <cortomaltese88@users.noreply.github.com>  Tue, 17 Jun 2026 18:30:00 +0200
+
 gdlex-ocr (0.1.8) unstable; urgency=medium
 
   * Add GUI controls for OCRmyPDF timeout and parallel jobs with QSettings
