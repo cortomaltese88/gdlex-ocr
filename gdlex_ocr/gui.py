@@ -1310,11 +1310,12 @@ class MainWindow(QMainWindow):
         self.eta_label.setText("ETA: --")
         self._enable_manifest_button()
         self._enable_log_button()
-        QMessageBox.information(
-            self,
-            "Elaborazione annullata",
-            f"Gli output parziali disponibili sono in:\n{work_dir}",
-        )
+        if self.isVisible():
+            QMessageBox.information(
+                self,
+                "Elaborazione annullata",
+                f"Gli output parziali disponibili sono in:\n{work_dir}",
+            )
 
     def _failed(self, message: str) -> None:
         self._remember_worker_output_dir()

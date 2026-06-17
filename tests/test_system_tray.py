@@ -226,6 +226,19 @@ class SystemTrayTest(unittest.TestCase):
         self.assertFalse(event.ignored)
         window.deleteLater()
 
+    def test_cancelled_hidden_window_does_not_show_information_dialog(self) -> None:
+        window = MainWindow()
+        window.hide()
+        self.assertFalse(window.isVisible())
+
+        with patch(
+            "gdlex_ocr.gui.QMessageBox.information",
+        ) as info_mock:
+            window._cancelled("/tmp/partial")
+
+        info_mock.assert_not_called()
+        window.deleteLater()
+
     def test_close_during_processing_without_tray_keeps_cancel_prompt(self) -> None:
         window = MainWindow()
         worker = MagicMock()

@@ -64,7 +64,7 @@ def build_ocrmypdf_command(
     ]
     if jobs is not None:
         command.extend(["--jobs", str(jobs)])
-    command.extend([str(input_pdf), str(output_pdf)])
+    command.extend(["--", str(input_pdf), str(output_pdf)])
     return command
 
 
@@ -99,6 +99,8 @@ def run_process_with_incremental_output(
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
+        encoding="utf-8",
+        errors="replace",
     )
     output_lines: list[str] = []
     lines: queue.Queue[str | None] = queue.Queue()
@@ -141,6 +143,13 @@ def run_process_with_incremental_output(
                 if line:
                     line_callback(line)
     finally:
+        if process.poll() is None:
+            process.terminate()
+            try:
+                process.wait(timeout=PROCESS_TERMINATE_GRACE_SECONDS)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait()
         reader.join(timeout=1.0)
 
     return process.wait(), "".join(output_lines)
