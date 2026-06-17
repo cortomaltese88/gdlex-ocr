@@ -76,6 +76,7 @@ class DebianPackagingTest(unittest.TestCase):
             "/usr/lib/gdlex-ocr/gdlex_ocr/tray.py",
             "/usr/lib/gdlex-ocr/gdlex_ocr/icons.py",
             "/usr/lib/gdlex-ocr/gdlex_ocr/version.py",
+            "/usr/lib/gdlex-ocr/assets/folder-matrix.svg",
             "/usr/share/applications/gdlex-ocr.desktop",
             "/usr/share/man/man1/gdlex-ocr.1.gz",
             "/usr/share/icons/hicolor/64x64/apps/gdlex-ocr.png",

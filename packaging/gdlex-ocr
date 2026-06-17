@@ -207,6 +207,8 @@ run_doctor() {
         "${APP_DIR}/assets/matrix-arrow-up.svg" || essential_missing=1
     doctor_check_file "Asset freccia giu" \
         "${APP_DIR}/assets/matrix-arrow-down.svg" || essential_missing=1
+    doctor_check_file "Icona cartella Qt" \
+        "${APP_DIR}/assets/folder-matrix.svg" || optional_missing=1
 
     if command -v ocrmypdf >/dev/null 2>&1; then
         printf '[OK] OCRmyPDF: %s\n' "$(command -v ocrmypdf)"
