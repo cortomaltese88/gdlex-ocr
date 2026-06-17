@@ -94,7 +94,7 @@ binary, run `/usr/bin/gdlex-ocr --doctor` to inspect the APT-installed copy.
 
 ## Profiles
 
-The GUI provides five processing profiles:
+The GUI provides six processing profiles:
 
 | Profile | Main Use |
 |---|---|
@@ -102,6 +102,7 @@ The GUI provides five processing profiles:
 | Bilanciato | Default profile for common legal bundles. |
 | Accurato testo | More conservative text extraction; can create a searchable PDF first. |
 | PDF già ricercabile | Uses an existing text layer and disables Docling OCR. |
+| Fascicolo legale | Conservative long-bundle profile; keeps OCR optional and Markdown structured. |
 | Accurato | Enables picture and chart enrichment for mixed content. |
 
 OCR backends include OCRmyPDF/Tesseract for searchable PDFs, a configurable

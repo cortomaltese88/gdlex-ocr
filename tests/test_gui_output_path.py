@@ -422,6 +422,21 @@ class OutputPathGuiTest(unittest.TestCase):
             self.window.use_searchable_as_source_checkbox.isChecked()
         )
 
+    def test_legal_dossier_profile_is_selectable_in_gui(self) -> None:
+        self.assertNotEqual(
+            -1,
+            self.window.profile_combo.findText("Fascicolo legale"),
+        )
+
+        self.window.profile_combo.setCurrentText("Fascicolo legale")
+
+        self.assertEqual(25, self.window.block_size_spin.value())
+        self.assertFalse(self.window.searchable_checkbox.isChecked())
+        self.assertFalse(
+            self.window.use_searchable_as_source_checkbox.isChecked()
+        )
+        self.assertIn("accurate", self.window.profile_summary_label.text())
+
     def test_start_passes_structured_output_to_worker(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             pdf_path = Path(tmpdir) / "fascicolo.pdf"

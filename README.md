@@ -267,7 +267,7 @@ avviato dall'interprete di sistema e la venv del progetto è presente.
 
 ## Profili di elaborazione
 
-L'applicazione offre cinque profili selezionabili dalla GUI. Il default è **Bilanciato**.
+L'applicazione offre sei profili selezionabili dalla GUI. Il default è **Bilanciato**.
 
 | Profilo     | Blocco | Thread | Batch | Tabelle  | Immagini | Grafici | Struttura MD |
 |-------------|-------:|-------:|------:|----------|----------|---------|--------------|
@@ -275,6 +275,7 @@ L'applicazione offre cinque profili selezionabili dalla GUI. Il default è **Bil
 | Bilanciato  |  15 p. |     10 |     6 | fast     | no       | no      | sì           |
 | Accurato testo | 10 p. |      6 |     4 | accurate | no       | no      | sì           |
 | PDF già ricercabile | 15 p. | 10 | 6 | accurate | no | no | sì |
+| Fascicolo legale | 25 p. | 8 | 6 | accurate | no | no | sì |
 | Accurato    |  10 p. |      6 |     4 | accurate | sì       | sì      | no           |
 
 Il cambio profilo aggiorna automaticamente la dimensione blocco. La dimensione
@@ -293,7 +294,12 @@ qualità del testo Markdown senza contenuti immagine incorporati.
 **PDF già ricercabile** disattiva l'OCR Docling e usa il layer testuale già
 presente, mantenendo tabelle accurate e struttura Markdown conservativa.
 
-I profili **Bilanciato** e **Accurato testo** applicano inoltre un
+**Fascicolo legale** è pensato per PDF lunghi e già testuali: usa blocchi più
+grandi, non forza l'OCR Docling, mantiene tabelle accurate e struttura Markdown
+conservativa. Il PDF ricercabile resta opzionale dalle impostazioni dedicate.
+
+I profili **Bilanciato**, **Accurato testo**, **PDF già ricercabile** e
+**Fascicolo legale** applicano inoltre un
 post-processing strutturale conservativo al Markdown finale. Righe isolate e
 chiaramente riconoscibili come titoli (capitoli, sezioni, articoli e
 numerazioni) vengono promosse a heading senza riscrivere il testo. Tabelle,

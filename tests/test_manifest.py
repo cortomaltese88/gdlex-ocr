@@ -129,6 +129,29 @@ class BuildInitialManifestTest(unittest.TestCase):
         self.assertEqual(15, opts["block_size"])
         self.assertEqual("fast", opts["table_mode"])
 
+    def test_legal_dossier_profile_is_recorded_in_manifest(self) -> None:
+        from gdlex_ocr.manifest import build_initial_manifest
+        from gdlex_ocr.profiles import PROFILES
+
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            pdf = root / "fascicolo.pdf"
+            pdf.write_bytes(b"%PDF")
+            m = build_initial_manifest(
+                pdf_path=pdf,
+                output_dir=root / "output",
+                profile=PROFILES["Fascicolo legale"],
+                pages_per_block=25,
+                create_searchable=False,
+                ocr_language="ita",
+                app_version="0.1.7",
+            )
+
+        self.assertEqual("Fascicolo legale", m["profile"]["name"])
+        self.assertEqual(25, m["profile"]["options"]["block_size"])
+        self.assertFalse(m["profile"]["options"]["enable_ocr"])
+        self.assertEqual("accurate", m["profile"]["options"]["table_mode"])
+
     def test_processing_flags(self) -> None:
         import tempfile
 

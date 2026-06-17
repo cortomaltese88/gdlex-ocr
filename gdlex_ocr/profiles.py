@@ -83,6 +83,17 @@ PROFILES: dict[str, ProcessingProfile] = {
         enrich_chart=False,
         structure_markdown=True,
     ),
+    "Fascicolo legale": ProcessingProfile(
+        name="Fascicolo legale",
+        block_size=25,
+        num_threads=8,
+        page_batch_size=6,
+        enable_ocr=False,
+        table_mode="accurate",
+        enrich_picture=False,
+        enrich_chart=False,
+        structure_markdown=True,
+    ),
     "Accurato": ProcessingProfile(
         name="Accurato",
         block_size=10,
