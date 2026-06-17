@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title description">
+  <title id="title">Cartella GD LEX</title>
+  <desc id="description">Icona cartella verde in stile Matrix per i dialog file dell'app.</desc>
+  <defs>
+    <linearGradient id="body" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#12351f"/>
+      <stop offset="0.58" stop-color="#08170e"/>
+      <stop offset="1" stop-color="#0f2a18"/>
+    </linearGradient>
+    <linearGradient id="lip" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#32e875"/>
+      <stop offset="1" stop-color="#7dffa8"/>
+    </linearGradient>
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="1.1" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  <path d="M6 18c0-3 2-5 5-5h16l6 7h20c3 0 5 2 5 5v4H6Z" fill="#173d25" stroke="#32e875" stroke-width="2"/>
+  <path d="M6 25h52v21c0 3-2 5-5 5H11c-3 0-5-2-5-5Z" fill="url(#body)" stroke="#32e875" stroke-width="2"/>
+  <path d="M11 30h42" stroke="url(#lip)" stroke-width="2" filter="url(#glow)"/>
+  <path d="M14 38h8m5 0h5m5 0h13M14 44h16m5 0h6m5 0h4" stroke="#78a989" stroke-width="2" stroke-linecap="round"/>
+  <rect x="49" y="34" width="3" height="3" fill="#7dffa8"/>
+</svg>

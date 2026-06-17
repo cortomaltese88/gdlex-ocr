@@ -14,6 +14,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import (
     QApplication,
+    QDialog,
     QGroupBox,
     QPushButton,
     QTabWidget,
@@ -321,12 +322,12 @@ class OutputPathGuiTest(unittest.TestCase):
         manual_path = "/tmp/output-personalizzato"
         self.window.output_edit.setText(manual_path)
         self.window.output_edit.textEdited.emit(manual_path)
+        dialog = MagicMock()
+        dialog.exec.return_value = QDialog.DialogCode.Accepted
+        dialog.selectedFiles.return_value = ["/tmp/documenti/fascicolo.pdf"]
 
         with (
-            patch(
-                "gdlex_ocr.gui.QFileDialog.getOpenFileName",
-                return_value=("/tmp/documenti/fascicolo.pdf", ""),
-            ),
+            patch("gdlex_ocr.gui._themed_file_dialog", return_value=dialog),
             patch("gdlex_ocr.gui.count_pdf_pages", return_value=12),
         ):
             self.window._select_pdf()
@@ -334,15 +335,18 @@ class OutputPathGuiTest(unittest.TestCase):
         self.assertEqual(manual_path, self.window.output_edit.text())
 
     def test_pdf_selection_updates_only_an_unmodified_suggestion(self) -> None:
-        selections = [
-            ("/tmp/primo/fascicolo.pdf", ""),
-            ("/tmp/secondo/fascicolo.pdf", ""),
-        ]
+        dialogs = []
+        for selected_file in (
+            "/tmp/primo/fascicolo.pdf",
+            "/tmp/secondo/fascicolo.pdf",
+        ):
+            dialog = MagicMock()
+            dialog.exec.return_value = QDialog.DialogCode.Accepted
+            dialog.selectedFiles.return_value = [selected_file]
+            dialogs.append(dialog)
+
         with (
-            patch(
-                "gdlex_ocr.gui.QFileDialog.getOpenFileName",
-                side_effect=selections,
-            ),
+            patch("gdlex_ocr.gui._themed_file_dialog", side_effect=dialogs),
             patch("gdlex_ocr.gui.count_pdf_pages", return_value=12),
         ):
             self.window._select_pdf()
@@ -352,9 +356,13 @@ class OutputPathGuiTest(unittest.TestCase):
         self.assertEqual("/tmp/secondo", self.window.output_edit.text())
 
     def test_browse_updates_output_field(self) -> None:
+        dialog = MagicMock()
+        dialog.exec.return_value = QDialog.DialogCode.Accepted
+        dialog.selectedFiles.return_value = ["/tmp/output-da-browse"]
+
         with patch(
-            "gdlex_ocr.gui.QFileDialog.getExistingDirectory",
-            return_value="/tmp/output-da-browse",
+            "gdlex_ocr.gui._themed_file_dialog",
+            return_value=dialog,
         ):
             self.window._select_output()
 
@@ -509,11 +517,12 @@ class PdfPathGuiTest(unittest.TestCase):
 
     def test_browse_updates_pdf_field(self) -> None:
         selected_path = "/tmp/documenti/fascicolo.pdf"
+        dialog = MagicMock()
+        dialog.exec.return_value = QDialog.DialogCode.Accepted
+        dialog.selectedFiles.return_value = [selected_path]
+
         with (
-            patch(
-                "gdlex_ocr.gui.QFileDialog.getOpenFileName",
-                return_value=(selected_path, ""),
-            ),
+            patch("gdlex_ocr.gui._themed_file_dialog", return_value=dialog),
             patch("gdlex_ocr.gui.count_pdf_pages", return_value=12),
             patch.object(Path, "is_file", return_value=True),
         ):

@@ -12,6 +12,7 @@ from PySide6.QtGui import (
     QCloseEvent,
     QDesktopServices,
     QFontDatabase,
+    QIcon,
     QIntValidator,
 )
 from PySide6.QtWidgets import (
@@ -21,6 +22,7 @@ from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
     QFileDialog,
+    QFileIconProvider,
     QFrame,
     QGridLayout,
     QGroupBox,
@@ -83,6 +85,8 @@ _OCR_BACKENDS = [
     ("Comando esterno", "external"),
 ]
 _SETTINGS_ORGANIZATION = "GD LEX"
+_ASSETS_DIR = Path(__file__).resolve().parent.parent / "assets"
+_FOLDER_ICON_PATH = _ASSETS_DIR / "folder-matrix.svg"
 _SETTINGS_KEYS = {
     "output_dir": "paths/outputDirectory",
     "profile": "processing/profile",
@@ -98,6 +102,22 @@ _SETTINGS_KEYS = {
 }
 
 
+class _ThemedFileIconProvider(QFileIconProvider):
+    """Use the GD LEX folder icon while keeping system icons for other files."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._folder_icon = QIcon(str(_FOLDER_ICON_PATH))
+
+    def icon(self, file_info_or_type):  # type: ignore[override]
+        if not self._folder_icon.isNull():
+            if file_info_or_type == QFileIconProvider.IconType.Folder:
+                return self._folder_icon
+            if hasattr(file_info_or_type, "isDir") and file_info_or_type.isDir():
+                return self._folder_icon
+        return super().icon(file_info_or_type)
+
+
 def _tray_enabled() -> bool:
     if os.environ.get("GDLEX_OCR_DISABLE_TRAY") == "1":
         return False
@@ -105,6 +125,24 @@ def _tray_enabled() -> bool:
     if app is not None and app.platformName().lower() == "offscreen":
         return False
     return True
+
+
+def _themed_file_dialog(
+    parent: QWidget,
+    title: str,
+    start_dir: str,
+    file_mode: QFileDialog.FileMode,
+    name_filter: str = "",
+    options: QFileDialog.Option = QFileDialog.Option(0),
+) -> QFileDialog:
+    dialog = QFileDialog(parent, title, start_dir, name_filter)
+    dialog.setOption(QFileDialog.Option.DontUseNativeDialog, True)
+    dialog.setOptions(dialog.options() | options)
+    dialog.setFileMode(file_mode)
+    provider = _ThemedFileIconProvider()
+    dialog.setIconProvider(provider)
+    dialog._gdlex_icon_provider = provider  # type: ignore[attr-defined]
+    return dialog
 
 
 def resolve_output_path(value: str) -> Path:
@@ -1056,12 +1094,17 @@ class MainWindow(QMainWindow):
             start_dir = str(resolve_pdf_path(self.pdf_edit.text()).parent)
         except ValueError:
             start_dir = ""
-        filename, _ = QFileDialog.getOpenFileName(
+        dialog = _themed_file_dialog(
             self,
             "Seleziona il fascicolo PDF",
             start_dir,
+            QFileDialog.FileMode.ExistingFile,
             "Documenti PDF (*.pdf)",
         )
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+
+        filename = dialog.selectedFiles()[0] if dialog.selectedFiles() else ""
         if not filename:
             return
 
@@ -1076,12 +1119,17 @@ class MainWindow(QMainWindow):
             start_dir = str(resolve_output_path(self.output_edit.text()))
         except ValueError:
             start_dir = str(Path.home())
-        directory = QFileDialog.getExistingDirectory(
+        dialog = _themed_file_dialog(
             self,
             "Seleziona la cartella di output",
             start_dir,
-            QFileDialog.Option.ShowDirsOnly,
+            QFileDialog.FileMode.Directory,
+            options=QFileDialog.Option.ShowDirsOnly,
         )
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+
+        directory = dialog.selectedFiles()[0] if dialog.selectedFiles() else ""
         if directory:
             self.output_edit.setText(directory)
             self._output_path_customized = True
