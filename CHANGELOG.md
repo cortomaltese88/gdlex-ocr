@@ -4,9 +4,26 @@ Tutte le modifiche rilevanti del progetto saranno documentate in questo file.
 
 ## [Unreleased]
 
+## [0.1.7] - 2026-06-17
+
+### Funzionalità
+
+- Aggiunta persistenza locale delle preferenze GUI con `QSettings`, senza
+  salvare percorsi input/PDF o output derivati automaticamente.
+- Aggiunte opzioni CLI OCRmyPDF `--ocr-timeout SECONDS` e `--ocr-jobs N`.
+- Aggiornato il manifest per registrare timeout e numero di job OCRmyPDF
+  effettivamente usati.
+- Aggiunto benchmark sintetico ripetibile e local-first con PDF generati sotto
+  `tmp/benchmark-synthetic/`.
+
+### Test
+
+- Aggiunti e aggiornati test offline per preferenze GUI, opzioni OCRmyPDF,
+  manifest runtime e benchmark sintetico.
+
 ### Documentazione
 
-- Documentate le opzioni CLI `--ocr-timeout` e `--ocr-jobs`.
+- Documentate le opzioni CLI OCRmyPDF e il benchmark sintetico locale.
 
 ## [0.1.6] - 2026-06-16
 

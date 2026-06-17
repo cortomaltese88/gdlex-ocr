@@ -1,3 +1,16 @@
+gdlex-ocr (0.1.7) unstable; urgency=medium
+
+  * Persist GUI preferences with QSettings without storing sensitive PDF or
+    auto-derived output paths.
+  * Add OCRmyPDF CLI runtime options: --ocr-timeout SECONDS and --ocr-jobs N.
+  * Record the effective OCRmyPDF timeout and job settings in manifests.
+  * Add a repeatable local-first synthetic benchmark under
+    tmp/benchmark-synthetic/.
+  * Add and update offline tests for GUI settings, OCRmyPDF options, manifests,
+    and the synthetic benchmark.
+
+ -- Studio GD LEX <cortomaltese88@users.noreply.github.com>  Wed, 17 Jun 2026 14:29:33 +0200
+
 gdlex-ocr (0.1.6) unstable; urgency=medium
 
   * Preserve CLI arguments in the Debian launcher and make CLI handling safer.

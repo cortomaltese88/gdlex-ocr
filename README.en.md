@@ -79,6 +79,16 @@ Advanced OCR options:
 - `--ocr-jobs N`: passes the number of parallel jobs to OCRmyPDF; when omitted,
   OCRmyPDF keeps its default behavior.
 
+For a repeatable local-first synthetic benchmark, without real documents:
+
+```bash
+.venv/bin/python scripts/benchmark_synthetic.py
+```
+
+Synthetic PDFs, temporary chunks and runtime results are generated under
+`tmp/benchmark-synthetic/`. See [BENCHMARK.md](BENCHMARK.md) for options and
+limitations.
+
 If a development wrapper in `~/.local/bin/gdlex-ocr` shadows the packaged
 binary, run `/usr/bin/gdlex-ocr --doctor` to inspect the APT-installed copy.
 
