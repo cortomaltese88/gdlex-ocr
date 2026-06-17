@@ -44,6 +44,43 @@ class StructuredOutputWorkerTest(unittest.TestCase):
         ]
         self.assertIs(False, parameter.default)
 
+    def test_worker_ocr_options_default_to_current_timeout_and_no_jobs(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            source_pdf = root / "fascicolo.pdf"
+            source_pdf.write_bytes(b"%PDF")
+            worker = OcrWorker(
+                str(source_pdf),
+                str(root),
+                pages_per_block=3,
+                profile=PROFILES["Bilanciato"],
+            )
+
+        self.assertEqual(
+            DEFAULT_OCRMYPDF_TIMEOUT_SECONDS,
+            worker._ocr_timeout_seconds,
+        )
+        self.assertIsNone(worker._ocr_jobs)
+
+    def test_worker_accepts_custom_ocr_options(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            source_pdf = root / "fascicolo.pdf"
+            source_pdf.write_bytes(b"%PDF")
+            worker = OcrWorker(
+                str(source_pdf),
+                str(root),
+                pages_per_block=3,
+                profile=PROFILES["Bilanciato"],
+                ocr_timeout_seconds=42,
+                ocr_jobs=2,
+            )
+
+        self.assertEqual(42, worker._ocr_timeout_seconds)
+        self.assertEqual(2, worker._ocr_jobs)
+
     def test_prepare_output_dir_reserves_progressive_job_directory(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
@@ -186,6 +223,10 @@ class BuildOcrmypdfCommandTest(unittest.TestCase):
         command = build_ocrmypdf_command("in.pdf", "out.pdf")
         self.assertNotIn("--jobs", command)
 
+    def test_rejects_non_positive_jobs(self) -> None:
+        with self.assertRaisesRegex(ValueError, "maggiore di 0"):
+            build_ocrmypdf_command("in.pdf", "out.pdf", jobs=0)
+
     def test_safety_flags_present(self) -> None:
         command = build_ocrmypdf_command("in.pdf", "out.pdf")
         self.assertIn("--deskew", command)
@@ -263,6 +304,10 @@ class RunOcrmypdfTest(unittest.TestCase):
 
             self.assertIn("timeout", str(ctx.exception))
             mock_proc.kill.assert_called_once()
+
+    def test_rejects_non_positive_timeout(self) -> None:
+        with self.assertRaisesRegex(ValueError, "maggiore di 0"):
+            run_ocrmypdf("in.pdf", "out.pdf", timeout_seconds=0)
 
 
 class MakeProgressiveOutputPathTest(unittest.TestCase):

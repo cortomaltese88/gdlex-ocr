@@ -11,6 +11,7 @@ from typing import Any
 
 from gdlex_ocr.markdown_structure import STRUCTURE_STRATEGY
 from gdlex_ocr.output_layout import MANIFEST_FILENAME, build_output_layout
+from gdlex_ocr.searchable_pdf import DEFAULT_OCRMYPDF_TIMEOUT_SECONDS
 
 SCHEMA_VERSION = 1
 OUTPUT_KEYS = (
@@ -150,6 +151,8 @@ def build_initial_manifest(
     ocr_backend: str = "auto",
     external_ocr_command: str | None = None,
     use_searchable_as_source: bool = False,
+    ocrmypdf_timeout_seconds: int | None = DEFAULT_OCRMYPDF_TIMEOUT_SECONDS,
+    ocrmypdf_jobs: int | None = None,
 ) -> dict[str, Any]:
     """Return a new manifest dict at job start.
 
@@ -248,6 +251,8 @@ def build_initial_manifest(
             "available": False,
             "used": False,
             "use_as_source": use_searchable_as_source,
+            "ocrmypdf_timeout_seconds": ocrmypdf_timeout_seconds,
+            "ocrmypdf_jobs": ocrmypdf_jobs,
             "warnings": [],
         },
         "output_sha256": {

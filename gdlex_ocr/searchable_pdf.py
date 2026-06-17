@@ -19,6 +19,24 @@ class SearchablePdfError(RuntimeError):
     """Raised when OCRmyPDF fails or is not available."""
 
 
+def validate_ocrmypdf_timeout_seconds(timeout_seconds: int) -> int:
+    """Return a validated OCRmyPDF timeout in seconds."""
+    if timeout_seconds <= 0:
+        raise ValueError(
+            "Timeout OCRmyPDF non valido: deve essere maggiore di 0 secondi."
+        )
+    return timeout_seconds
+
+
+def validate_ocrmypdf_jobs(jobs: int | None) -> int | None:
+    """Return a validated OCRmyPDF jobs value."""
+    if jobs is not None and jobs <= 0:
+        raise ValueError(
+            "Jobs OCRmyPDF non valido: deve essere maggiore di 0."
+        )
+    return jobs
+
+
 def is_ocrmypdf_available() -> bool:
     """Return True if the ocrmypdf executable is found in PATH."""
     return shutil.which("ocrmypdf") is not None
@@ -31,6 +49,7 @@ def build_ocrmypdf_command(
     jobs: int | None = None,
 ) -> list[str]:
     """Build the OCRmyPDF CLI command as an argument list (never shell=True)."""
+    jobs = validate_ocrmypdf_jobs(jobs)
     command = [
         "ocrmypdf",
         "--language", language,
@@ -75,6 +94,7 @@ def run_ocrmypdf(
 
     Raises SearchablePdfError if ocrmypdf is not installed, times out, or fails.
     """
+    timeout_seconds = validate_ocrmypdf_timeout_seconds(timeout_seconds)
     if not is_ocrmypdf_available():
         raise SearchablePdfError(
             f"OCRmyPDF non installato. {INSTALL_HINT}"

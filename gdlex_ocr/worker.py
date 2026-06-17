@@ -45,7 +45,12 @@ from gdlex_ocr.output_layout import (
 from gdlex_ocr.pdf_outline import add_outline_items
 from gdlex_ocr.pdf_splitter import PdfSplitError, count_pdf_pages, split_pdf
 from gdlex_ocr.profiles import ProcessingProfile
-from gdlex_ocr.searchable_pdf import make_progressive_output_path
+from gdlex_ocr.searchable_pdf import (
+    DEFAULT_OCRMYPDF_TIMEOUT_SECONDS,
+    make_progressive_output_path,
+    validate_ocrmypdf_jobs,
+    validate_ocrmypdf_timeout_seconds,
+)
 from gdlex_ocr.version import APP_VERSION
 
 
@@ -73,6 +78,8 @@ class OcrWorker(QThread):
         ocr_backend: str = "auto",
         external_ocr_command: str | None = None,
         use_searchable_as_source: bool = False,
+        ocr_timeout_seconds: int = DEFAULT_OCRMYPDF_TIMEOUT_SECONDS,
+        ocr_jobs: int | None = None,
     ) -> None:
         super().__init__(parent)
         self.pdf_path = Path(pdf_path)
@@ -86,6 +93,10 @@ class OcrWorker(QThread):
         self._ocr_backend_name = ocr_backend
         self._external_ocr_command = external_ocr_command
         self._use_searchable_as_source = use_searchable_as_source
+        self._ocr_timeout_seconds = validate_ocrmypdf_timeout_seconds(
+            ocr_timeout_seconds
+        )
+        self._ocr_jobs = validate_ocrmypdf_jobs(ocr_jobs)
         self._ocr_backend: OcrBackend | None = None
         self._prepared_searchable_path: Path | None = None
         self._source_backend_failed = False
@@ -122,6 +133,8 @@ class OcrWorker(QThread):
                 ocr_backend=self._ocr_backend_name,
                 external_ocr_command=self._external_ocr_command,
                 use_searchable_as_source=self._use_searchable_as_source,
+                ocrmypdf_timeout_seconds=self._ocr_timeout_seconds,
+                ocrmypdf_jobs=self._ocr_jobs,
             )
             safe_write_manifest(self._manifest, self.output_dir)
 
@@ -470,6 +483,8 @@ class OcrWorker(QThread):
             output_pdf,
             language=self._ocr_language,
             log_callback=self._write_log,
+            timeout_seconds=self._ocr_timeout_seconds,
+            jobs=self._ocr_jobs,
         )
         if self._manifest is not None:
             self._manifest["ocr_backend"].update({

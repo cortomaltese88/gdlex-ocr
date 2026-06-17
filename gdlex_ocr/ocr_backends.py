@@ -12,6 +12,7 @@ from typing import Callable
 from gdlex_ocr.searchable_pdf import (
     DEFAULT_OCRMYPDF_TIMEOUT_SECONDS,
     build_ocrmypdf_command,
+    validate_ocrmypdf_timeout_seconds,
 )
 
 SUPPORTED_BACKENDS = ("auto", "ocrmypdf", "external")
@@ -124,6 +125,7 @@ def build_backend_command(
     input_pdf: str | Path,
     output_pdf: str | Path,
     language: str,
+    jobs: int | None = None,
 ) -> list[str]:
     """Build an argument list for a runnable backend."""
     if not backend.available or not backend.runnable:
@@ -132,7 +134,7 @@ def build_backend_command(
             f"Backend OCR {backend.name} non utilizzabile: {detail}"
         )
     if backend.name == "ocrmypdf":
-        command = build_ocrmypdf_command(input_pdf, output_pdf, language)
+        command = build_ocrmypdf_command(input_pdf, output_pdf, language, jobs)
         if backend.executable is not None:
             command[0] = backend.executable
         return command
@@ -164,12 +166,20 @@ def run_ocr_backend(
     language: str = "ita",
     log_callback: Callable[[str], None] | None = None,
     timeout_seconds: int = DEFAULT_OCRMYPDF_TIMEOUT_SECONDS,
+    jobs: int | None = None,
 ) -> OcrBackendRun:
     """Run a configured local backend using an argument list.
 
     Raises OcrBackendError if the backend times out, fails, or produces no output.
     """
-    command = build_backend_command(backend, input_pdf, output_pdf, language)
+    timeout_seconds = validate_ocrmypdf_timeout_seconds(timeout_seconds)
+    command = build_backend_command(
+        backend,
+        input_pdf,
+        output_pdf,
+        language,
+        jobs,
+    )
     if log_callback:
         log_callback(
             f"Backend OCR: {backend.name}; comando: {shlex.join(command)}"

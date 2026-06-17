@@ -72,6 +72,13 @@ To check the installed version:
 gdlex-ocr --version
 ```
 
+Advanced OCR options:
+
+- `--ocr-timeout SECONDS`: sets the maximum OCRmyPDF timeout; default is 1800
+  seconds.
+- `--ocr-jobs N`: passes the number of parallel jobs to OCRmyPDF; when omitted,
+  OCRmyPDF keeps its default behavior.
+
 If a development wrapper in `~/.local/bin/gdlex-ocr` shadows the packaged
 binary, run `/usr/bin/gdlex-ocr --doctor` to inspect the APT-installed copy.
 

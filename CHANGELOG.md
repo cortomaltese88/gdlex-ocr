@@ -4,6 +4,10 @@ Tutte le modifiche rilevanti del progetto saranno documentate in questo file.
 
 ## [Unreleased]
 
+### Documentazione
+
+- Documentate le opzioni CLI `--ocr-timeout` e `--ocr-jobs`.
+
 ## [0.1.6] - 2026-06-16
 
 ### Correzioni

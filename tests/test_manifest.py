@@ -299,6 +299,8 @@ class BuildInitialManifestTest(unittest.TestCase):
         self.assertTrue(m["profile"]["options"]["structure_markdown"])
 
     def test_ocr_backend_metadata_is_additive(self) -> None:
+        from gdlex_ocr.searchable_pdf import DEFAULT_OCRMYPDF_TIMEOUT_SECONDS
+
         import tempfile
 
         with tempfile.TemporaryDirectory() as td:
@@ -312,10 +314,34 @@ class BuildInitialManifestTest(unittest.TestCase):
                 "available": False,
                 "used": False,
                 "use_as_source": False,
+                "ocrmypdf_timeout_seconds": DEFAULT_OCRMYPDF_TIMEOUT_SECONDS,
+                "ocrmypdf_jobs": None,
                 "warnings": [],
             },
             m["ocr_backend"],
         )
+
+    def test_ocrmypdf_runtime_options_are_auditable(self) -> None:
+        from gdlex_ocr.manifest import build_initial_manifest
+
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            pdf = root / "doc.pdf"
+            pdf.write_bytes(b"%PDF")
+            m = build_initial_manifest(
+                pdf_path=pdf,
+                output_dir=root / "out",
+                profile=_fake_profile(),
+                pages_per_block=10,
+                create_searchable=True,
+                ocr_language="ita",
+                app_version="0.1.4",
+                ocrmypdf_timeout_seconds=42,
+                ocrmypdf_jobs=3,
+            )
+
+        self.assertEqual(42, m["ocr_backend"]["ocrmypdf_timeout_seconds"])
+        self.assertEqual(3, m["ocr_backend"]["ocrmypdf_jobs"])
 
     def test_job_id_is_uuid_string(self) -> None:
         import tempfile

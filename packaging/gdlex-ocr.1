@@ -30,6 +30,13 @@ Exit status is 0 when all checks pass, 1 when essential runtime components
 are missing, and 2 when only optional OCR tools or the Italian Tesseract
 language are missing.
 .TP
+.BI \-\-ocr\-timeout " SECONDS"
+Set the maximum OCRmyPDF timeout. The default is 1800 seconds.
+.TP
+.BI \-\-ocr\-jobs " N"
+Pass the number of parallel jobs to OCRmyPDF. When omitted, OCRmyPDF keeps
+its default behavior.
+.TP
 .B \-\-version
 Print the installed application version without starting the graphical
 application.

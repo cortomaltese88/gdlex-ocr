@@ -49,6 +49,11 @@ from gdlex_ocr.ocr_backends import detect_ocr_backend
 from gdlex_ocr.output_layout import LOG_FILENAME, MANIFEST_FILENAME
 from gdlex_ocr.pdf_splitter import PdfSplitError, count_pdf_pages
 from gdlex_ocr.profiles import DEFAULT_PROFILE, PROFILE_NAMES, PROFILES
+from gdlex_ocr.searchable_pdf import (
+    DEFAULT_OCRMYPDF_TIMEOUT_SECONDS,
+    validate_ocrmypdf_jobs,
+    validate_ocrmypdf_timeout_seconds,
+)
 from gdlex_ocr.theme import (
     AVAILABLE_THEMES,
     apply_theme,
@@ -166,10 +171,20 @@ class AboutDialog(QDialog):
 
 
 class MainWindow(QMainWindow):
-    def __init__(self, settings: QSettings | None = None) -> None:
+    def __init__(
+        self,
+        settings: QSettings | None = None,
+        *,
+        ocr_timeout_seconds: int = DEFAULT_OCRMYPDF_TIMEOUT_SECONDS,
+        ocr_jobs: int | None = None,
+    ) -> None:
         super().__init__()
         self._worker: OcrWorker | None = None
         self._settings = settings if settings is not None else self._default_settings()
+        self._ocr_timeout_seconds = validate_ocrmypdf_timeout_seconds(
+            ocr_timeout_seconds
+        )
+        self._ocr_jobs = validate_ocrmypdf_jobs(ocr_jobs)
         self._loading_settings = False
         self._close_after_cancel = False
         self._tray_real_quit_requested = False
@@ -1063,6 +1078,8 @@ class MainWindow(QMainWindow):
                 create_searchable
                 and self.use_searchable_as_source_checkbox.isChecked()
             ),
+            ocr_timeout_seconds=self._ocr_timeout_seconds,
+            ocr_jobs=self._ocr_jobs,
             parent=self,
         )
         self._worker.log_message.connect(self._append_log)

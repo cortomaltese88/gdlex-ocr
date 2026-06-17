@@ -10,6 +10,7 @@ from PySide6.QtWidgets import QApplication
 
 from gdlex_ocr.gui import MainWindow
 from gdlex_ocr.icons import application_icon
+from gdlex_ocr.searchable_pdf import DEFAULT_OCRMYPDF_TIMEOUT_SECONDS
 from gdlex_ocr.splash import (
     SPLASH_DURATION_MS,
     create_splash,
@@ -17,6 +18,16 @@ from gdlex_ocr.splash import (
 )
 from gdlex_ocr.theme import apply_theme, load_theme_name
 from gdlex_ocr.version import APP_NAME, APP_VERSION
+
+
+def positive_int(value: str) -> int:
+    try:
+        number = int(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("deve essere un intero") from exc
+    if number <= 0:
+        raise argparse.ArgumentTypeError("deve essere maggiore di 0")
+    return number
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -30,6 +41,23 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--doctor",
         action="store_true",
         help="rimanda alla diagnostica del launcher installato ed esce",
+    )
+    parser.add_argument(
+        "--ocr-timeout",
+        metavar="SECONDS",
+        type=positive_int,
+        default=DEFAULT_OCRMYPDF_TIMEOUT_SECONDS,
+        help=(
+            "timeout OCRmyPDF in secondi "
+            f"(default: {DEFAULT_OCRMYPDF_TIMEOUT_SECONDS})"
+        ),
+    )
+    parser.add_argument(
+        "--ocr-jobs",
+        metavar="N",
+        type=positive_int,
+        default=None,
+        help="numero di job OCRmyPDF (--jobs); default automatico",
     )
     return parser.parse_args(argv)
 
@@ -59,7 +87,10 @@ def main(argv: list[str] | None = None) -> int:
         app.setWindowIcon(icon)
     apply_theme(app, load_theme_name())
 
-    window = MainWindow()
+    window = MainWindow(
+        ocr_timeout_seconds=args.ocr_timeout,
+        ocr_jobs=args.ocr_jobs,
+    )
     if splash_disabled():
         window.show()
     else:

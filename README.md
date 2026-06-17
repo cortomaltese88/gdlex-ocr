@@ -175,6 +175,13 @@ Per controllare la versione installata:
 gdlex-ocr --version
 ```
 
+Opzioni OCR avanzate:
+
+- `--ocr-timeout SECONDS`: imposta il timeout massimo per OCRmyPDF; default
+  1800 secondi.
+- `--ocr-jobs N`: passa a OCRmyPDF il numero di job paralleli; se omesso,
+  viene lasciato il comportamento predefinito di OCRmyPDF.
+
 Se dopo l'installazione APT parte una vecchia copia di sviluppo, verificare il
 `PATH`: un wrapper `~/.local/bin/gdlex-ocr` può avere precedenza su
 `/usr/bin/gdlex-ocr`. In quel caso usare `/usr/bin/gdlex-ocr --doctor` oppure

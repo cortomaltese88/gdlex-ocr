@@ -8,6 +8,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from gdlex_ocr.ocr_backends import (
+    OcrBackend,
     OcrBackendError,
     backend_manifest,
     build_backend_command,
@@ -101,6 +102,29 @@ class OcrBackendDetectionTest(unittest.TestCase):
         self.assertFalse(backend.runnable)
         self.assertIn("OCRmyPDF", backend.warnings[0])
 
+    def test_ocrmypdf_backend_command_includes_jobs_when_configured(
+        self,
+    ) -> None:
+        backend = OcrBackend(
+            "ocrmypdf",
+            True,
+            "/usr/bin/ocrmypdf",
+            None,
+            True,
+        )
+
+        command = build_backend_command(
+            backend,
+            "input.pdf",
+            "output.pdf",
+            "ita",
+            jobs=3,
+        )
+
+        self.assertEqual("/usr/bin/ocrmypdf", command[0])
+        self.assertIn("--jobs", command)
+        self.assertEqual("3", command[command.index("--jobs") + 1])
+
     def test_proprietary_backend_is_not_launched(self) -> None:
         with (
             patch(
@@ -168,6 +192,41 @@ class OcrBackendDetectionTest(unittest.TestCase):
         self.assertIsInstance(popen.call_args.args[0], list)
         self.assertIsNot(popen.call_args.kwargs.get("shell"), True)
 
+    def test_ocrmypdf_run_uses_configured_timeout_and_jobs(self) -> None:
+        from unittest.mock import MagicMock
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            output = root / "output.pdf"
+            output.write_bytes(b"%PDF")
+            backend = OcrBackend(
+                "ocrmypdf",
+                True,
+                "/usr/bin/ocrmypdf",
+                None,
+                True,
+            )
+            process = MagicMock()
+            process.returncode = 0
+            process.communicate.return_value = ("", None)
+
+            with patch(
+                "gdlex_ocr.ocr_backends.subprocess.Popen",
+                return_value=process,
+            ) as popen:
+                run_ocr_backend(
+                    backend,
+                    root / "input.pdf",
+                    output,
+                    timeout_seconds=7,
+                    jobs=5,
+                )
+
+        command = popen.call_args.args[0]
+        self.assertIn("--jobs", command)
+        self.assertEqual("5", command[command.index("--jobs") + 1])
+        process.communicate.assert_called_once_with(timeout=7)
+
     def test_timeout_kills_process_and_raises_ocr_backend_error(self) -> None:
         import subprocess as _subprocess
         from unittest.mock import MagicMock
@@ -194,6 +253,18 @@ class OcrBackendDetectionTest(unittest.TestCase):
 
             self.assertIn("timeout", str(ctx.exception).lower())
             mock_proc.kill.assert_called_once()
+
+    def test_rejects_non_positive_timeout(self) -> None:
+        backend = OcrBackend(
+            "ocrmypdf",
+            True,
+            "/usr/bin/ocrmypdf",
+            None,
+            True,
+        )
+
+        with self.assertRaisesRegex(ValueError, "maggiore di 0"):
+            run_ocr_backend(backend, "in.pdf", "out.pdf", timeout_seconds=0)
 
 
 if __name__ == "__main__":
