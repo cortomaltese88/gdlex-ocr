@@ -4,6 +4,26 @@ Tutte le modifiche rilevanti del progetto saranno documentate in questo file.
 
 ## [Unreleased]
 
+## [0.1.8] - 2026-06-17
+
+### Funzionalità
+
+- Aggiunti controlli GUI per `Timeout OCRmyPDF` e `Jobs OCRmyPDF`, con
+  persistenza locale tramite `QSettings`.
+- Aggiunto streaming realtime di stdout/stderr OCRmyPDF nel log GUI,
+  preservando timeout configurato e gestione degli errori.
+- Aggiunto il profilo **Fascicolo legale**, conservativo per fascicoli e
+  documenti lunghi.
+
+### Strumenti e test
+
+- Aggiornato il benchmark sintetico con esempio e copertura per
+  **Fascicolo legale**.
+- Abilitata la discovery standard dei test: `.venv/bin/python -m unittest`
+  trova ora la suite.
+- Aggiornati i test offline per opzioni GUI/OCRmyPDF, profili, benchmark e
+  packaging.
+
 ## [0.1.7] - 2026-06-17
 
 ### Funzionalità

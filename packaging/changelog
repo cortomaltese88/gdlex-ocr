@@ -1,3 +1,18 @@
+gdlex-ocr (0.1.8) unstable; urgency=medium
+
+  * Add GUI controls for OCRmyPDF timeout and parallel jobs with QSettings
+    persistence.
+  * Stream OCRmyPDF stdout and stderr to the GUI log in realtime while
+    preserving timeout and error handling.
+  * Add the "Fascicolo legale" conservative profile for long legal bundles.
+  * Update the synthetic benchmark with an example and coverage for the new
+    profile.
+  * Enable standard unittest discovery via python -m unittest.
+  * Update offline tests for OCRmyPDF GUI options, profiles, benchmarks, and
+    packaging.
+
+ -- Studio GD LEX <cortomaltese88@users.noreply.github.com>  Wed, 17 Jun 2026 16:06:38 +0200
+
 gdlex-ocr (0.1.7) unstable; urgency=medium
 
   * Persist GUI preferences with QSettings without storing sensitive PDF or

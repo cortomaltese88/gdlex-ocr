@@ -2,7 +2,7 @@
 
 [English README](README.en.md)
 
-## Versione 0.1.7
+## Versione 0.1.8
 
 GD LEX OCR è un'applicazione desktop locale in Python e PySide6 per
 convertire fascicoli e documenti PDF in Markdown tramite Docling. È pensata
@@ -46,6 +46,11 @@ La GUI permette di scegliere:
 - **OCRmyPDF**: selezione esplicita del backend libero;
 - **Comando esterno**: template locale esplicito, eseguito senza shell, che
   deve contenere `{input}` e `{output}`; `{language}` è facoltativo.
+
+Nelle impostazioni backend della GUI sono disponibili anche **Timeout
+OCRmyPDF** e **Jobs OCRmyPDF**. I valori vengono conservati tramite
+`QSettings` insieme alle altre preferenze locali, senza salvare percorsi di
+input o output derivati automaticamente.
 
 Un backend esterno deve essere già installato e regolarmente licenziato
 dall'utente. GD LEX OCR non installa, aggira licenze o automatizza interfacce
@@ -136,7 +141,7 @@ bash scripts/uninstall-desktop.sh
 
 ## Pacchetto Debian leggero
 
-Il pacchetto `.deb` v0.1.7 installa sorgenti, asset, launcher e documentazione,
+Il pacchetto `.deb` v0.1.8 installa sorgenti, asset, launcher e documentazione,
 ma non incorpora `.venv`, dipendenze Python, modelli OCR o documenti elaborati.
 Per costruirlo:
 
@@ -181,6 +186,10 @@ Opzioni OCR avanzate:
   1800 secondi.
 - `--ocr-jobs N`: passa a OCRmyPDF il numero di job paralleli; se omesso,
   viene lasciato il comportamento predefinito di OCRmyPDF.
+
+Durante la creazione di PDF ricercabili con OCRmyPDF, stdout e stderr vengono
+scritti in tempo reale nel log GUI e in `run.log`; timeout configurato e
+gestione degli errori restano attivi.
 
 Se dopo l'installazione APT parte una vecchia copia di sviluppo, verificare il
 `PATH`: un wrapper `~/.local/bin/gdlex-ocr` può avere precedenza su
@@ -254,7 +263,8 @@ reali:
 
 I PDF sintetici, i blocchi temporanei e i risultati runtime vengono generati
 sotto `tmp/benchmark-synthetic/`. Vedere [BENCHMARK.md](BENCHMARK.md) per
-opzioni e limiti.
+opzioni e limiti. Il benchmark include anche un caso per il profilo
+**Fascicolo legale**.
 
 Per rigenerare gli screenshot diagnostici della GUI senza OCR reale:
 

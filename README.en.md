@@ -79,6 +79,11 @@ Advanced OCR options:
 - `--ocr-jobs N`: passes the number of parallel jobs to OCRmyPDF; when omitted,
   OCRmyPDF keeps its default behavior.
 
+The GUI exposes the same OCRmyPDF timeout and jobs controls in the OCR backend
+settings and persists them with `QSettings`, without saving input paths or
+auto-derived output paths. OCRmyPDF stdout and stderr are streamed to the GUI
+log and `run.log` in realtime while keeping timeout and error handling active.
+
 For a repeatable local-first synthetic benchmark, without real documents:
 
 ```bash
@@ -87,7 +92,8 @@ For a repeatable local-first synthetic benchmark, without real documents:
 
 Synthetic PDFs, temporary chunks and runtime results are generated under
 `tmp/benchmark-synthetic/`. See [BENCHMARK.md](BENCHMARK.md) for options and
-limitations.
+limitations. The benchmark also includes coverage for the `Fascicolo legale`
+profile.
 
 If a development wrapper in `~/.local/bin/gdlex-ocr` shadows the packaged
 binary, run `/usr/bin/gdlex-ocr --doctor` to inspect the APT-installed copy.

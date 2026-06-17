@@ -1,12 +1,12 @@
-# Checklist release v0.1.7
+# Checklist release v0.1.8
 
-La release `v0.1.7` è in preparazione. Gli item aperti rimangono promemoria
+La release `v0.1.8` è in preparazione. Gli item aperti rimangono promemoria
 operativi per audit manuale o pubblicazione; non vanno barrati senza una nuova
 verifica effettiva.
 
-## Pre-release v0.1.7
+## Pre-release v0.1.8
 
-- [x] Verificare che `gdlex_ocr/version.py` riporti `0.1.7`.
+- [x] Verificare che `gdlex_ocr/version.py` riporti `0.1.8`.
 - [x] Verificare coerenza tra README, changelog e comportamento della GUI.
 - [x] Controllare che `requirements.txt` contenga versioni fissate e installabili.
 - [x] Rileggere `THIRD_PARTY_NOTICES.md` e aggiornare le evidenze di licenza.
@@ -19,11 +19,13 @@ verifica effettiva.
 .venv/bin/python app.py --version
 .venv/bin/python app.py --doctor
 .venv/bin/python app.py --help
+.venv/bin/python -m unittest
 bash scripts/smoke.sh
 desktop-file-validate packaging/gdlex-ocr.desktop
 bash -n scripts/*.sh
-git diff --check
 scripts/capture-gui-screenshots.py
+git diff --check
+git status -sb
 ```
 
 ## Privacy e dati
@@ -36,11 +38,12 @@ scripts/capture-gui-screenshots.py
 - [ ] Controllare manualmente screenshot e metadati delle immagini prima della
   prossima pubblicazione.
 
-## Perimetro test v0.1.7
+## Perimetro test v0.1.8
 
 - [x] Non eseguire OCR reale durante la preparazione della release.
 - [x] Usare esclusivamente smoke test e fixture sintetiche.
-- [x] Verificare identità/versione, integrazione desktop, splash, system tray
+- [x] Verificare identità/versione, integrazione desktop, splash, system tray,
+  discovery `unittest`, opzioni OCRmyPDF GUI, profilo **Fascicolo legale**,
   payload Debian e benchmark sintetico tramite la suite offline.
 
 ## File sensibili e contenuto release
@@ -68,7 +71,7 @@ git diff
 ## Packaging
 
 - [x] Applicare la scelta descritta in `PACKAGING.md`.
-- [x] Non incorporare la `.venv` nel pacchetto v0.1.7.
+- [x] Non incorporare la `.venv` nel pacchetto v0.1.8.
 - [ ] Se viene creato un nuovo `.deb`, verificarne contenuto, dipendenze e
   copyright in ambiente pulito.
 - [x] Verificare il `.deb` con `dpkg-deb`, estrazione temporanea e `lintian`.
@@ -80,11 +83,11 @@ git diff
 
 ```bash
 bash scripts/build-deb.sh
-dpkg-deb -f dist/gdlex-ocr_0.1.7_all.deb Package Version Architecture Depends Suggests
-dpkg-deb --contents dist/gdlex-ocr_0.1.7_all.deb | \
+dpkg-deb -f dist/gdlex-ocr_0.1.8_all.deb Package Version Architecture Depends Suggests
+dpkg-deb --contents dist/gdlex-ocr_0.1.8_all.deb | \
   grep -E '(\.venv|__pycache__|\.git|run\.log|manifest\.json|Fascicolo|Downloads|Documenti)' || true
-sha256sum dist/gdlex-ocr_0.1.7_all.deb
-sudo apt install ./dist/gdlex-ocr_0.1.7_all.deb
+sha256sum dist/gdlex-ocr_0.1.8_all.deb
+sudo apt install ./dist/gdlex-ocr_0.1.8_all.deb
 /usr/bin/gdlex-ocr --doctor
 ```
 

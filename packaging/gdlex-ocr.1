@@ -1,4 +1,4 @@
-.TH GDLEX-OCR 1 "17 June 2026" "GD LEX OCR 0.1.7" "User Commands"
+.TH GDLEX-OCR 1 "17 June 2026" "GD LEX OCR 0.1.8" "User Commands"
 .SH NAME
 gdlex-ocr \- convert PDF documents to Markdown using local OCR
 .SH SYNOPSIS
@@ -36,6 +36,10 @@ Set the maximum OCRmyPDF timeout. The default is 1800 seconds.
 .BI \-\-ocr\-jobs " N"
 Pass the number of parallel jobs to OCRmyPDF. When omitted, OCRmyPDF keeps
 its default behavior.
+.PP
+The graphical application exposes equivalent OCRmyPDF timeout and jobs
+controls in the OCR backend settings. OCRmyPDF output is streamed to the GUI
+log and run.log while preserving timeout and error handling.
 .TP
 .B \-\-version
 Print the installed application version without starting the graphical
