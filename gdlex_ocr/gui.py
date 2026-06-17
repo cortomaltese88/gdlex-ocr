@@ -229,7 +229,6 @@ class MainWindow(QMainWindow):
         self._loading_settings = False
         self._close_after_cancel = False
         self._tray_real_quit_requested = False
-        self._tray_hide_message_shown = False
         self.tray: GdlexOcrTray | None = None
         self._final_markdown_path: str | None = None
         self._searchable_pdf_path: str | None = None
@@ -963,15 +962,6 @@ class MainWindow(QMainWindow):
             return
         self._show_window_from_tray()
 
-    def _show_tray_hide_message_once(self) -> None:
-        if self.tray is None or self._tray_hide_message_shown:
-            return
-        self._tray_hide_message_shown = True
-        self.tray.show_message(
-            APP_NAME,
-            f"{APP_NAME} continua in background nell'area di notifica.",
-        )
-
     def _cleanup_tray(self) -> None:
         if self.tray is None:
             return
@@ -1590,7 +1580,6 @@ class MainWindow(QMainWindow):
         if self._tray_is_available():
             event.ignore()
             self.hide()
-            self._show_tray_hide_message_once()
             return
 
         if self._worker is None or not self._worker.isRunning():

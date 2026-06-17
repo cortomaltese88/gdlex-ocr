@@ -210,7 +210,7 @@ class SystemTrayTest(unittest.TestCase):
         self.assertFalse(event.accepted)
         self.assertFalse(window.isVisible())
         worker.request_cancel.assert_not_called()
-        window.tray.show_message.assert_called_once()
+        window.tray.show_message.assert_not_called()
         window._worker = None
         window.tray = None
         window.deleteLater()
