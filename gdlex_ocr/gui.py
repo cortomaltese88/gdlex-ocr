@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from PySide6.QtCore import QTimer, Qt, QUrl
+from PySide6.QtCore import QSettings, QTimer, Qt, QUrl
 from PySide6.QtGui import (
     QAction,
     QActionGroup,
@@ -76,6 +76,18 @@ _OCR_BACKENDS = [
     ("OCRmyPDF", "ocrmypdf"),
     ("Comando esterno", "external"),
 ]
+_SETTINGS_ORGANIZATION = "GD LEX"
+_SETTINGS_KEYS = {
+    "output_dir": "paths/outputDirectory",
+    "profile": "processing/profile",
+    "block_size": "processing/blockSize",
+    "create_searchable": "pdf/createSearchable",
+    "use_searchable_as_source": "pdf/useSearchableAsSource",
+    "structured_output": "output/structuredJobDirectory",
+    "ocr_language": "ocr/language",
+    "ocr_backend": "ocr/backend",
+    "external_ocr_command": "ocr/externalCommand",
+}
 
 
 def _tray_enabled() -> bool:
@@ -154,9 +166,11 @@ class AboutDialog(QDialog):
 
 
 class MainWindow(QMainWindow):
-    def __init__(self) -> None:
+    def __init__(self, settings: QSettings | None = None) -> None:
         super().__init__()
         self._worker: OcrWorker | None = None
+        self._settings = settings if settings is not None else self._default_settings()
+        self._loading_settings = False
         self._close_after_cancel = False
         self._tray_real_quit_requested = False
         self._tray_hide_message_shown = False
@@ -527,6 +541,8 @@ class MainWindow(QMainWindow):
 
         actions_layout.addLayout(run_buttons_row)
         root_layout.addLayout(actions_layout)
+        self._load_gui_settings()
+        self._connect_settings_persistence()
         self._setup_tray()
 
     # ------------------------------------------------------------------
@@ -576,6 +592,174 @@ class MainWindow(QMainWindow):
 
     def _show_about(self) -> None:
         AboutDialog(self).exec()
+
+    # ------------------------------------------------------------------
+    # GUI settings
+    # ------------------------------------------------------------------
+
+    def _default_settings(self) -> QSettings | None:
+        app = QApplication.instance()
+        if (
+            app is None
+            or app.organizationName() != _SETTINGS_ORGANIZATION
+            or app.applicationName() != APP_NAME
+        ):
+            return None
+        return QSettings()
+
+    def _settings_text(self, key: str, default: str = "") -> str:
+        if self._settings is None:
+            return default
+        value = self._settings.value(key, default)
+        if value is None:
+            return default
+        return str(value)
+
+    def _settings_bool(self, key: str, default: bool = False) -> bool:
+        if self._settings is None:
+            return default
+        value = self._settings.value(key, default)
+        if isinstance(value, bool):
+            return value
+        if value is None:
+            return default
+        normalized = str(value).strip().lower()
+        if normalized in {"1", "true", "yes", "on"}:
+            return True
+        if normalized in {"0", "false", "no", "off"}:
+            return False
+        return default
+
+    def _settings_int(self, key: str, default: int) -> int:
+        if self._settings is None:
+            return default
+        value = self._settings.value(key, default)
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return default
+
+    def _set_combo_data(self, combo: QComboBox, value: str) -> None:
+        if not value:
+            return
+        index = combo.findData(value)
+        if index >= 0:
+            combo.setCurrentIndex(index)
+
+    def _load_gui_settings(self) -> None:
+        if self._settings is None:
+            return
+        self._loading_settings = True
+        try:
+            output_dir = self._settings_text(_SETTINGS_KEYS["output_dir"]).strip()
+            if output_dir:
+                self.output_edit.setText(output_dir)
+                self._output_path_customized = True
+
+            profile = self._settings_text(_SETTINGS_KEYS["profile"])
+            if profile in PROFILES:
+                self.profile_combo.setCurrentText(profile)
+
+            self.block_size_spin.setValue(
+                self._settings_int(
+                    _SETTINGS_KEYS["block_size"],
+                    self.block_size_spin.value(),
+                )
+            )
+            self.searchable_checkbox.setChecked(
+                self._settings_bool(
+                    _SETTINGS_KEYS["create_searchable"],
+                    self.searchable_checkbox.isChecked(),
+                )
+            )
+            self.use_searchable_as_source_checkbox.setChecked(
+                self._settings_bool(
+                    _SETTINGS_KEYS["use_searchable_as_source"],
+                    self.use_searchable_as_source_checkbox.isChecked(),
+                )
+            )
+            self.structured_output_checkbox.setChecked(
+                self._settings_bool(
+                    _SETTINGS_KEYS["structured_output"],
+                    self.structured_output_checkbox.isChecked(),
+                )
+            )
+            self._set_combo_data(
+                self.ocr_language_combo,
+                self._settings_text(_SETTINGS_KEYS["ocr_language"]),
+            )
+            self._set_combo_data(
+                self.ocr_backend_combo,
+                self._settings_text(_SETTINGS_KEYS["ocr_backend"]),
+            )
+            self.external_ocr_command_edit.setText(
+                self._settings_text(_SETTINGS_KEYS["external_ocr_command"])
+            )
+            self._on_searchable_changed(self.searchable_checkbox.isChecked())
+            self._on_ocr_backend_changed()
+        finally:
+            self._loading_settings = False
+
+    def _connect_settings_persistence(self) -> None:
+        self.block_size_spin.valueChanged.connect(self._save_gui_settings)
+        self.ocr_language_combo.currentIndexChanged.connect(self._save_gui_settings)
+        self.use_searchable_as_source_checkbox.toggled.connect(
+            self._save_gui_settings
+        )
+        self.structured_output_checkbox.toggled.connect(self._save_gui_settings)
+        self.external_ocr_command_edit.textEdited.connect(self._save_gui_settings)
+        self.external_ocr_command_edit.editingFinished.connect(
+            self._save_gui_settings
+        )
+
+    def _save_gui_settings(self, *args: object) -> None:
+        if self._settings is None or self._loading_settings:
+            return
+
+        output_dir = self.output_edit.text().strip()
+        if output_dir and self._output_path_customized:
+            self._settings.setValue(_SETTINGS_KEYS["output_dir"], output_dir)
+        else:
+            self._settings.remove(_SETTINGS_KEYS["output_dir"])
+
+        self._settings.setValue(
+            _SETTINGS_KEYS["profile"],
+            self.profile_combo.currentText(),
+        )
+        self._settings.setValue(
+            _SETTINGS_KEYS["block_size"],
+            self.block_size_spin.value(),
+        )
+        self._settings.setValue(
+            _SETTINGS_KEYS["create_searchable"],
+            self.searchable_checkbox.isChecked(),
+        )
+        self._settings.setValue(
+            _SETTINGS_KEYS["use_searchable_as_source"],
+            self.use_searchable_as_source_checkbox.isChecked(),
+        )
+        self._settings.setValue(
+            _SETTINGS_KEYS["structured_output"],
+            self.structured_output_checkbox.isChecked(),
+        )
+        self._settings.setValue(
+            _SETTINGS_KEYS["ocr_language"],
+            self.ocr_language_combo.currentData() or "ita",
+        )
+        self._settings.setValue(
+            _SETTINGS_KEYS["ocr_backend"],
+            self.ocr_backend_combo.currentData() or "auto",
+        )
+
+        external_command = self.external_ocr_command_edit.text().strip()
+        if external_command:
+            self._settings.setValue(
+                _SETTINGS_KEYS["external_ocr_command"],
+                external_command,
+            )
+        else:
+            self._settings.remove(_SETTINGS_KEYS["external_ocr_command"])
+        self._settings.sync()
 
     # ------------------------------------------------------------------
     # System tray
@@ -686,18 +870,21 @@ class MainWindow(QMainWindow):
         self.use_searchable_as_source_checkbox.setChecked(
             profile.use_searchable_as_source
         )
+        self._save_gui_settings()
 
     def _on_searchable_changed(self, checked: bool) -> None:
         self.ocr_language_combo.setEnabled(checked)
         self.ocr_backend_combo.setEnabled(checked)
         self.use_searchable_as_source_checkbox.setEnabled(checked)
         self._on_ocr_backend_changed()
+        self._save_gui_settings()
 
     def _on_ocr_backend_changed(self) -> None:
         backend = self.ocr_backend_combo.currentData() or "auto"
         self.external_ocr_command_edit.setEnabled(
             self.searchable_checkbox.isChecked() and backend == "external"
         )
+        self._save_gui_settings()
 
     # ------------------------------------------------------------------
     # File / folder selectors
@@ -705,6 +892,7 @@ class MainWindow(QMainWindow):
 
     def _on_output_text_edited(self, text: str) -> None:
         self._output_path_customized = bool(text.strip())
+        self._save_gui_settings()
 
     def _on_pdf_text_edited(self, text: str) -> None:
         if text.strip():
@@ -771,6 +959,7 @@ class MainWindow(QMainWindow):
         if directory:
             self.output_edit.setText(directory)
             self._output_path_customized = True
+            self._save_gui_settings()
 
     # ------------------------------------------------------------------
     # Processing
@@ -820,6 +1009,7 @@ class MainWindow(QMainWindow):
             return
 
         self.output_edit.setText(str(output_dir))
+        self._save_gui_settings()
         create_searchable = self.searchable_checkbox.isChecked()
         ocr_backend = self.ocr_backend_combo.currentData() or "auto"
         external_ocr_command = self.external_ocr_command_edit.text().strip() or None
@@ -1206,6 +1396,7 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
 
     def closeEvent(self, event: QCloseEvent) -> None:
+        self._save_gui_settings()
         if self._tray_real_quit_requested:
             self._cleanup_tray()
             event.accept()
