@@ -36,6 +36,18 @@ Se Pillow non è disponibile, limitare il benchmark al caso testuale:
 .venv/bin/python scripts/benchmark_synthetic.py --cases searchable
 ```
 
+Esempio dedicato al profilo **Fascicolo legale**, utile per verificare il block
+size conservativo e la configurazione senza OCR su un PDF sintetico già
+ricercabile:
+
+```bash
+.venv/bin/python scripts/benchmark_synthetic.py \
+  --profile "Fascicolo legale" \
+  --cases searchable \
+  --pages 3 \
+  --runs 1
+```
+
 Per misurare anche OCRmyPDF su input raster sintetico locale:
 
 ```bash

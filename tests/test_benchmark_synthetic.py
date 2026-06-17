@@ -111,6 +111,44 @@ class BenchmarkSyntheticTest(unittest.TestCase):
                 report["results"][0]["input"]["pages_with_text"],
             )
 
+    def test_cli_accepts_legal_dossier_profile_for_searchable_case(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            result_json = root / "results" / "legal-dossier.json"
+            parser = benchmark.build_parser()
+            args = parser.parse_args(
+                [
+                    "--profile",
+                    "Fascicolo legale",
+                    "--cases",
+                    "searchable",
+                    "--pages",
+                    "3",
+                    "--runs",
+                    "1",
+                    "--output-dir",
+                    str(root),
+                    "--result-json",
+                    str(result_json),
+                ]
+            )
+
+            report = benchmark.run_benchmark(args)
+
+            self.assertTrue(result_json.is_file())
+            self.assertEqual("Fascicolo legale", report["profile"]["name"])
+            self.assertEqual(
+                PROFILES["Fascicolo legale"].block_size,
+                report["block_size"],
+            )
+            self.assertFalse(report["profile"]["enable_ocr"])
+            self.assertEqual("accurate", report["profile"]["table_mode"])
+            self.assertEqual(["searchable"], [
+                result["case"] for result in report["results"]
+            ])
+            self.assertEqual(3, report["results"][0]["input"]["pages"])
+            self.assertEqual(1, report["results"][0]["runs"][0]["block_count"])
+
 
 if __name__ == "__main__":
     unittest.main()
