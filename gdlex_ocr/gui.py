@@ -12,6 +12,7 @@ from PySide6.QtGui import (
     QCloseEvent,
     QDesktopServices,
     QFontDatabase,
+    QIntValidator,
 )
 from PySide6.QtWidgets import (
     QApplication,
@@ -91,6 +92,8 @@ _SETTINGS_KEYS = {
     "structured_output": "output/structuredJobDirectory",
     "ocr_language": "ocr/language",
     "ocr_backend": "ocr/backend",
+    "ocr_timeout": "ocr/timeoutSeconds",
+    "ocr_jobs": "ocr/jobs",
     "external_ocr_command": "ocr/externalCommand",
 }
 
@@ -203,8 +206,8 @@ class MainWindow(QMainWindow):
         app = QApplication.instance()
         if app is not None and not app.windowIcon().isNull():
             self.setWindowIcon(app.windowIcon())
-        self.setMinimumSize(1020, 780)
-        self.resize(1100, 860)
+        self.setMinimumSize(1020, 900)
+        self.resize(1100, 920)
         self._build_menu_bar()
 
         central = QWidget(self)
@@ -261,14 +264,18 @@ class MainWindow(QMainWindow):
         root_layout.addWidget(header)
 
         source_group = QGroupBox("Documento e destinazione")
+        source_group.setMinimumHeight(118)
         source_layout = QGridLayout(source_group)
-        source_layout.setContentsMargins(18, 10, 18, 10)
+        source_layout.setContentsMargins(18, 14, 18, 14)
         source_layout.setHorizontalSpacing(14)
-        source_layout.setVerticalSpacing(8)
+        source_layout.setVerticalSpacing(12)
         source_layout.setColumnMinimumWidth(0, 150)
         source_layout.setColumnStretch(1, 1)
+        source_layout.setRowMinimumHeight(0, 38)
+        source_layout.setRowMinimumHeight(1, 38)
 
         self.pdf_edit = QLineEdit()
+        self.pdf_edit.setMinimumHeight(36)
         self.pdf_edit.setPlaceholderText(
             "Inserisci o incolla un file PDF (anche con ~ o variabili ambiente)"
         )
@@ -276,6 +283,7 @@ class MainWindow(QMainWindow):
         self.pdf_edit.editingFinished.connect(self._update_pdf_page_count)
         self.pdf_button = QPushButton("Sfoglia PDF")
         self.pdf_button.setMinimumWidth(150)
+        self.pdf_button.setMinimumHeight(36)
         self.pdf_button.clicked.connect(self._select_pdf)
         pdf_label = QLabel("File PDF")
         pdf_label.setAlignment(
@@ -286,12 +294,14 @@ class MainWindow(QMainWindow):
         source_layout.addWidget(self.pdf_button, 0, 2)
 
         self.output_edit = QLineEdit()
+        self.output_edit.setMinimumHeight(36)
         self.output_edit.setPlaceholderText(
             "Inserisci o incolla una cartella (anche con ~ o variabili ambiente)"
         )
         self.output_edit.textEdited.connect(self._on_output_text_edited)
         self.output_button = QPushButton("Sfoglia cartella")
         self.output_button.setMinimumWidth(150)
+        self.output_button.setMinimumHeight(36)
         self.output_button.clicked.connect(self._select_output)
         output_label = QLabel("Cartella output")
         output_label.setAlignment(
@@ -361,12 +371,14 @@ class MainWindow(QMainWindow):
         # --- PDF ricercabile e organizzazione output ---
         self.pdf_output_group = QGroupBox("PDF e output")
         self.pdf_output_group.setObjectName("pdfOutputGroup")
+        self.pdf_output_group.setMinimumHeight(150)
         pdf_output_layout = QVBoxLayout(self.pdf_output_group)
         pdf_output_layout.setContentsMargins(10, 6, 10, 6)
         pdf_output_layout.setSpacing(0)
 
         self.pdf_output_tabs = QTabWidget()
         self.pdf_output_tabs.setObjectName("pdfOutputTabs")
+        self.pdf_output_tabs.setMinimumHeight(140)
         pdf_output_layout.addWidget(self.pdf_output_tabs)
 
         self.pdf_output_base_tab = QWidget()
@@ -419,11 +431,13 @@ class MainWindow(QMainWindow):
 
         self.pdf_output_backend_tab = QWidget()
         backend_layout = QGridLayout(self.pdf_output_backend_tab)
-        backend_layout.setContentsMargins(10, 4, 10, 4)
+        backend_layout.setContentsMargins(10, 8, 10, 10)
         backend_layout.setHorizontalSpacing(12)
-        backend_layout.setVerticalSpacing(1)
+        backend_layout.setVerticalSpacing(6)
         backend_layout.setColumnMinimumWidth(0, 150)
-        backend_layout.setColumnStretch(1, 1)
+        backend_layout.setColumnMinimumWidth(2, 120)
+        backend_layout.setColumnStretch(1, 0)
+        backend_layout.setColumnStretch(3, 1)
 
         self.ocr_backend_label = QLabel("Backend OCR:")
         self.ocr_backend_label.setObjectName("sectionHint")
@@ -438,11 +452,38 @@ class MainWindow(QMainWindow):
         self.ocr_backend_combo.setToolTip(
             "Utile con Accurato testo o con un backend esterno configurato."
         )
-        backend_layout.addWidget(self.ocr_backend_combo, 0, 1)
+        backend_layout.addWidget(self.ocr_backend_combo, 0, 1, 1, 3)
+
+        self.ocr_timeout_label = QLabel("Timeout OCRmyPDF:")
+        self.ocr_timeout_label.setObjectName("sectionHint")
+        backend_layout.addWidget(self.ocr_timeout_label, 1, 0)
+        self.ocr_timeout_spin = QSpinBox()
+        self.ocr_timeout_spin.setRange(1, 86400)
+        self.ocr_timeout_spin.setSuffix(" s")
+        self.ocr_timeout_spin.setValue(self._ocr_timeout_seconds)
+        self.ocr_timeout_spin.setToolTip(
+            "Tempo massimo concesso a OCRmyPDF. Default: 1800 secondi."
+        )
+        self.ocr_timeout_spin.setEnabled(False)
+        backend_layout.addWidget(self.ocr_timeout_spin, 1, 1)
+
+        self.ocr_jobs_label = QLabel("Jobs OCRmyPDF:")
+        self.ocr_jobs_label.setObjectName("sectionHint")
+        backend_layout.addWidget(self.ocr_jobs_label, 1, 2)
+        self.ocr_jobs_edit = QLineEdit()
+        self.ocr_jobs_edit.setValidator(QIntValidator(1, 9999, self.ocr_jobs_edit))
+        self.ocr_jobs_edit.setPlaceholderText("Automatico")
+        if self._ocr_jobs is not None:
+            self.ocr_jobs_edit.setText(str(self._ocr_jobs))
+        self.ocr_jobs_edit.setToolTip(
+            "Lascia vuoto per usare il comportamento predefinito di OCRmyPDF."
+        )
+        self.ocr_jobs_edit.setEnabled(False)
+        backend_layout.addWidget(self.ocr_jobs_edit, 1, 3)
 
         self.external_ocr_command_label = QLabel("Comando esterno:")
         self.external_ocr_command_label.setObjectName("sectionHint")
-        backend_layout.addWidget(self.external_ocr_command_label, 1, 0)
+        backend_layout.addWidget(self.external_ocr_command_label, 2, 0)
         self.external_ocr_command_edit = QLineEdit()
         self.external_ocr_command_edit.setPlaceholderText(
             "tool --input {input} --output {output} --lang {language}"
@@ -451,7 +492,7 @@ class MainWindow(QMainWindow):
             "Comando locale senza shell; richiede {input} e {output}."
         )
         self.external_ocr_command_edit.setEnabled(False)
-        backend_layout.addWidget(self.external_ocr_command_edit, 1, 1)
+        backend_layout.addWidget(self.external_ocr_command_edit, 2, 1, 1, 3)
         self.pdf_output_tabs.addTab(
             self.pdf_output_backend_tab,
             "Backend OCR",
@@ -485,6 +526,7 @@ class MainWindow(QMainWindow):
         root_layout.addWidget(self.progress_group)
 
         log_group = QGroupBox("Log elaborazione")
+        log_group.setMaximumHeight(100)
         log_layout = QVBoxLayout(log_group)
         log_layout.setContentsMargins(12, 12, 12, 10)
         self.log_view = QTextEdit()
@@ -654,6 +696,50 @@ class MainWindow(QMainWindow):
         except (TypeError, ValueError):
             return default
 
+    def _settings_positive_int(self, key: str, default: int) -> int:
+        value = self._settings_int(key, default)
+        if value <= 0:
+            return default
+        return value
+
+    def _settings_optional_positive_int(
+        self,
+        key: str,
+        default: int | None = None,
+    ) -> int | None:
+        if self._settings is None or not self._settings.contains(key):
+            return default
+        value = self._settings.value(key)
+        if value in (None, ""):
+            return None
+        try:
+            parsed = int(value)
+        except (TypeError, ValueError):
+            return default
+        if parsed <= 0:
+            return default
+        return parsed
+
+    def _current_ocr_jobs(self) -> int | None:
+        raw_value = self.ocr_jobs_edit.text().strip()
+        if not raw_value:
+            return None
+        try:
+            jobs = int(raw_value)
+        except ValueError:
+            return None
+        try:
+            return validate_ocrmypdf_jobs(jobs)
+        except ValueError:
+            return None
+
+    def _update_ocr_runtime_options(self, *args: object) -> None:
+        self._ocr_timeout_seconds = validate_ocrmypdf_timeout_seconds(
+            self.ocr_timeout_spin.value()
+        )
+        self._ocr_jobs = self._current_ocr_jobs()
+        self._save_gui_settings()
+
     def _set_combo_data(self, combo: QComboBox, value: str) -> None:
         if not value:
             return
@@ -707,6 +793,19 @@ class MainWindow(QMainWindow):
                 self.ocr_backend_combo,
                 self._settings_text(_SETTINGS_KEYS["ocr_backend"]),
             )
+            self._ocr_timeout_seconds = self._settings_positive_int(
+                _SETTINGS_KEYS["ocr_timeout"],
+                self._ocr_timeout_seconds,
+            )
+            self.ocr_timeout_spin.setValue(self._ocr_timeout_seconds)
+            self._ocr_jobs = self._settings_optional_positive_int(
+                _SETTINGS_KEYS["ocr_jobs"],
+                self._ocr_jobs,
+            )
+            if self._ocr_jobs is None:
+                self.ocr_jobs_edit.clear()
+            else:
+                self.ocr_jobs_edit.setText(str(self._ocr_jobs))
             self.external_ocr_command_edit.setText(
                 self._settings_text(_SETTINGS_KEYS["external_ocr_command"])
             )
@@ -726,6 +825,8 @@ class MainWindow(QMainWindow):
         self.external_ocr_command_edit.editingFinished.connect(
             self._save_gui_settings
         )
+        self.ocr_timeout_spin.valueChanged.connect(self._update_ocr_runtime_options)
+        self.ocr_jobs_edit.textChanged.connect(self._update_ocr_runtime_options)
 
     def _save_gui_settings(self, *args: object) -> None:
         if self._settings is None or self._loading_settings:
@@ -765,6 +866,14 @@ class MainWindow(QMainWindow):
             _SETTINGS_KEYS["ocr_backend"],
             self.ocr_backend_combo.currentData() or "auto",
         )
+        self._settings.setValue(
+            _SETTINGS_KEYS["ocr_timeout"],
+            self._ocr_timeout_seconds,
+        )
+        if self._ocr_jobs is None:
+            self._settings.remove(_SETTINGS_KEYS["ocr_jobs"])
+        else:
+            self._settings.setValue(_SETTINGS_KEYS["ocr_jobs"], self._ocr_jobs)
 
         external_command = self.external_ocr_command_edit.text().strip()
         if external_command:
@@ -890,6 +999,8 @@ class MainWindow(QMainWindow):
     def _on_searchable_changed(self, checked: bool) -> None:
         self.ocr_language_combo.setEnabled(checked)
         self.ocr_backend_combo.setEnabled(checked)
+        self.ocr_timeout_spin.setEnabled(checked)
+        self.ocr_jobs_edit.setEnabled(checked)
         self.use_searchable_as_source_checkbox.setEnabled(checked)
         self._on_ocr_backend_changed()
         self._save_gui_settings()
@@ -1228,6 +1339,12 @@ class MainWindow(QMainWindow):
         self.block_size_spin.setEnabled(not running)
         self.searchable_checkbox.setEnabled(not running)
         self.ocr_backend_combo.setEnabled(
+            not running and self.searchable_checkbox.isChecked()
+        )
+        self.ocr_timeout_spin.setEnabled(
+            not running and self.searchable_checkbox.isChecked()
+        )
+        self.ocr_jobs_edit.setEnabled(
             not running and self.searchable_checkbox.isChecked()
         )
         self.external_ocr_command_edit.setEnabled(

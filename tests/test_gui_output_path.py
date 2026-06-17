@@ -82,6 +82,8 @@ class OutputPathGuiTest(unittest.TestCase):
 
         for widget in (
             self.window.ocr_backend_combo,
+            self.window.ocr_timeout_spin,
+            self.window.ocr_jobs_edit,
             self.window.external_ocr_command_edit,
         ):
             self.assertIs(widget.parentWidget(), backend_tab)
@@ -134,6 +136,10 @@ class OutputPathGuiTest(unittest.TestCase):
         backend_controls = (
             self.window.ocr_backend_label,
             self.window.ocr_backend_combo,
+            self.window.ocr_timeout_label,
+            self.window.ocr_timeout_spin,
+            self.window.ocr_jobs_label,
+            self.window.ocr_jobs_edit,
             self.window.external_ocr_command_label,
             self.window.external_ocr_command_edit,
         )
@@ -146,6 +152,12 @@ class OutputPathGuiTest(unittest.TestCase):
                 (
                     self.window.ocr_backend_label,
                     self.window.ocr_backend_combo,
+                ),
+                (
+                    self.window.ocr_timeout_label,
+                    self.window.ocr_timeout_spin,
+                    self.window.ocr_jobs_label,
+                    self.window.ocr_jobs_edit,
                 ),
                 (
                     self.window.external_ocr_command_label,
@@ -243,6 +255,8 @@ class OutputPathGuiTest(unittest.TestCase):
             self.window.ocr_backend_combo.setCurrentIndex(external_index)
             command = "local-ocr {input} {output} --lang {language}"
             self.window.external_ocr_command_edit.setText(command)
+            self.window.ocr_timeout_spin.setValue(77)
+            self.window.ocr_jobs_edit.setText("5")
             self.window.use_searchable_as_source_checkbox.setChecked(True)
             worker = MagicMock()
             worker.isRunning.return_value = False
@@ -259,6 +273,8 @@ class OutputPathGuiTest(unittest.TestCase):
             kwargs = worker_cls.call_args.kwargs
             self.assertEqual("external", kwargs["ocr_backend"])
             self.assertEqual(command, kwargs["external_ocr_command"])
+            self.assertEqual(77, kwargs["ocr_timeout_seconds"])
+            self.assertEqual(5, kwargs["ocr_jobs"])
             self.assertTrue(kwargs["use_searchable_as_source"])
             worker.start.assert_called_once_with()
 

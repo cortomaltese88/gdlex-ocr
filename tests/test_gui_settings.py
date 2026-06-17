@@ -13,6 +13,7 @@ from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QApplication
 
 from gdlex_ocr.gui import MainWindow
+from gdlex_ocr.searchable_pdf import DEFAULT_OCRMYPDF_TIMEOUT_SECONDS
 
 
 class GuiSettingsPersistenceTest(unittest.TestCase):
@@ -42,6 +43,8 @@ class GuiSettingsPersistenceTest(unittest.TestCase):
             settings.setValue("output/structuredJobDirectory", True)
             settings.setValue("ocr/language", "eng")
             settings.setValue("ocr/backend", "external")
+            settings.setValue("ocr/timeoutSeconds", 45)
+            settings.setValue("ocr/jobs", 3)
             settings.setValue(
                 "ocr/externalCommand",
                 "local-ocr {input} {output} --lang {language}",
@@ -60,6 +63,10 @@ class GuiSettingsPersistenceTest(unittest.TestCase):
             self.assertTrue(window.structured_output_checkbox.isChecked())
             self.assertEqual("eng", window.ocr_language_combo.currentData())
             self.assertEqual("external", window.ocr_backend_combo.currentData())
+            self.assertEqual(45, window.ocr_timeout_spin.value())
+            self.assertEqual(45, window._ocr_timeout_seconds)
+            self.assertEqual("3", window.ocr_jobs_edit.text())
+            self.assertEqual(3, window._ocr_jobs)
             self.assertTrue(window.external_ocr_command_edit.isEnabled())
             self.assertEqual(
                 "local-ocr {input} {output} --lang {language}",
@@ -90,6 +97,8 @@ class GuiSettingsPersistenceTest(unittest.TestCase):
             window.ocr_backend_combo.setCurrentIndex(
                 window.ocr_backend_combo.findData("ocrmypdf")
             )
+            window.ocr_timeout_spin.setValue(90)
+            window.ocr_jobs_edit.setText("2")
             window.external_ocr_command_edit.setText("")
             window.close()
             settings.sync()
@@ -106,6 +115,8 @@ class GuiSettingsPersistenceTest(unittest.TestCase):
             self.assertTrue(saved.value("output/structuredJobDirectory", type=bool))
             self.assertEqual("fra", saved.value("ocr/language"))
             self.assertEqual("ocrmypdf", saved.value("ocr/backend"))
+            self.assertEqual(90, int(saved.value("ocr/timeoutSeconds")))
+            self.assertEqual(2, int(saved.value("ocr/jobs")))
             self.assertFalse(saved.contains("paths/inputPdf"))
             self.assertNotIn(
                 "fascicolo.pdf",
@@ -138,6 +149,44 @@ class GuiSettingsPersistenceTest(unittest.TestCase):
             window.deleteLater()
             self.app.processEvents()
 
+    def test_default_ocr_runtime_options_are_safe(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            settings_path = Path(tmpdir) / "settings.ini"
+
+            window = MainWindow(settings=self._settings(settings_path))
+
+            self.assertEqual(
+                DEFAULT_OCRMYPDF_TIMEOUT_SECONDS,
+                window.ocr_timeout_spin.value(),
+            )
+            self.assertEqual(
+                DEFAULT_OCRMYPDF_TIMEOUT_SECONDS,
+                window._ocr_timeout_seconds,
+            )
+            self.assertEqual("", window.ocr_jobs_edit.text())
+            self.assertIsNone(window._ocr_jobs)
+
+            self._close_window(window)
+
+    def test_empty_ocr_jobs_stays_unset_in_settings(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            settings_path = Path(tmpdir) / "settings.ini"
+            settings = self._settings(settings_path)
+            settings.setValue("ocr/jobs", 4)
+            settings.sync()
+            window = MainWindow(settings=settings)
+
+            window.ocr_jobs_edit.clear()
+            window.close()
+            settings.sync()
+
+            saved = self._settings(settings_path)
+            self.assertFalse(saved.contains("ocr/jobs"))
+            self.assertIsNone(window._ocr_jobs)
+
+            window.deleteLater()
+            self.app.processEvents()
+
     def test_ignores_missing_or_unavailable_saved_values(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             settings_path = Path(tmpdir) / "settings.ini"
@@ -147,6 +196,8 @@ class GuiSettingsPersistenceTest(unittest.TestCase):
             settings.setValue("pdf/createSearchable", "not-a-bool")
             settings.setValue("ocr/language", "zzz")
             settings.setValue("ocr/backend", "removed-backend")
+            settings.setValue("ocr/timeoutSeconds", "not-an-integer")
+            settings.setValue("ocr/jobs", -2)
             settings.sync()
 
             window = MainWindow(settings=self._settings(settings_path))
@@ -156,6 +207,16 @@ class GuiSettingsPersistenceTest(unittest.TestCase):
             self.assertTrue(window.searchable_checkbox.isChecked())
             self.assertEqual("ita", window.ocr_language_combo.currentData())
             self.assertEqual("auto", window.ocr_backend_combo.currentData())
+            self.assertEqual(
+                DEFAULT_OCRMYPDF_TIMEOUT_SECONDS,
+                window.ocr_timeout_spin.value(),
+            )
+            self.assertEqual(
+                DEFAULT_OCRMYPDF_TIMEOUT_SECONDS,
+                window._ocr_timeout_seconds,
+            )
+            self.assertEqual("", window.ocr_jobs_edit.text())
+            self.assertIsNone(window._ocr_jobs)
 
             self._close_window(window)
 
