@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import queue
 import shutil
 import subprocess
+import threading
+import time
 from pathlib import Path
 from typing import Callable
 
@@ -13,6 +16,7 @@ INSTALL_HINT = (
 )
 
 DEFAULT_OCRMYPDF_TIMEOUT_SECONDS = 1800
+PROCESS_TERMINATE_GRACE_SECONDS = 5.0
 
 
 class SearchablePdfError(RuntimeError):
@@ -82,6 +86,80 @@ def make_progressive_output_path(
         n += 1
 
 
+def run_process_with_incremental_output(
+    command: list[str],
+    *,
+    timeout_seconds: int,
+    line_callback: Callable[[str], None] | None = None,
+) -> tuple[int, str]:
+    """Run *command* and stream merged stdout/stderr lines as they arrive."""
+    timeout_seconds = validate_ocrmypdf_timeout_seconds(timeout_seconds)
+    process = subprocess.Popen(
+        command,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+    )
+    output_lines: list[str] = []
+    lines: queue.Queue[str | None] = queue.Queue()
+
+    def read_output() -> None:
+        stdout = process.stdout
+        try:
+            if stdout is not None:
+                for raw_line in stdout:
+                    lines.put(raw_line)
+        finally:
+            if stdout is not None and hasattr(stdout, "close"):
+                stdout.close()
+            lines.put(None)
+
+    reader = threading.Thread(target=read_output, daemon=True)
+    reader.start()
+    deadline = time.monotonic() + timeout_seconds
+    reader_done = False
+
+    try:
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0 and process.poll() is None:
+                _terminate_timed_out_process(process, command, timeout_seconds)
+            try:
+                raw_line = lines.get(timeout=min(max(remaining, 0.0), 0.1))
+            except queue.Empty:
+                if process.poll() is not None and reader_done:
+                    break
+                continue
+            if raw_line is None:
+                reader_done = True
+                if process.poll() is not None:
+                    break
+                continue
+            output_lines.append(raw_line)
+            if line_callback:
+                line = raw_line.rstrip()
+                if line:
+                    line_callback(line)
+    finally:
+        reader.join(timeout=1.0)
+
+    return process.wait(), "".join(output_lines)
+
+
+def _terminate_timed_out_process(
+    process: subprocess.Popen[str],
+    command: list[str],
+    timeout_seconds: int,
+) -> None:
+    process.terminate()
+    try:
+        process.wait(timeout=PROCESS_TERMINATE_GRACE_SECONDS)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        process.wait()
+    raise subprocess.TimeoutExpired(command, timeout_seconds)
+
+
 def run_ocrmypdf(
     input_pdf: str | Path,
     output_pdf: str | Path,
@@ -105,33 +183,25 @@ def run_ocrmypdf(
         log_callback(f"Comando OCRmyPDF: {' '.join(command)}")
 
     try:
-        proc = subprocess.Popen(
+        returncode, _stdout = run_process_with_incremental_output(
             command,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
+            timeout_seconds=timeout_seconds,
+            line_callback=(
+                (lambda line: log_callback(f"ocrmypdf: {line}"))
+                if log_callback
+                else None
+            ),
         )
     except OSError as exc:
         raise SearchablePdfError(
             f"Impossibile avviare OCRmyPDF: {exc}"
         ) from exc
-
-    try:
-        stdout, _ = proc.communicate(timeout=timeout_seconds)
     except subprocess.TimeoutExpired:
-        proc.kill()
-        proc.communicate()
         raise SearchablePdfError(
             f"OCRmyPDF timeout dopo {timeout_seconds}s; processo terminato."
         )
 
-    if log_callback:
-        for raw_line in stdout.splitlines():
-            line = raw_line.rstrip()
-            if line:
-                log_callback(f"ocrmypdf: {line}")
-
-    if proc.returncode != 0:
+    if returncode != 0:
         raise SearchablePdfError(
-            f"OCRmyPDF è terminato con codice {proc.returncode}"
+            f"OCRmyPDF è terminato con codice {returncode}"
         )

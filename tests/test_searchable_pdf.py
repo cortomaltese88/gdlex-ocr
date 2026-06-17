@@ -7,7 +7,9 @@ from __future__ import annotations
 
 import io
 import inspect
+import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -282,8 +284,25 @@ class RunOcrmypdfTest(unittest.TestCase):
         self.assertGreater(DEFAULT_OCRMYPDF_TIMEOUT_SECONDS, 0)
 
     def test_timeout_kills_process_and_raises_searchable_pdf_error(self) -> None:
-        import subprocess as _subprocess
-        from unittest.mock import MagicMock
+        class HangingProcess:
+            stdout: list[str] = []
+            returncode: int | None = None
+            terminated = False
+            killed = False
+
+            def poll(self) -> int | None:
+                return self.returncode
+
+            def terminate(self) -> None:
+                self.terminated = True
+                self.returncode = -15
+
+            def kill(self) -> None:
+                self.killed = True
+                self.returncode = -9
+
+            def wait(self, timeout=None) -> int | None:
+                return self.returncode
 
         with patch(
             "gdlex_ocr.searchable_pdf.is_ocrmypdf_available",
@@ -291,19 +310,55 @@ class RunOcrmypdfTest(unittest.TestCase):
         ), patch(
             "gdlex_ocr.searchable_pdf.subprocess.Popen",
         ) as mock_popen:
-            mock_proc = MagicMock()
-            # First call raises TimeoutExpired; second call (drain after kill) succeeds.
-            mock_proc.communicate.side_effect = [
-                _subprocess.TimeoutExpired(cmd="ocrmypdf", timeout=1),
-                ("", None),
-            ]
+            mock_proc = HangingProcess()
             mock_popen.return_value = mock_proc
 
             with self.assertRaises(SearchablePdfError) as ctx:
-                run_ocrmypdf("in.pdf", "out.pdf", timeout_seconds=1)
+                run_ocrmypdf("in.pdf", "out.pdf", timeout_seconds=0.01)
 
             self.assertIn("timeout", str(ctx.exception))
-            mock_proc.kill.assert_called_once()
+            self.assertTrue(mock_proc.terminated)
+            self.assertFalse(mock_proc.killed)
+
+    def test_streams_ocrmypdf_output_before_process_finishes(self) -> None:
+        command = [
+            sys.executable,
+            "-c",
+            (
+                "import time; "
+                "print('prima riga', flush=True); "
+                "time.sleep(0.3); "
+                "print('seconda riga', flush=True)"
+            ),
+        ]
+        logs: list[tuple[float, str]] = []
+
+        with patch(
+            "gdlex_ocr.searchable_pdf.is_ocrmypdf_available",
+            return_value=True,
+        ), patch(
+            "gdlex_ocr.searchable_pdf.build_ocrmypdf_command",
+            return_value=command,
+        ):
+            run_ocrmypdf(
+                "in.pdf",
+                "out.pdf",
+                log_callback=lambda message: logs.append(
+                    (time.monotonic(), message)
+                ),
+                timeout_seconds=5,
+            )
+            finished = time.monotonic()
+
+        messages = [message for _timestamp, message in logs]
+        self.assertIn("ocrmypdf: prima riga", messages)
+        self.assertIn("ocrmypdf: seconda riga", messages)
+        first_output_time = next(
+            timestamp
+            for timestamp, message in logs
+            if message == "ocrmypdf: prima riga"
+        )
+        self.assertGreaterEqual(finished - first_output_time, 0.25)
 
     def test_rejects_non_positive_timeout(self) -> None:
         with self.assertRaisesRegex(ValueError, "maggiore di 0"):

@@ -12,6 +12,7 @@ from typing import Callable
 from gdlex_ocr.searchable_pdf import (
     DEFAULT_OCRMYPDF_TIMEOUT_SECONDS,
     build_ocrmypdf_command,
+    run_process_with_incremental_output,
     validate_ocrmypdf_timeout_seconds,
 )
 
@@ -185,36 +186,28 @@ def run_ocr_backend(
             f"Backend OCR: {backend.name}; comando: {shlex.join(command)}"
         )
     try:
-        process = subprocess.Popen(
+        returncode, _stdout = run_process_with_incremental_output(
             command,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
+            timeout_seconds=timeout_seconds,
+            line_callback=(
+                (lambda line: log_callback(f"{backend.name}: {line}"))
+                if log_callback
+                else None
+            ),
         )
     except OSError as exc:
         raise OcrBackendError(
             f"Impossibile avviare il backend OCR {backend.name}: {exc}"
         ) from exc
-
-    try:
-        stdout, _ = process.communicate(timeout=timeout_seconds)
     except subprocess.TimeoutExpired:
-        process.kill()
-        process.communicate()
         raise OcrBackendError(
             f"Backend OCR {backend.name} timeout dopo {timeout_seconds}s; "
             "processo terminato."
         )
 
-    if log_callback:
-        for raw_line in stdout.splitlines():
-            line = raw_line.rstrip()
-            if line:
-                log_callback(f"{backend.name}: {line}")
-
-    if process.returncode != 0:
+    if returncode != 0:
         raise OcrBackendError(
-            f"Backend OCR {backend.name} terminato con codice {process.returncode}"
+            f"Backend OCR {backend.name} terminato con codice {returncode}"
         )
     if not Path(output_pdf).is_file():
         raise OcrBackendError(

@@ -157,13 +157,6 @@ class OcrBackendDetectionTest(unittest.TestCase):
         self.assertNotIn("document text", str(metadata))
 
     def test_external_backend_run_uses_fake_subprocess_only(self) -> None:
-        class SuccessfulProcess:
-            returncode = 0
-
-            @staticmethod
-            def communicate(timeout=None):
-                return ("", None)
-
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
             output = root / "output.pdf"
@@ -174,9 +167,9 @@ class OcrBackendDetectionTest(unittest.TestCase):
                     return_value="/opt/bin/local-ocr",
                 ),
                 patch(
-                    "gdlex_ocr.ocr_backends.subprocess.Popen",
-                    return_value=SuccessfulProcess(),
-                ) as popen,
+                    "gdlex_ocr.ocr_backends.run_process_with_incremental_output",
+                    return_value=(0, ""),
+                ) as run_process,
             ):
                 backend = detect_ocr_backend(
                     "external",
@@ -189,12 +182,10 @@ class OcrBackendDetectionTest(unittest.TestCase):
                 )
 
         self.assertEqual("external", result.name)
-        self.assertIsInstance(popen.call_args.args[0], list)
-        self.assertIsNot(popen.call_args.kwargs.get("shell"), True)
+        self.assertIsInstance(run_process.call_args.args[0], list)
+        self.assertNotIn("shell", run_process.call_args.kwargs)
 
     def test_ocrmypdf_run_uses_configured_timeout_and_jobs(self) -> None:
-        from unittest.mock import MagicMock
-
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
             output = root / "output.pdf"
@@ -206,14 +197,10 @@ class OcrBackendDetectionTest(unittest.TestCase):
                 None,
                 True,
             )
-            process = MagicMock()
-            process.returncode = 0
-            process.communicate.return_value = ("", None)
-
             with patch(
-                "gdlex_ocr.ocr_backends.subprocess.Popen",
-                return_value=process,
-            ) as popen:
+                "gdlex_ocr.ocr_backends.run_process_with_incremental_output",
+                return_value=(0, ""),
+            ) as run_process:
                 run_ocr_backend(
                     backend,
                     root / "input.pdf",
@@ -222,14 +209,31 @@ class OcrBackendDetectionTest(unittest.TestCase):
                     jobs=5,
                 )
 
-        command = popen.call_args.args[0]
+        command = run_process.call_args.args[0]
         self.assertIn("--jobs", command)
         self.assertEqual("5", command[command.index("--jobs") + 1])
-        process.communicate.assert_called_once_with(timeout=7)
+        self.assertEqual(7, run_process.call_args.kwargs["timeout_seconds"])
 
     def test_timeout_kills_process_and_raises_ocr_backend_error(self) -> None:
-        import subprocess as _subprocess
-        from unittest.mock import MagicMock
+        class HangingProcess:
+            stdout: list[str] = []
+            returncode: int | None = None
+            terminated = False
+            killed = False
+
+            def poll(self) -> int | None:
+                return self.returncode
+
+            def terminate(self) -> None:
+                self.terminated = True
+                self.returncode = -15
+
+            def kill(self) -> None:
+                self.killed = True
+                self.returncode = -9
+
+            def wait(self, timeout=None) -> int | None:
+                return self.returncode
 
         with patch(
             "gdlex_ocr.ocr_backends.shutil.which",
@@ -238,21 +242,17 @@ class OcrBackendDetectionTest(unittest.TestCase):
             backend = detect_ocr_backend("ocrmypdf")
 
         with patch(
-            "gdlex_ocr.ocr_backends.subprocess.Popen",
+            "gdlex_ocr.searchable_pdf.subprocess.Popen",
         ) as mock_popen:
-            mock_proc = MagicMock()
-            # First call raises TimeoutExpired; second call (drain after kill) succeeds.
-            mock_proc.communicate.side_effect = [
-                _subprocess.TimeoutExpired(cmd="ocrmypdf", timeout=1),
-                ("", None),
-            ]
+            mock_proc = HangingProcess()
             mock_popen.return_value = mock_proc
 
             with self.assertRaises(OcrBackendError) as ctx:
-                run_ocr_backend(backend, "in.pdf", "out.pdf", timeout_seconds=1)
+                run_ocr_backend(backend, "in.pdf", "out.pdf", timeout_seconds=0.01)
 
             self.assertIn("timeout", str(ctx.exception).lower())
-            mock_proc.kill.assert_called_once()
+            self.assertTrue(mock_proc.terminated)
+            self.assertFalse(mock_proc.killed)
 
     def test_rejects_non_positive_timeout(self) -> None:
         backend = OcrBackend(
