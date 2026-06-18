@@ -1,3 +1,20 @@
+gdlex-ocr (0.3.2) unstable; urgency=medium
+
+  * Recognize PDP/TIAP document units based on numeric directories.
+  * Classify COMPLETE as a technical unit marker.
+  * Recognize ListaAllegati.html as a local unit index.
+  * Parse and match local ListaAllegati.html indexes to unit documents.
+  * Export JSON with units section and new summary fields.
+  * Export Markdown with PDP/TIAP document units section.
+  * Suppress duplicate warnings for COMPLETE files in document units.
+  * Suppress false positive multiple_casefile_indexes warning for local
+    ListaAllegati.html in numeric directories.
+  * Real test on ministerial casefile: 79 units, 79 indexes, 79 matches,
+    0 warnings.
+  * Expand synthetic offline tests to 450.
+
+ -- Studio GD LEX <cortomaltese88@users.noreply.github.com>  Thu, 18 Jun 2026 22:00:00 +0200
+
 gdlex-ocr (0.3.1) unstable; urgency=medium
 
   * Add minimal GUI for PDP/TIAP casefile analysis.

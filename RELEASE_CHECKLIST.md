@@ -1,12 +1,12 @@
-# Checklist release v0.3.1
+# Checklist release v0.3.2
 
-La release `v0.3.1` è in preparazione. Gli item aperti rimangono promemoria
+La release `v0.3.2` è in preparazione. Gli item aperti rimangono promemoria
 operativi per audit manuale o pubblicazione; non vanno barrati senza una nuova
 verifica effettiva.
 
-## Pre-release v0.3.1
+## Pre-release v0.3.2
 
-- [x] Verificare che `gdlex_ocr/version.py` riporti `0.3.1`.
+- [x] Verificare che `gdlex_ocr/version.py` riporti `0.3.2`.
 - [x] Verificare coerenza tra README, changelog, manpage e comportamento della GUI.
 - [x] Controllare che `requirements.txt` contenga versioni fissate e installabili.
 - [ ] Verificare nuovamente launcher, icone e installazione/rimozione desktop
@@ -53,7 +53,7 @@ git status -sb
 - [ ] Controllare manualmente screenshot e metadati delle immagini prima della
   prossima pubblicazione.
 
-## Perimetro test v0.3.1
+## Perimetro test v0.3.2
 
 - [x] Non eseguire OCR reale durante la preparazione della release.
 - [x] Usare esclusivamente smoke test e fixture sintetiche.
@@ -64,8 +64,12 @@ git status -sb
   modulo **Fascicoli PDP/TIAP**, CLI `--analyze-casefile`, GUI sezione
   `Fascicolo`, `CasefileWorker`, export
   `fascicolo_index.json`/`fascicolo_index.md`, warning duplicati, matching
-  indice-documenti, payload Debian, benchmark sintetico e stress test
-  subprocess tramite la suite offline.
+  indice-documenti, unità documentali PDP/TIAP, indici locali
+  `ListaAllegati.html`, soppressione falso positivo
+  `multiple_casefile_indexes`, payload Debian, benchmark sintetico e stress
+  test subprocess tramite la suite offline.
+- [x] Test reale su fascicolo ministeriale: 79 unità, 79 indici, 79 match,
+  0 warning.
 
 ## File sensibili e contenuto release
 
@@ -104,13 +108,13 @@ git diff
 
 ```bash
 bash scripts/build-deb.sh
-dpkg-deb -f dist/gdlex-ocr_0.3.1_all.deb Package Version Architecture Depends Suggests
-dpkg-deb --contents dist/gdlex-ocr_0.3.1_all.deb | \
+dpkg-deb -f dist/gdlex-ocr_0.3.2_all.deb Package Version Architecture Depends Suggests
+dpkg-deb --contents dist/gdlex-ocr_0.3.2_all.deb | \
   grep -E 'casefile|casefile_index|casefile_export|casefile_classify|judgments|folder-matrix|icon-64|gdlex-ocr.desktop|gdlex-ocr.1'
-dpkg-deb --contents dist/gdlex-ocr_0.3.1_all.deb | \
+dpkg-deb --contents dist/gdlex-ocr_0.3.2_all.deb | \
   grep -E '(\.venv|__pycache__|\.git|run\.log|manifest\.json|Downloads|Documenti)' || true
-sha256sum dist/gdlex-ocr_0.3.1_all.deb
-sudo apt install ./dist/gdlex-ocr_0.3.1_all.deb
+sha256sum dist/gdlex-ocr_0.3.2_all.deb
+sudo apt install ./dist/gdlex-ocr_0.3.2_all.deb
 /usr/bin/gdlex-ocr --doctor
 ```
 

@@ -4,6 +4,32 @@ Tutte le modifiche rilevanti del progetto saranno documentate in questo file.
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-06-18
+
+### Funzionalità
+
+- Riconoscimento unità documentali PDP/TIAP basate su directory numeriche.
+- Classificazione `COMPLETE` come marker tecnico di unità documentale.
+- Riconoscimento `ListaAllegati.html` come indice locale di unità documentale.
+- Parsing e matching degli indici locali `ListaAllegati.html` con i documenti
+  della relativa unità.
+- Export JSON con sezione `units` e nuovi campi summary (`unit_count`,
+  `technical_file_count`, `index_count`, `index_entry_count`,
+  `index_match_count`).
+- Export Markdown con sezione "Unità documentali PDP/TIAP".
+
+### Correzioni
+
+- Soppressione warning duplicati per file `COMPLETE` nelle unità documentali.
+- Soppressione del falso positivo `multiple_casefile_indexes` per
+  `ListaAllegati.html` presenti nelle directory numeriche locali.
+
+### Test
+
+- Test reale su fascicolo ministeriale: 79 unità, 79 indici, 79 match,
+  0 warning.
+- Suite offline a 450 test sintetici.
+
 ## [0.3.1] - 2026-06-18
 
 ### Funzionalità

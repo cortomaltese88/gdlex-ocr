@@ -11,7 +11,8 @@ Tesseract searchable-PDF generation, processing profiles and an audit manifest
 for each job. The 0.2.x line adds a local **Judgments / Appeals** module that
 creates an heuristic judgment card from Markdown or after PDF conversion.
 The 0.3.x line adds local **PDP/TIAP casefile** folder analysis without OCR,
-available from both CLI and GUI.
+available from both CLI and GUI, with document unit recognition, local index
+parsing and index-document matching.
 
 ## What It Does
 
