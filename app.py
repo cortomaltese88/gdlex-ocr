@@ -5,7 +5,6 @@ from __future__ import annotations
 import argparse
 import sys
 from pathlib import Path
-from typing import Callable
 
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication
@@ -13,12 +12,12 @@ from PySide6.QtWidgets import QApplication
 from gdlex_ocr.gui import MainWindow
 from gdlex_ocr.icons import application_icon
 from gdlex_ocr.judgments import (
+    JUDGMENT_ANALYSIS_FILENAME,
     extract_judgment_metadata,
     format_judgment_summary,
-    judgment_analysis_to_manifest_dict,
     prepend_judgment_summary,
+    write_judgment_analysis_for_markdown,
 )
-from gdlex_ocr.manifest import MANIFEST_FILENAME, load_manifest, safe_write_manifest
 from gdlex_ocr.profiles import DEFAULT_PROFILE, PROFILES
 from gdlex_ocr.searchable_pdf import DEFAULT_OCRMYPDF_TIMEOUT_SECONDS
 from gdlex_ocr.splash import (
@@ -29,9 +28,6 @@ from gdlex_ocr.splash import (
 from gdlex_ocr.theme import apply_theme, load_theme_name
 from gdlex_ocr.version import APP_NAME, APP_VERSION
 from gdlex_ocr.worker import OcrWorker
-
-
-JUDGMENT_ANALYSIS_FILENAME = "sentenza_analysis.md"
 
 
 def positive_int(value: str) -> int:
@@ -157,76 +153,6 @@ def analyze_judgment_markdown(input_name: str, output_name: str, prepend: bool) 
         return 1
 
     return 0
-
-
-def write_judgment_analysis_for_markdown(
-    markdown_path: Path,
-    output_dir: Path | None = None,
-    *,
-    log_callback: Callable[[str], None] | None = print,
-    update_manifest: bool = False,
-) -> Path:
-    """Write a separate judgment-analysis card next to a Markdown output."""
-    destination_dir = markdown_path.parent if output_dir is None else output_dir
-    output_path = destination_dir / JUDGMENT_ANALYSIS_FILENAME
-
-    if log_callback is not None:
-        log_callback("Analisi sentenza richiesta.")
-        log_callback(f"Markdown sentenza letto: {markdown_path}")
-
-    markdown = markdown_path.read_text(encoding="utf-8")
-    analysis = extract_judgment_metadata(markdown)
-    summary = format_judgment_summary(analysis)
-
-    destination_dir.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(summary, encoding="utf-8")
-
-    if update_manifest:
-        _update_judgment_analysis_manifest(
-            destination_dir,
-            analysis,
-            output_path,
-            log_callback=log_callback,
-        )
-
-    if log_callback is not None:
-        if not analysis.detected:
-            log_callback("Avviso: il testo non sembra una sentenza.")
-        log_callback(f"Scheda sentenza scritta: {output_path}")
-
-    return output_path
-
-
-def _update_judgment_analysis_manifest(
-    output_dir: Path,
-    analysis,
-    output_path: Path,
-    *,
-    log_callback: Callable[[str], None] | None = print,
-) -> bool:
-    manifest_path = output_dir / MANIFEST_FILENAME
-    try:
-        manifest = load_manifest(manifest_path)
-    except (OSError, ValueError) as exc:
-        if log_callback is not None:
-            log_callback(f"Avviso: manifest non aggiornato: {exc}")
-        return False
-
-    try:
-        output_file = output_path.relative_to(output_dir)
-    except ValueError:
-        output_file = output_path
-    manifest["judgment_analysis"] = judgment_analysis_to_manifest_dict(
-        analysis,
-        output_file,
-    )
-    written = safe_write_manifest(manifest, output_dir)
-    if log_callback is not None:
-        if written:
-            log_callback(f"Manifest aggiornato: {manifest_path}")
-        else:
-            log_callback("Avviso: manifest non aggiornato per errore di scrittura.")
-    return written
 
 
 def convert_pdf_to_markdown_cli(

@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import io
 import inspect
+import json
 import sys
 import tempfile
 import time
@@ -30,6 +31,23 @@ from gdlex_ocr.searchable_pdf import (
 from gdlex_ocr.worker import OcrWorker
 
 
+SYNTHETIC_JUDGMENT_MARKDOWN = """\
+# Sentenza sintetica
+
+TRIBUNALE DI PADOVA
+Sezione penale - in composizione monocratica
+Sentenza n. 123/2026
+R.G. n. 456/2025
+
+Il Giudice dott.ssa Maria Rossi ha pronunciato la seguente sentenza.
+All'udienza del 18 giugno 2026 viene letto il dispositivo.
+
+P.Q.M.
+Dichiara l'imputato colpevole e lo condanna alla pena di mesi sei.
+Motivazione riservata nel termine di 90 giorni.
+"""
+
+
 def _synthetic_pdf(num_pages: int) -> bytes:
     writer = PdfWriter()
     for _ in range(num_pages):
@@ -43,6 +61,12 @@ class StructuredOutputWorkerTest(unittest.TestCase):
     def test_structured_output_defaults_to_false(self) -> None:
         parameter = inspect.signature(OcrWorker.__init__).parameters[
             "structured_output"
+        ]
+        self.assertIs(False, parameter.default)
+
+    def test_judgment_analysis_defaults_to_false(self) -> None:
+        parameter = inspect.signature(OcrWorker.__init__).parameters[
+            "analyze_judgment_after_conversion"
         ]
         self.assertIs(False, parameter.default)
 
@@ -148,6 +172,49 @@ class StructuredOutputWorkerTest(unittest.TestCase):
             self.assertTrue(
                 any("aggiunti 1 heading strutturali" in item
                     for item in log_messages)
+            )
+
+    def test_judgment_analysis_updates_file_manifest_and_log(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            source_pdf = root / "sentenza.pdf"
+            markdown = root / "sentenza_ocr.md"
+            source_pdf.write_bytes(b"%PDF")
+            markdown.write_text(SYNTHETIC_JUDGMENT_MARKDOWN, encoding="utf-8")
+            worker = OcrWorker(
+                str(source_pdf),
+                str(root),
+                pages_per_block=3,
+                profile=PROFILES["Bilanciato"],
+                analyze_judgment_after_conversion=True,
+            )
+            worker._manifest = {
+                "job": {"status": "running"},
+                "outputs": {"markdown": str(markdown)},
+                "warnings": [],
+                "errors": [],
+            }
+            log_messages: list[str] = []
+            worker._write_log = log_messages.append
+
+            output_path = worker._write_judgment_analysis(markdown)
+
+            self.assertEqual(root / "sentenza_analysis.md", output_path)
+            self.assertTrue(output_path.is_file())
+            self.assertIn("# Scheda sentenza", output_path.read_text("utf-8"))
+            self.assertTrue(worker._manifest["judgment_analysis"]["detected"])
+            self.assertEqual(
+                "sentenza_analysis.md",
+                worker._manifest["judgment_analysis"]["output_file"],
+            )
+            manifest = json.loads((root / "manifest.json").read_text("utf-8"))
+            self.assertIn("judgment_analysis", manifest)
+            self.assertTrue(
+                any("Analisi sentenza per impugnazione" in item
+                    for item in log_messages)
+            )
+            self.assertTrue(
+                any("Scheda sentenza scritta" in item for item in log_messages)
             )
 
     def test_unavailable_source_backend_falls_back_to_original_pdf(self) -> None:

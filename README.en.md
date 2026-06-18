@@ -94,6 +94,9 @@ This creates `sentenza_analysis.md` next to the main Markdown file without
 modifying it. It works locally on the Markdown just generated and does not
 calculate final appeal deadlines.
 
+The same judgment analysis is also available from the GUI through a dedicated
+checkbox.
+
 Judgment analysis from already-generated Markdown:
 
 ```bash

@@ -17,6 +17,7 @@ from gdlex_ocr.docling_runner import (
     DoclingError,
     DoclingRunner,
 )
+from gdlex_ocr.judgments import write_judgment_analysis_for_markdown
 from gdlex_ocr.manifest import (
     build_initial_manifest,
     file_sha256,
@@ -80,6 +81,7 @@ class OcrWorker(QThread):
         use_searchable_as_source: bool = False,
         ocr_timeout_seconds: int = DEFAULT_OCRMYPDF_TIMEOUT_SECONDS,
         ocr_jobs: int | None = None,
+        analyze_judgment_after_conversion: bool = False,
     ) -> None:
         super().__init__(parent)
         self.pdf_path = Path(pdf_path)
@@ -97,6 +99,9 @@ class OcrWorker(QThread):
             ocr_timeout_seconds
         )
         self._ocr_jobs = validate_ocrmypdf_jobs(ocr_jobs)
+        self._analyze_judgment_after_conversion = (
+            analyze_judgment_after_conversion
+        )
         self._ocr_backend: OcrBackend | None = None
         self._prepared_searchable_path: Path | None = None
         self._source_backend_failed = False
@@ -256,6 +261,8 @@ class OcrWorker(QThread):
             )
             if self._profile.structure_markdown:
                 self._post_process_markdown(final_path)
+            if self._analyze_judgment_after_conversion:
+                self._write_judgment_analysis(final_path)
 
             total_seconds = time.monotonic() - total_started
             pages_per_min = (
@@ -510,6 +517,18 @@ class OcrWorker(QThread):
             "Markdown: aggiunti "
             f"{result.headings_added} heading strutturali "
             "con euristiche conservative."
+        )
+
+    def _write_judgment_analysis(self, markdown_path: Path) -> Path:
+        self._write_log(
+            "Analisi sentenza per impugnazione dopo conversione Markdown..."
+        )
+        return write_judgment_analysis_for_markdown(
+            markdown_path,
+            self.output_dir,
+            log_callback=self._write_log,
+            update_manifest=True,
+            manifest=self._manifest,
         )
 
     def _raise_if_cancelled(self) -> None:

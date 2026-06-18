@@ -94,6 +94,7 @@ _SETTINGS_KEYS = {
     "create_searchable": "pdf/createSearchable",
     "use_searchable_as_source": "pdf/useSearchableAsSource",
     "structured_output": "output/structuredJobDirectory",
+    "analyze_judgment_after_conversion": "judgment/analyzeAfterConversion",
     "ocr_language": "ocr/language",
     "ocr_backend": "ocr/backend",
     "ocr_timeout": "ocr/timeoutSeconds",
@@ -464,6 +465,17 @@ class MainWindow(QMainWindow):
             "in una sottocartella dedicata."
         )
         base_layout.addWidget(self.structured_output_checkbox, 1, 1, 1, 2)
+
+        self.judgment_analysis_checkbox = QCheckBox(
+            "Analisi sentenza per impugnazione"
+        )
+        self.judgment_analysis_checkbox.setChecked(False)
+        self.judgment_analysis_checkbox.setToolTip(
+            "Genera una scheda sentenza locale (sentenza_analysis.md) e "
+            "metadati nel manifest. Non calcola termini definitivi di "
+            "impugnazione."
+        )
+        base_layout.addWidget(self.judgment_analysis_checkbox, 2, 0, 1, 3)
         self.pdf_output_tabs.addTab(self.pdf_output_base_tab, "Base")
 
         self.pdf_output_backend_tab = QWidget()
@@ -822,6 +834,12 @@ class MainWindow(QMainWindow):
                     self.structured_output_checkbox.isChecked(),
                 )
             )
+            self.judgment_analysis_checkbox.setChecked(
+                self._settings_bool(
+                    _SETTINGS_KEYS["analyze_judgment_after_conversion"],
+                    self.judgment_analysis_checkbox.isChecked(),
+                )
+            )
             self._set_combo_data(
                 self.ocr_language_combo,
                 self._settings_text(_SETTINGS_KEYS["ocr_language"]),
@@ -858,6 +876,7 @@ class MainWindow(QMainWindow):
             self._save_gui_settings
         )
         self.structured_output_checkbox.toggled.connect(self._save_gui_settings)
+        self.judgment_analysis_checkbox.toggled.connect(self._save_gui_settings)
         self.external_ocr_command_edit.textEdited.connect(self._save_gui_settings)
         self.external_ocr_command_edit.editingFinished.connect(
             self._save_gui_settings
@@ -894,6 +913,10 @@ class MainWindow(QMainWindow):
         self._settings.setValue(
             _SETTINGS_KEYS["structured_output"],
             self.structured_output_checkbox.isChecked(),
+        )
+        self._settings.setValue(
+            _SETTINGS_KEYS["analyze_judgment_after_conversion"],
+            self.judgment_analysis_checkbox.isChecked(),
         )
         self._settings.setValue(
             _SETTINGS_KEYS["ocr_language"],
@@ -1232,6 +1255,9 @@ class MainWindow(QMainWindow):
             ),
             ocr_timeout_seconds=self._ocr_timeout_seconds,
             ocr_jobs=self._ocr_jobs,
+            analyze_judgment_after_conversion=(
+                self.judgment_analysis_checkbox.isChecked()
+            ),
             parent=self,
         )
         self._worker.log_message.connect(self._append_log)
@@ -1398,6 +1424,7 @@ class MainWindow(QMainWindow):
             not running and self.searchable_checkbox.isChecked()
         )
         self.structured_output_checkbox.setEnabled(not running)
+        self.judgment_analysis_checkbox.setEnabled(not running)
         self.start_button.setEnabled(not running)
         self.cancel_button.setEnabled(running)
         if running:

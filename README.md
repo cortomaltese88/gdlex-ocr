@@ -61,6 +61,9 @@ L'opzione **Usa il PDF ricercabile come sorgente Docling** crea prima il PDF
 con il backend selezionato e poi lo usa per la conversione. È pensata
 soprattutto per **Accurato testo**. Il PDF originale non viene modificato.
 
+La stessa analisi sentenza è disponibile anche dalla GUI tramite checkbox
+dedicata.
+
 Tesseract viene rilevato come motore OCR, ma non è usato direttamente come
 backend PDF multipagina: tale integrazione resta affidata a OCRmyPDF.
 

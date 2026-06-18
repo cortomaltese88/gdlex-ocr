@@ -46,6 +46,7 @@ class OutputPathGuiTest(unittest.TestCase):
     def test_pdf_and_output_checkboxes_are_unchecked_by_default(self) -> None:
         searchable = self.window.searchable_checkbox
         structured = self.window.structured_output_checkbox
+        judgment = self.window.judgment_analysis_checkbox
 
         self.assertEqual("Crea PDF ricercabile OCR", searchable.text())
         self.assertFalse(searchable.isChecked())
@@ -55,6 +56,10 @@ class OutputPathGuiTest(unittest.TestCase):
         )
         self.assertFalse(structured.isChecked())
         self.assertIn("sottocartella dedicata", structured.toolTip())
+        self.assertEqual("Analisi sentenza per impugnazione", judgment.text())
+        self.assertFalse(judgment.isChecked())
+        self.assertIn("sentenza_analysis.md", judgment.toolTip())
+        self.assertIn("Non calcola termini definitivi", judgment.toolTip())
 
     def test_pdf_output_group_contains_base_and_backend_tabs(self) -> None:
         group = self.window.pdf_output_group
@@ -78,6 +83,7 @@ class OutputPathGuiTest(unittest.TestCase):
             self.window.ocr_language_combo,
             self.window.use_searchable_as_source_checkbox,
             self.window.structured_output_checkbox,
+            self.window.judgment_analysis_checkbox,
         ):
             self.assertIs(widget.parentWidget(), base_tab)
 
@@ -113,6 +119,7 @@ class OutputPathGuiTest(unittest.TestCase):
             self.window.ocr_language_combo,
             self.window.use_searchable_as_source_checkbox,
             self.window.structured_output_checkbox,
+            self.window.judgment_analysis_checkbox,
         )
         self._assert_widgets_fit_tab(
             self.window.pdf_output_base_tab,
@@ -128,6 +135,9 @@ class OutputPathGuiTest(unittest.TestCase):
                 (
                     self.window.use_searchable_as_source_checkbox,
                     self.window.structured_output_checkbox,
+                ),
+                (
+                    self.window.judgment_analysis_checkbox,
                 ),
             )
         )
@@ -229,6 +239,7 @@ class OutputPathGuiTest(unittest.TestCase):
         self.window._set_running(True)
         self.assertFalse(self.window.searchable_checkbox.isEnabled())
         self.assertFalse(self.window.structured_output_checkbox.isEnabled())
+        self.assertFalse(self.window.judgment_analysis_checkbox.isEnabled())
         self.assertFalse(self.window.ocr_language_combo.isEnabled())
         self.assertFalse(self.window.ocr_backend_combo.isEnabled())
         self.assertFalse(self.window.external_ocr_command_edit.isEnabled())
@@ -236,6 +247,7 @@ class OutputPathGuiTest(unittest.TestCase):
         self.window._set_running(False)
         self.assertTrue(self.window.searchable_checkbox.isEnabled())
         self.assertTrue(self.window.structured_output_checkbox.isEnabled())
+        self.assertTrue(self.window.judgment_analysis_checkbox.isEnabled())
         self.assertTrue(self.window.ocr_language_combo.isEnabled())
         self.assertTrue(self.window.ocr_backend_combo.isEnabled())
 
@@ -395,6 +407,34 @@ class OutputPathGuiTest(unittest.TestCase):
             self.assertTrue(expected_output.is_dir())
             self.assertEqual(str(expected_output), worker_cls.call_args.args[1])
             self.assertFalse(worker_cls.call_args.kwargs["structured_output"])
+            self.assertFalse(
+                worker_cls.call_args.kwargs[
+                    "analyze_judgment_after_conversion"
+                ]
+            )
+            worker.start.assert_called_once_with()
+
+    def test_start_passes_judgment_analysis_to_worker_when_checked(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            pdf_path = Path(tmpdir) / "sentenza.pdf"
+            pdf_path.touch()
+            self.window.pdf_edit.setText(str(pdf_path))
+            self.window.output_edit.setText(str(Path(tmpdir) / "output"))
+            self.window.judgment_analysis_checkbox.setChecked(True)
+            worker = MagicMock()
+            worker.isRunning.return_value = False
+
+            with (
+                patch("gdlex_ocr.gui.count_pdf_pages", return_value=3),
+                patch("gdlex_ocr.gui.OcrWorker", return_value=worker) as worker_cls,
+            ):
+                self.window._start()
+
+            self.assertTrue(
+                worker_cls.call_args.kwargs[
+                    "analyze_judgment_after_conversion"
+                ]
+            )
             worker.start.assert_called_once_with()
 
     def test_accurate_text_profile_enables_searchable_checkbox(self) -> None:

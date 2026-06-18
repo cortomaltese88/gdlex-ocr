@@ -5,10 +5,14 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any, Callable
+
+from gdlex_ocr.manifest import MANIFEST_FILENAME, load_manifest, safe_write_manifest
 
 CONFIDENCE_HIGH = "high"
 CONFIDENCE_MEDIUM = "medium"
 CONFIDENCE_LOW = "low"
+JUDGMENT_ANALYSIS_FILENAME = "sentenza_analysis.md"
 SNIPPET_MAX_LENGTH = 150
 MANIFEST_VALUE_MAX_LENGTH = 120
 MANIFEST_WARNING_MAX_LENGTH = 240
@@ -273,6 +277,80 @@ def prepend_judgment_summary(markdown: str, analysis: JudgmentAnalysis) -> str:
     """Place the judgment card before the original Markdown text."""
     original = markdown.lstrip("\n")
     return f"{format_judgment_summary(analysis)}\n\n---\n\n{original}"
+
+
+def write_judgment_analysis_for_markdown(
+    markdown_path: Path,
+    output_dir: Path | None = None,
+    *,
+    log_callback: Callable[[str], None] | None = print,
+    update_manifest: bool = False,
+    manifest: dict[str, Any] | None = None,
+) -> Path:
+    """Write a separate judgment-analysis card next to a Markdown output."""
+    destination_dir = markdown_path.parent if output_dir is None else output_dir
+    output_path = destination_dir / JUDGMENT_ANALYSIS_FILENAME
+
+    if log_callback is not None:
+        log_callback("Analisi sentenza richiesta.")
+        log_callback(f"Markdown sentenza letto: {markdown_path}")
+
+    markdown = markdown_path.read_text(encoding="utf-8")
+    analysis = extract_judgment_metadata(markdown)
+    summary = format_judgment_summary(analysis)
+
+    destination_dir.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(summary, encoding="utf-8")
+
+    if update_manifest:
+        _update_judgment_analysis_manifest(
+            destination_dir,
+            analysis,
+            output_path,
+            log_callback=log_callback,
+            manifest=manifest,
+        )
+
+    if log_callback is not None:
+        if not analysis.detected:
+            log_callback("Avviso: il testo non sembra una sentenza.")
+        log_callback(f"Scheda sentenza scritta: {output_path}")
+
+    return output_path
+
+
+def _update_judgment_analysis_manifest(
+    output_dir: Path,
+    analysis: JudgmentAnalysis,
+    output_path: Path,
+    *,
+    log_callback: Callable[[str], None] | None = print,
+    manifest: dict[str, Any] | None = None,
+) -> bool:
+    manifest_path = output_dir / MANIFEST_FILENAME
+    if manifest is None:
+        try:
+            manifest = load_manifest(manifest_path)
+        except (OSError, ValueError) as exc:
+            if log_callback is not None:
+                log_callback(f"Avviso: manifest non aggiornato: {exc}")
+            return False
+
+    try:
+        output_file = output_path.relative_to(output_dir)
+    except ValueError:
+        output_file = output_path
+    manifest["judgment_analysis"] = judgment_analysis_to_manifest_dict(
+        analysis,
+        output_file,
+    )
+    written = safe_write_manifest(manifest, output_dir)
+    if log_callback is not None:
+        if written:
+            log_callback(f"Manifest aggiornato: {manifest_path}")
+        else:
+            log_callback("Avviso: manifest non aggiornato per errore di scrittura.")
+    return written
 
 
 def judgment_analysis_to_manifest_dict(
