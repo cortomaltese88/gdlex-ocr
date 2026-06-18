@@ -14,6 +14,7 @@ from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QApplication, QScrollArea, QTabWidget
 
 from gdlex_ocr.gui import CasefileGuiResult, MainWindow, run_casefile_analysis
+from gdlex_ocr.theme import apply_theme
 
 
 class CasefileGuiControlsTest(unittest.TestCase):
@@ -281,6 +282,45 @@ class CasefileGuiControlsTest(unittest.TestCase):
                 QScrollArea,
                 f"Tab {i} ({tabs.tabText(i)}) is not wrapped in QScrollArea",
             )
+
+    # ------------------------------------------------------------------
+    # Tab styling tests
+    # ------------------------------------------------------------------
+
+    def test_main_tabs_object_name(self) -> None:
+        self.assertEqual("mainTabs", self.window.main_tabs.objectName())
+
+    def test_main_tab_labels(self) -> None:
+        tabs = self.window.main_tabs
+        labels = [tabs.tabText(i) for i in range(tabs.count())]
+        self.assertEqual(["OCR documento", "Fascicolo"], labels)
+
+    def test_stylesheet_contains_tab_rules(self) -> None:
+        apply_theme(self.app)
+        sheet = self.app.styleSheet()
+        self.assertIn("QTabBar::tab", sheet)
+        self.assertIn("QTabBar::tab:selected", sheet)
+        self.assertIn("QTabWidget::pane", sheet)
+
+    def test_sub_tabs_exist(self) -> None:
+        tabs = self.window.pdf_output_tabs
+        labels = [tabs.tabText(i) for i in range(tabs.count())]
+        self.assertIn("Base", labels)
+        self.assertIn("Backend OCR", labels)
+
+    def test_key_widgets_still_exist(self) -> None:
+        self.assertIsNotNone(self.window.casefile_tab)
+        self.assertIsNotNone(self.window.ocr_tab)
+        self.assertIsNotNone(self.window.judgment_analysis_checkbox)
+        self.assertIsNotNone(self.window.casefile_start_button)
+        self.assertEqual(
+            "casefileAnalyzeButton",
+            self.window.casefile_start_button.objectName(),
+        )
+        self.assertEqual(
+            "judgmentAnalysisCheckbox",
+            self.window.judgment_analysis_checkbox.objectName(),
+        )
 
 
 class CasefileAnalysisHelperTest(unittest.TestCase):

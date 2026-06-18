@@ -416,6 +416,37 @@ QComboBox QAbstractItemView {{
     selection-background-color: {GREEN_DARK};
 }}
 
+QTabWidget::pane {{
+    border: 1px solid {BORDER};
+    border-radius: 6px;
+    top: -1px;
+}}
+
+QTabBar::tab {{
+    color: {GREEN_MUTED};
+    background: #07150d;
+    border: 1px solid {BORDER};
+    border-bottom-color: {BORDER};
+    padding: 8px 14px;
+    min-height: 24px;
+    margin-right: 2px;
+    border-top-left-radius: 6px;
+    border-top-right-radius: 6px;
+}}
+
+QTabBar::tab:selected {{
+    color: {GREEN_BRIGHT};
+    background: {PANEL};
+    border: 1px solid {GREEN};
+    border-bottom-color: {PANEL};
+    font-weight: 600;
+}}
+
+QTabBar::tab:hover:!selected {{
+    color: #b6ffd0;
+    background: #0d1f14;
+}}
+
 QLabel#aboutTitle {{
     color: {GREEN_BRIGHT};
     font-size: 20pt;
@@ -708,6 +739,37 @@ QToolTip {
     background-color: #ffffff;
     border: 1px solid #287a4d;
     padding: 4px;
+}
+
+QTabWidget::pane {
+    border: 1px solid #b8c8be;
+    border-radius: 6px;
+    top: -1px;
+}
+
+QTabBar::tab {
+    color: #52665a;
+    background: #e7ebe8;
+    border: 1px solid #b8c8be;
+    border-bottom-color: #b8c8be;
+    padding: 8px 14px;
+    min-height: 24px;
+    margin-right: 2px;
+    border-top-left-radius: 6px;
+    border-top-right-radius: 6px;
+}
+
+QTabBar::tab:selected {
+    color: #174d31;
+    background: #ffffff;
+    border: 1px solid #287a4d;
+    border-bottom-color: #ffffff;
+    font-weight: 600;
+}
+
+QTabBar::tab:hover:!selected {
+    color: #26342d;
+    background: #f0f4f1;
 }
 
 QLabel#aboutTitle {
