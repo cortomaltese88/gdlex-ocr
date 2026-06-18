@@ -10,7 +10,8 @@ repeatable. It combines Docling-based PDF conversion, optional OCRmyPDF /
 Tesseract searchable-PDF generation, processing profiles and an audit manifest
 for each job. The 0.2.x line adds a local **Judgments / Appeals** module that
 creates an heuristic judgment card from Markdown or after PDF conversion.
-The 0.3.x line adds local **PDP/TIAP casefile** folder analysis without OCR.
+The 0.3.x line adds local **PDP/TIAP casefile** folder analysis without OCR,
+available from both CLI and GUI.
 
 ## What It Does
 
@@ -20,6 +21,8 @@ The 0.3.x line adds local **PDP/TIAP casefile** folder analysis without OCR.
 - Can create a searchable PDF through a local OCR backend.
 - Writes `manifest.json` and `run.log` next to the generated outputs.
 - Can generate a local `sentenza_analysis.md` judgment card for appeal review.
+- Can analyze a local casefile folder from CLI or GUI, generating
+  `fascicolo_index.json` and `fascicolo_index.md` without OCR.
 - Offers a PySide6 desktop GUI with local diagnostics.
 
 ## Why Local-First
@@ -129,6 +132,12 @@ interpret the casefile. It detects possible duplicates, classifies documents by
 filename, lightly parses TXT/CSV/HTML/XML indexes and attempts index-document
 matching. All processing is local and the JSON/Markdown outputs are
 privacy-safe: they do not include absolute paths or document contents.
+
+The same casefile analysis is also available from the GUI through the
+**Fascicolo** section. Select the casefile folder and the output folder, then
+click **Analizza fascicolo**. The analysis runs in a background thread without
+blocking the interface. It does not run OCR, does not read PDF contents, and
+the casefile folder path is not saved in settings (`QSettings`).
 
 For a repeatable local-first synthetic benchmark, without real documents:
 

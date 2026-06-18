@@ -1,3 +1,18 @@
+gdlex-ocr (0.3.1) unstable; urgency=medium
+
+  * Add minimal GUI for PDP/TIAP casefile analysis.
+  * New Fascicolo section with casefile folder selection, output folder
+    selection, and Analizza fascicolo button.
+  * Casefile analysis is now available from both CLI and GUI.
+  * Background worker (CasefileWorker) to keep the interface responsive.
+  * Generate fascicolo_index.json and fascicolo_index.md from the GUI.
+  * No OCR is performed and PDF contents are not read.
+  * The casefile folder path is not saved in QSettings.
+  * Add dedicated GUI tests for the Fascicolo section.
+  * Expand synthetic offline tests to 429.
+
+ -- Studio GD LEX <cortomaltese88@users.noreply.github.com>  Thu, 18 Jun 2026 20:00:00 +0200
+
 gdlex-ocr (0.3.0) unstable; urgency=medium
 
   * First release of the Fascicoli PDP/TIAP line.

@@ -2,7 +2,7 @@
 
 [English README](README.en.md)
 
-## Versione 0.3.0
+## Versione 0.3.1
 
 GD LEX OCR è un'applicazione desktop locale in Python e PySide6 per
 convertire fascicoli e documenti PDF in Markdown tramite Docling. È pensata
@@ -143,7 +143,7 @@ bash scripts/uninstall-desktop.sh
 
 ## Pacchetto Debian leggero
 
-Il pacchetto `.deb` v0.3.0 installa sorgenti, asset, launcher e documentazione,
+Il pacchetto `.deb` v0.3.1 installa sorgenti, asset, launcher e documentazione,
 ma non incorpora `.venv`, dipendenze Python, modelli OCR o documenti elaborati.
 Per costruirlo:
 
@@ -236,6 +236,13 @@ per filename, individua e interpreta in modo leggero indici TXT/CSV/HTML/XML e
 tenta il matching tra voci di indice e documenti presenti. L'elaborazione e'
 interamente locale e gli output sono privacy-safe: non includono path assoluti
 ne' contenuto documentale.
+
+La stessa analisi fascicolo è disponibile anche dalla GUI tramite la sezione
+**Fascicolo**. Si selezionano la cartella del fascicolo e la cartella di output,
+quindi si avvia l'analisi con il pulsante **Analizza fascicolo**. L'elaborazione
+avviene in background senza bloccare l'interfaccia. Non viene eseguito OCR, non
+viene letto il contenuto dei PDF e il path della cartella fascicolo non viene
+salvato nelle impostazioni (`QSettings`).
 
 Se dopo l'installazione APT parte una vecchia copia di sviluppo, verificare il
 `PATH`: un wrapper `~/.local/bin/gdlex-ocr` può avere precedenza su

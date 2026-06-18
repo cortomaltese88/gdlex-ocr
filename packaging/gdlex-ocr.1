@@ -1,4 +1,4 @@
-.TH GDLEX-OCR 1 "18 June 2026" "GD LEX OCR 0.3.0" "User Commands"
+.TH GDLEX-OCR 1 "18 June 2026" "GD LEX OCR 0.3.1" "User Commands"
 .SH NAME
 gdlex-ocr \- convert PDF documents to Markdown using local OCR
 .SH SYNOPSIS
@@ -80,6 +80,18 @@ controls in the OCR backend settings and a dedicated
 .B "Analisi sentenza per impugnazione"
 checkbox. OCRmyPDF output is streamed to the GUI log and run.log while
 preserving timeout and error handling.
+.PP
+The GUI also provides a
+.B Fascicolo
+section for casefile folder analysis, with folder selection, output folder
+selection and an
+.B "Analizza fascicolo"
+button. The analysis runs in a background thread, does not perform OCR, does
+not read PDF contents, and generates
+.I fascicolo_index.json
+and
+.IR fascicolo_index.md .
+The casefile folder path is not saved in settings.
 .TP
 .B \-\-version
 Print the installed application version without starting the graphical

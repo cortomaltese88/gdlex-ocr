@@ -4,6 +4,24 @@ Tutte le modifiche rilevanti del progetto saranno documentate in questo file.
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-06-18
+
+### Funzionalità
+
+- Aggiunta interfaccia grafica minima per Fascicoli PDP/TIAP.
+- Nuova sezione GUI `Fascicolo` con selezione cartella fascicolo, selezione
+  cartella output e pulsante `Analizza fascicolo`.
+- L'analisi fascicolo è ora disponibile sia da CLI sia da GUI.
+- Worker in background (`CasefileWorker`) per non bloccare l'interfaccia.
+- Generazione di `fascicolo_index.json` e `fascicolo_index.md` dalla GUI.
+- L'analisi non esegue OCR e non legge il contenuto dei PDF.
+- Il path della cartella fascicolo non viene salvato in `QSettings`.
+
+### Test
+
+- Aggiunti test GUI dedicati per la sezione Fascicolo.
+- Suite offline a 429 test sintetici.
+
 ## [0.3.0] - 2026-06-18
 
 ### Funzionalità
