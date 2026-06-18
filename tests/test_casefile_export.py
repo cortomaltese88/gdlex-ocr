@@ -16,12 +16,118 @@ from gdlex_ocr.casefile import (
     ExtractionWarning,
     analyze_case_folder,
 )
-from gdlex_ocr.casefile_export import casefile_analysis_to_dict
+from gdlex_ocr.casefile_export import (
+    casefile_analysis_to_dict,
+    default_casefile_json_path,
+    write_casefile_analysis_json,
+)
 from gdlex_ocr.casefile_index import CaseFileIndexEntry, CaseFileIndexMatch
 from gdlex_ocr.manifest import file_sha256
 
 
 class CaseFileExportTest(unittest.TestCase):
+    def test_write_casefile_analysis_json_writes_file(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            analysis = self._matched_analysis(root)
+            output_path = root / "out" / "fascicolo_index.json"
+
+            returned_path = write_casefile_analysis_json(analysis, output_path)
+            payload = json.loads(output_path.read_text(encoding="utf-8"))
+
+            self.assertEqual(output_path, returned_path)
+            self.assertEqual(
+                {"source_dir", "summary", "documents", "indexes", "warnings"},
+                set(payload),
+            )
+            self.assertEqual(2, payload["summary"]["total_files"])
+
+    def test_write_casefile_analysis_json_creates_parent_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            analysis = self._matched_analysis(root)
+            output_path = root / "missing" / "nested" / "fascicolo_index.json"
+
+            write_casefile_analysis_json(analysis, output_path)
+
+            self.assertTrue(output_path.is_file())
+
+    def test_write_casefile_analysis_json_uses_utf8_no_ascii_escape(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            (root / "atti").mkdir()
+            (root / "indice.html").write_text(
+                '<a href="atti/001_memoria_è.pdf">Memòria difensiva</a>',
+                encoding="utf-8",
+            )
+            (root / "atti" / "001_memoria_è.pdf").write_bytes(
+                b"synthetic pdf"
+            )
+            output_path = root / "fascicolo_index.json"
+
+            write_casefile_analysis_json(analyze_case_folder(root), output_path)
+            serialized = output_path.read_text(encoding="utf-8")
+
+            self.assertIn("001_memoria_è.pdf", serialized)
+            self.assertIn("Memòria difensiva", serialized)
+            self.assertNotIn("\\u00e8", serialized)
+            self.assertNotIn("\\u00f2", serialized)
+
+    def test_write_casefile_analysis_json_rejects_directory_output(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            analysis = self._matched_analysis(root)
+
+            with self.assertRaisesRegex(
+                IsADirectoryError,
+                "cartella",
+            ):
+                write_casefile_analysis_json(analysis, root)
+
+    def test_default_casefile_json_path(self) -> None:
+        self.assertEqual(
+            Path("out") / "fascicolo_index.json",
+            default_casefile_json_path(Path("out")),
+        )
+
+    def test_written_json_does_not_leak_absolute_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            analysis = self._matched_analysis(root)
+            output_path = root / "fascicolo_index.json"
+
+            write_casefile_analysis_json(analysis, output_path)
+            serialized = output_path.read_text(encoding="utf-8")
+
+            self.assertNotIn(str(root), serialized)
+            self.assertNotIn(str(root).replace("/", "\\/"), serialized)
+
+    def test_written_json_contains_index_matches(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            (root / "atti").mkdir()
+            (root / "indice.html").write_text(
+                '<html><body><a href="atti/001_sentenza.pdf">'
+                "Sentenza 001</a></body></html>",
+                encoding="utf-8",
+            )
+            (root / "atti" / "001_sentenza.pdf").write_bytes(
+                b"%PDF-1.4 synthetic"
+            )
+            output_path = root / "fascicolo_index.json"
+
+            write_casefile_analysis_json(analyze_case_folder(root), output_path)
+            payload = json.loads(output_path.read_text(encoding="utf-8"))
+            entry = payload["indexes"][0]["entries"][0]
+            match = entry["matches"][0]
+
+            self.assertEqual("atti/001_sentenza.pdf", entry["referenced_path"])
+            self.assertEqual(
+                "atti/001_sentenza.pdf",
+                match["matched_relative_path"],
+            )
+            self.assertEqual("relative_path_exact", match["strategy"])
+
     def test_casefile_analysis_to_dict_is_json_serializable(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             analysis = self._matched_analysis(Path(temporary_directory))

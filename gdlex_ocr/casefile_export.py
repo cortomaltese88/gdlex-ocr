@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 from enum import Enum
 from pathlib import Path
@@ -24,6 +25,29 @@ _POSIX_ABSOLUTE_TOKEN_RE = re.compile(r"(?<!\S)/(?:[^\s:;,)]+/)*[^\s:;,)]+")
 _WINDOWS_ABSOLUTE_TOKEN_RE = re.compile(
     r"(?<!\S)[a-zA-Z]:[\\/](?:[^\s:;,)]+[\\/])*[^\s:;,)]+"
 )
+
+
+def default_casefile_json_path(output_dir: Path) -> Path:
+    return Path(output_dir) / "fascicolo_index.json"
+
+
+def write_casefile_analysis_json(
+    analysis: CaseFileAnalysis,
+    output_path: Path,
+    *,
+    indent: int = 2,
+) -> Path:
+    path = Path(output_path)
+    if path.is_dir():
+        raise IsADirectoryError(f"Il percorso di output è una cartella: {path}")
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = casefile_analysis_to_dict(analysis)
+    path.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=indent) + "\n",
+        encoding="utf-8",
+    )
+    return output_path
 
 
 def casefile_analysis_to_dict(analysis: CaseFileAnalysis) -> dict[str, object]:
