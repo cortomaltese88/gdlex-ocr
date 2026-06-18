@@ -4,6 +4,30 @@ Tutte le modifiche rilevanti del progetto saranno documentate in questo file.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-06-18
+
+### Funzionalità
+
+- Prima release della linea **Fascicoli PDP/TIAP**.
+- Aggiunta analisi locale fascicolo con CLI
+  `--analyze-casefile INPUT_DIR --output OUTPUT_DIR`.
+- Generazione degli output privacy-safe `fascicolo_index.json` e
+  `fascicolo_index.md`.
+- Scan locale della cartella senza OCR e senza lettura del contenuto dei PDF:
+  l'analisi lavora su nomi file, hash SHA-256 e indici leggeri.
+- Calcolo hash SHA-256 dei documenti e warning per possibili duplicati.
+- Classificazione euristica dei documenti in base al filename.
+- Rilevamento indici fascicolo e parsing leggero TXT, CSV, HTML e XML.
+- Matching euristico indice-documenti con segnalazioni non bloccanti per
+  voci non abbinate o ambigue.
+
+### Correzioni e hardening
+
+- Export JSON e Markdown senza path assoluti e senza contenuto documentale.
+- Hardening audit pre-release su filename vuoto, path traversal e parsing XML
+  tramite `defusedxml`.
+- Ampliata la suite offline a 418 test sintetici.
+
 ## [0.2.0] - 2026-06-18
 
 ### Funzionalità

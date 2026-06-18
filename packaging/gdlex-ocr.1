@@ -1,4 +1,4 @@
-.TH GDLEX-OCR 1 "18 June 2026" "GD LEX OCR 0.2.0" "User Commands"
+.TH GDLEX-OCR 1 "18 June 2026" "GD LEX OCR 0.3.0" "User Commands"
 .SH NAME
 gdlex-ocr \- convert PDF documents to Markdown using local OCR
 .SH SYNOPSIS
@@ -15,6 +15,12 @@ shell execution. Proprietary GUI applications are not automated.
 The Sentenze / Impugnazioni module can create a local heuristic judgment card
 from Markdown or after PDF conversion. It does not upload documents, does not
 calculate final appeal deadlines, and does not replace professional review.
+.PP
+The Fascicoli PDP/TIAP module can analyze a local casefile folder without OCR.
+It works on filenames, SHA-256 hashes, and lightweight TXT/CSV/HTML/XML
+indexes. It does not read PDF contents, does not interpret the casefile
+legally, and writes privacy-safe JSON and Markdown outputs without absolute
+paths.
 .PP
 Python dependencies are not bundled in the Debian package.
 At first launch the wrapper creates the per-user virtual environment
@@ -59,6 +65,15 @@ next to the main Markdown without modifying the main Markdown file. The runtime
 manifest records a privacy-safe
 .I judgment_analysis
 section when available.
+.TP
+.BI \-\-analyze\-casefile " INPUT_DIR"
+Analyze a local casefile folder. Requires
+.B \-\-output
+to point to the output directory. This mode scans files locally, computes
+SHA-256 hashes, warns about possible duplicates, classifies documents from
+filenames, detects and lightly parses TXT/CSV/HTML/XML indexes, and attempts
+index-document matching. It does not run OCR, does not invoke Docling, does
+not read PDF contents, and does not replace legal review.
 .PP
 The graphical application exposes equivalent OCRmyPDF timeout and jobs
 controls in the OCR backend settings and a dedicated
@@ -92,6 +107,12 @@ Pinned Python runtime dependencies.
 .I sentenza_analysis.md
 Default local judgment-analysis output created next to the converted Markdown
 when post-conversion analysis is enabled.
+.TP
+.I fascicolo_index.json
+Default privacy-safe JSON output created by local casefile analysis.
+.TP
+.I fascicolo_index.md
+Default privacy-safe Markdown output created by local casefile analysis.
 .SH EXIT STATUS
 .B gdlex-ocr \-\-doctor
 returns 0 when all checks pass, 1 for missing essential components, and 2

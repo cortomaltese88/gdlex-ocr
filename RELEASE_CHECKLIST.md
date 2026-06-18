@@ -1,12 +1,12 @@
-# Checklist release v0.2.0
+# Checklist release v0.3.0
 
-La release `v0.2.0` è in preparazione. Gli item aperti rimangono promemoria
+La release `v0.3.0` è in preparazione. Gli item aperti rimangono promemoria
 operativi per audit manuale o pubblicazione; non vanno barrati senza una nuova
 verifica effettiva.
 
-## Pre-release v0.2.0
+## Pre-release v0.3.0
 
-- [x] Verificare che `gdlex_ocr/version.py` riporti `0.2.0`.
+- [x] Verificare che `gdlex_ocr/version.py` riporti `0.3.0`.
 - [x] Verificare coerenza tra README, changelog, manpage e comportamento della GUI.
 - [x] Controllare che `requirements.txt` contenga versioni fissate e installabili.
 - [ ] Verificare nuovamente launcher, icone e installazione/rimozione desktop
@@ -37,13 +37,19 @@ git status -sb
 - [x] Documentare che l'analisi post-conversione genera `sentenza_analysis.md`,
   non modifica il Markdown principale e registra `judgment_analysis`
   privacy-safe nel manifest.
+- [x] Documentare che l'analisi fascicolo PDP/TIAP è locale, non esegue OCR,
+  non legge il contenuto dei PDF, lavora su nomi file, hash SHA-256 e indici
+  leggeri, genera `fascicolo_index.json` e `fascicolo_index.md`, è euristica e
+  non interpreta giuridicamente il fascicolo.
+- [x] Documentare che gli output dell'analisi fascicolo sono privacy-safe e
+  non includono path assoluti.
 - [x] Usare solo fixture sintetiche o non sensibili nei test e negli esempi.
 - [x] Non includere PDF originali, output OCR, Markdown generati o `run.log`.
 - [x] Verificare che directory temporanee `.gdlex_ocr_*` non siano incluse.
 - [ ] Controllare manualmente screenshot e metadati delle immagini prima della
   prossima pubblicazione.
 
-## Perimetro test v0.2.0
+## Perimetro test v0.3.0
 
 - [x] Non eseguire OCR reale durante la preparazione della release.
 - [x] Usare esclusivamente smoke test e fixture sintetiche.
@@ -51,8 +57,10 @@ git status -sb
   discovery `unittest`, opzioni OCRmyPDF GUI, profilo **Fascicolo legale**,
   modulo **Sentenze / Impugnazioni**, CLI `--analyze-judgment`, opzione
   `--prepend`, analisi post-conversione PDF, manifest `judgment_analysis`,
-  payload Debian, benchmark sintetico e stress test subprocess tramite la
-  suite offline.
+  modulo **Fascicoli PDP/TIAP**, CLI `--analyze-casefile`, export
+  `fascicolo_index.json`/`fascicolo_index.md`, warning duplicati, matching
+  indice-documenti, payload Debian, benchmark sintetico e stress test
+  subprocess tramite la suite offline.
 
 ## File sensibili e contenuto release
 
@@ -79,7 +87,7 @@ git diff
 ## Packaging
 
 - [x] Applicare la scelta descritta in `PACKAGING.md`.
-- [x] Non incorporare la `.venv` nel pacchetto v0.2.0.
+- [x] Non incorporare la `.venv` nel pacchetto v0.3.0.
 - [ ] Se viene creato un nuovo `.deb`, verificarne contenuto, dipendenze e
   copyright in ambiente pulito.
 - [x] Verificare il `.deb` con `dpkg-deb`, estrazione temporanea e `lintian`.
@@ -91,13 +99,13 @@ git diff
 
 ```bash
 bash scripts/build-deb.sh
-dpkg-deb -f dist/gdlex-ocr_0.2.0_all.deb Package Version Architecture Depends Suggests
-dpkg-deb --contents dist/gdlex-ocr_0.2.0_all.deb | \
-  grep -E 'judgments|folder-matrix|icon-64|gdlex-ocr.desktop|gdlex-ocr.1'
-dpkg-deb --contents dist/gdlex-ocr_0.2.0_all.deb | \
+dpkg-deb -f dist/gdlex-ocr_0.3.0_all.deb Package Version Architecture Depends Suggests
+dpkg-deb --contents dist/gdlex-ocr_0.3.0_all.deb | \
+  grep -E 'casefile|casefile_index|casefile_export|casefile_classify|judgments|folder-matrix|icon-64|gdlex-ocr.desktop|gdlex-ocr.1'
+dpkg-deb --contents dist/gdlex-ocr_0.3.0_all.deb | \
   grep -E '(\.venv|__pycache__|\.git|run\.log|manifest\.json|Downloads|Documenti)' || true
-sha256sum dist/gdlex-ocr_0.2.0_all.deb
-sudo apt install ./dist/gdlex-ocr_0.2.0_all.deb
+sha256sum dist/gdlex-ocr_0.3.0_all.deb
+sudo apt install ./dist/gdlex-ocr_0.3.0_all.deb
 /usr/bin/gdlex-ocr --doctor
 ```
 

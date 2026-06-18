@@ -1,3 +1,19 @@
+gdlex-ocr (0.3.0) unstable; urgency=medium
+
+  * First release of the Fascicoli PDP/TIAP line.
+  * Add local casefile folder analysis through:
+    --analyze-casefile INPUT_DIR --output OUTPUT_DIR.
+  * Generate privacy-safe fascicolo_index.json and fascicolo_index.md outputs.
+  * Scan folders locally without OCR and without reading PDF contents, using
+    filenames, SHA-256 hashes, and lightweight indexes.
+  * Add duplicate warnings, filename-based document classification, lightweight
+    TXT/CSV/HTML/XML index detection and parsing, and index-document matching.
+  * Harden pre-release audit edge cases: empty filenames, path traversal, and
+    XML parsing through defusedxml.
+  * Expand synthetic offline tests to 418.
+
+ -- Studio GD LEX <cortomaltese88@users.noreply.github.com>  Thu, 18 Jun 2026 18:00:00 +0200
+
 gdlex-ocr (0.2.0) unstable; urgency=medium
 
   * First release of the Sentenze / Impugnazioni line.

@@ -10,6 +10,7 @@ repeatable. It combines Docling-based PDF conversion, optional OCRmyPDF /
 Tesseract searchable-PDF generation, processing profiles and an audit manifest
 for each job. The 0.2.x line adds a local **Judgments / Appeals** module that
 creates an heuristic judgment card from Markdown or after PDF conversion.
+The 0.3.x line adds local **PDP/TIAP casefile** folder analysis without OCR.
 
 ## What It Does
 
@@ -122,9 +123,12 @@ gdlex-ocr --analyze-casefile casefile_folder/ --output output/
 
 Scans a casefile folder and generates `fascicolo_index.json` and
 `fascicolo_index.md` in the output directory. The analysis is heuristic and
-works on filenames and lightweight indexes found in the folder. It does not run
-OCR, does not read PDF contents and does not interpret document content. All
-processing is local and privacy-safe.
+works on filenames, SHA-256 hashes and lightweight indexes found in the
+folder. It does not run OCR, does not read PDF contents and does not legally
+interpret the casefile. It detects possible duplicates, classifies documents by
+filename, lightly parses TXT/CSV/HTML/XML indexes and attempts index-document
+matching. All processing is local and the JSON/Markdown outputs are
+privacy-safe: they do not include absolute paths or document contents.
 
 For a repeatable local-first synthetic benchmark, without real documents:
 

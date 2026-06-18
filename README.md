@@ -2,14 +2,14 @@
 
 [English README](README.en.md)
 
-## Versione 0.2.0
+## Versione 0.3.0
 
 GD LEX OCR è un'applicazione desktop locale in Python e PySide6 per
 convertire fascicoli e documenti PDF in Markdown tramite Docling. È pensata
 per workflow legali in cui servono elaborazione locale, output verificabile e
 tracciabilità tecnica del risultato, senza modificare il PDF originale. La
-linea 0.2.x aggiunge il modulo locale **Sentenze / Impugnazioni** per produrre
-una scheda euristica da Markdown o dopo conversione PDF.
+linea 0.3.x aggiunge il modulo locale **Fascicoli PDP/TIAP** per analizzare
+cartelle fascicolo senza OCR e produrre indici privacy-safe.
 
 ## Prerequisiti minimi
 
@@ -143,7 +143,7 @@ bash scripts/uninstall-desktop.sh
 
 ## Pacchetto Debian leggero
 
-Il pacchetto `.deb` v0.2.0 installa sorgenti, asset, launcher e documentazione,
+Il pacchetto `.deb` v0.3.0 installa sorgenti, asset, launcher e documentazione,
 ma non incorpora `.venv`, dipendenze Python, modelli OCR o documenti elaborati.
 Per costruirlo:
 
@@ -229,9 +229,13 @@ gdlex-ocr --analyze-casefile cartella_fascicolo/ --output output/
 
 Analizza una cartella fascicolo e genera `fascicolo_index.json` e
 `fascicolo_index.md` nella directory di output. L'analisi e' euristica e lavora
-sui nomi dei file e sugli indici leggeri trovati nella cartella. Non esegue OCR,
-non legge il contenuto dei PDF e non interpreta il contenuto dei documenti.
-L'elaborazione e' interamente locale e privacy-safe.
+sui nomi dei file, sugli hash SHA-256 e sugli indici leggeri trovati nella
+cartella. Non esegue OCR, non legge il contenuto dei PDF e non interpreta
+giuridicamente il fascicolo. Rileva possibili duplicati, classifica i documenti
+per filename, individua e interpreta in modo leggero indici TXT/CSV/HTML/XML e
+tenta il matching tra voci di indice e documenti presenti. L'elaborazione e'
+interamente locale e gli output sono privacy-safe: non includono path assoluti
+ne' contenuto documentale.
 
 Se dopo l'installazione APT parte una vecchia copia di sviluppo, verificare il
 `PATH`: un wrapper `~/.local/bin/gdlex-ocr` può avere precedenza su
