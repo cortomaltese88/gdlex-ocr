@@ -173,7 +173,11 @@ def normalize_casefile_documents(
     )
     indexes = match_index_entries_to_documents(indexes, documents)
     warnings = ()
-    if sum(1 for index in indexes if index.confidence == "high") > 1:
+    global_high = sum(
+        1 for index in indexes
+        if index.confidence == "high" and not _is_local_unit_index(index)
+    )
+    if global_high > 1:
         warnings = (
             ExtractionWarning(
                 code=MULTIPLE_CASEFILE_INDEXES_WARNING,
@@ -321,6 +325,15 @@ def build_casefile_units(
             return (1, unit.unit_id)
 
     return tuple(sorted(units, key=_sort_key))
+
+
+def _is_local_unit_index(index: CaseFileIndex) -> bool:
+    parts = index.relative_path.split("/")
+    return (
+        len(parts) == 2
+        and _NUMERIC_DIR_RE.match(parts[0]) is not None
+        and parts[1] == ATTACHMENT_INDEX_FILENAME
+    )
 
 
 def _validate_folder(folder: Path) -> Path:

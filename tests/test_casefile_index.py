@@ -483,6 +483,43 @@ class CaseFileIndexTest(unittest.TestCase):
             self.assertNotIn(str(root), match.entry_reference or "")
             self.assertNotIn(str(root), match.matched_relative_path)
 
+    def test_multiple_lista_allegati_in_numeric_dirs_do_not_warn(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            for unit_id in ("711273", "711274"):
+                unit_dir = root / unit_id
+                unit_dir.mkdir()
+                (unit_dir / f"{unit_id}.pdf").write_bytes(b"synthetic pdf")
+                (unit_dir / "ListaAllegati.html").write_text(
+                    f'<a href="{unit_id}.pdf">Documento</a>',
+                    encoding="utf-8",
+                )
+
+            analysis = analyze_case_folder(root)
+
+            self.assertGreater(len(analysis.indexes), 1)
+            self.assertTrue(
+                all(index.confidence == "high" for index in analysis.indexes),
+            )
+            self.assertNotIn(
+                "multiple_casefile_indexes",
+                [warning.code for warning in analysis.warnings],
+            )
+
+    def test_multiple_global_indexes_still_warn(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            (root / "indice.html").write_text("<html></html>", encoding="utf-8")
+            (root / "index.xml").write_text("<index />", encoding="utf-8")
+            (root / "document.pdf").write_bytes(b"synthetic pdf")
+
+            analysis = analyze_case_folder(root)
+
+            self.assertIn(
+                "multiple_casefile_indexes",
+                [warning.code for warning in analysis.warnings],
+            )
+
     def test_existing_duplicate_warning_still_works(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             root = Path(temporary_directory)
