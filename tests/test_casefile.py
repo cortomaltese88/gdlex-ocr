@@ -156,6 +156,29 @@ class CaseFileTest(unittest.TestCase):
             self.assertEqual("filename", document.type_source)
             self.assertEqual(file_sha256(pdf), document.sha256)
 
+    def test_analyze_case_folder_populates_indexes_and_keeps_documents(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            index = root / "indice.html"
+            pdf = root / "sentenza.pdf"
+            index.write_text("<html></html>", encoding="utf-8")
+            pdf.write_bytes(b"synthetic pdf")
+
+            analysis = analyze_case_folder(root)
+
+            self.assertEqual(
+                ["indice.html"],
+                [item.relative_path for item in analysis.indexes],
+            )
+            self.assertEqual(
+                ["indice.html", "sentenza.pdf"],
+                [document.relative_path for document in analysis.documents],
+            )
+            pdf_document = analysis.documents[1]
+            self.assertEqual(DocumentType.SENTENZA, pdf_document.document_type)
+            self.assertEqual("high", pdf_document.type_confidence)
+            self.assertEqual(file_sha256(pdf), pdf_document.sha256)
+
     def test_default_document_type_unknown_for_unrecognized_filename(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             root = Path(temporary_directory)

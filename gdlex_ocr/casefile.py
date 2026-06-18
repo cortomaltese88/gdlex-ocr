@@ -56,6 +56,16 @@ class CaseFileDocument:
 
 
 @dataclass(frozen=True, slots=True)
+class CaseFileIndex:
+    relative_path: str
+    extension: str
+    confidence: str
+    source: str
+    detected_format: str
+    warnings: tuple[ExtractionWarning, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
 class CaseFileAnalysis:
     source_dir: str
     documents: tuple[CaseFileDocument, ...]
@@ -63,6 +73,7 @@ class CaseFileAnalysis:
     total_pdf_files: int
     total_non_pdf_files: int
     warnings: tuple[ExtractionWarning, ...]
+    indexes: tuple[CaseFileIndex, ...] = ()
 
 
 def scan_directory(folder: Path, *, recursive: bool = True) -> tuple[Path, ...]:
@@ -87,6 +98,11 @@ def normalize_casefile_documents(
     compute_hashes: bool = True,
 ) -> CaseFileAnalysis:
     """Build a privacy-safe case-file index from already discovered paths."""
+    from gdlex_ocr.casefile_index import (
+        MULTIPLE_CASEFILE_INDEXES_WARNING,
+        detect_casefile_indexes,
+    )
+
     root = _validate_folder(folder)
     normalized_paths = tuple(
         sorted(
@@ -125,13 +141,24 @@ def normalize_casefile_documents(
             )
         )
 
+    indexes = detect_casefile_indexes(root, normalized_paths)
+    warnings = ()
+    if sum(1 for index in indexes if index.confidence == "high") > 1:
+        warnings = (
+            ExtractionWarning(
+                code=MULTIPLE_CASEFILE_INDEXES_WARNING,
+                message="Trovati più possibili indici fascicolo ad alta confidenza",
+            ),
+        )
+
     analysis = CaseFileAnalysis(
         source_dir=str(root),
         documents=tuple(documents),
         total_files=len(documents),
         total_pdf_files=total_pdf_files,
         total_non_pdf_files=total_non_pdf_files,
-        warnings=(),
+        warnings=warnings,
+        indexes=indexes,
     )
     if not compute_hashes:
         return analysis
