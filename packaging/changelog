@@ -1,3 +1,15 @@
+gdlex-ocr (0.3.3) unstable; urgency=low
+
+  * Improve tab visibility in the dark GUI theme (Matrix and Chiaro).
+  * Make main tabs (OCR documento / Fascicolo) more visible.
+  * Make sub-tabs (Base / Backend OCR) more visible.
+  * Add distinct selected/hover states for QTabBar tabs.
+  * Add QTabWidget::pane and QTabBar::tab stylesheet rules.
+  * No changes to OCR, CLI, casefile analysis, or document parsing.
+  * Add structural/stylesheet GUI tests.
+
+ -- Studio GD LEX <cortomaltese88@users.noreply.github.com>  Thu, 18 Jun 2026 23:00:00 +0200
+
 gdlex-ocr (0.3.2) unstable; urgency=medium
 
   * Recognize PDP/TIAP document units based on numeric directories.

@@ -1,12 +1,12 @@
-# Checklist release v0.3.2
+# Checklist release v0.3.3
 
-La release `v0.3.2` è in preparazione. Gli item aperti rimangono promemoria
+La release `v0.3.3` è in preparazione. Gli item aperti rimangono promemoria
 operativi per audit manuale o pubblicazione; non vanno barrati senza una nuova
 verifica effettiva.
 
-## Pre-release v0.3.2
+## Pre-release v0.3.3
 
-- [x] Verificare che `gdlex_ocr/version.py` riporti `0.3.2`.
+- [x] Verificare che `gdlex_ocr/version.py` riporti `0.3.3`.
 - [x] Verificare coerenza tra README, changelog, manpage e comportamento della GUI.
 - [x] Controllare che `requirements.txt` contenga versioni fissate e installabili.
 - [ ] Verificare nuovamente launcher, icone e installazione/rimozione desktop
@@ -53,7 +53,7 @@ git status -sb
 - [ ] Controllare manualmente screenshot e metadati delle immagini prima della
   prossima pubblicazione.
 
-## Perimetro test v0.3.2
+## Perimetro test v0.3.3
 
 - [x] Non eseguire OCR reale durante la preparazione della release.
 - [x] Usare esclusivamente smoke test e fixture sintetiche.
@@ -68,8 +68,8 @@ git status -sb
   `ListaAllegati.html`, soppressione falso positivo
   `multiple_casefile_indexes`, payload Debian, benchmark sintetico e stress
   test subprocess tramite la suite offline.
-- [x] Test reale su fascicolo ministeriale: 79 unità, 79 indici, 79 match,
-  0 warning.
+- [x] Verificare visibilità tab principali e sub-tab nei temi Matrix e Chiaro.
+- [x] Verificare test strutturali/stylesheet GUI in `tests/test_gui_casefile.py`.
 
 ## File sensibili e contenuto release
 
@@ -96,7 +96,7 @@ git diff
 ## Packaging
 
 - [x] Applicare la scelta descritta in `PACKAGING.md`.
-- [x] Non incorporare la `.venv` nel pacchetto v0.3.1.
+- [x] Non incorporare la `.venv` nel pacchetto v0.3.3.
 - [ ] Se viene creato un nuovo `.deb`, verificarne contenuto, dipendenze e
   copyright in ambiente pulito.
 - [x] Verificare il `.deb` con `dpkg-deb`, estrazione temporanea e `lintian`.
@@ -108,13 +108,13 @@ git diff
 
 ```bash
 bash scripts/build-deb.sh
-dpkg-deb -f dist/gdlex-ocr_0.3.2_all.deb Package Version Architecture Depends Suggests
-dpkg-deb --contents dist/gdlex-ocr_0.3.2_all.deb | \
+dpkg-deb -f dist/gdlex-ocr_0.3.3_all.deb Package Version Architecture Depends Suggests
+dpkg-deb --contents dist/gdlex-ocr_0.3.3_all.deb | \
   grep -E 'casefile|casefile_index|casefile_export|casefile_classify|judgments|folder-matrix|icon-64|gdlex-ocr.desktop|gdlex-ocr.1'
-dpkg-deb --contents dist/gdlex-ocr_0.3.2_all.deb | \
+dpkg-deb --contents dist/gdlex-ocr_0.3.3_all.deb | \
   grep -E '(\.venv|__pycache__|\.git|run\.log|manifest\.json|Downloads|Documenti)' || true
-sha256sum dist/gdlex-ocr_0.3.2_all.deb
-sudo apt install ./dist/gdlex-ocr_0.3.2_all.deb
+sha256sum dist/gdlex-ocr_0.3.3_all.deb
+sudo apt install ./dist/gdlex-ocr_0.3.3_all.deb
 /usr/bin/gdlex-ocr --doctor
 ```
 

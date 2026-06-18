@@ -4,6 +4,22 @@ Tutte le modifiche rilevanti del progetto saranno documentate in questo file.
 
 ## [Unreleased]
 
+## [0.3.3] - 2026-06-18
+
+### Interfaccia
+
+- Migliorata visibilità delle linguette principali della GUI (OCR documento /
+  Fascicolo).
+- Migliorata visibilità dei sub-tab OCR (Base / Backend OCR).
+- Aggiunto stato selezionato/hover più marcato per le linguette nei temi
+  Matrix e Chiaro.
+- Aggiunte regole stylesheet `QTabWidget::pane`, `QTabBar::tab`,
+  `QTabBar::tab:selected`, `QTabBar::tab:hover:!selected`.
+
+### Test
+
+- Aggiunti test strutturali e stylesheet per la GUI.
+
 ## [0.3.2] - 2026-06-18
 
 ### Funzionalità
