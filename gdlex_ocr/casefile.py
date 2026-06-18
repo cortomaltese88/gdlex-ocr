@@ -4,14 +4,17 @@ from __future__ import annotations
 
 import hashlib
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import Enum
 from pathlib import Path
 from typing import Iterable
 
+from gdlex_ocr.manifest import file_sha256
+
 CONFIDENCE_LOW = "low"
 TYPE_SOURCE_NONE = "none"
 PDF_EXTENSION = ".pdf"
+DUPLICATE_FILE_WARNING = "duplicate_file"
 
 _FILE_ORDER_RE = re.compile(r"^(\d{1,6})(?:\D|$)")
 
@@ -81,6 +84,8 @@ def scan_directory(folder: Path, *, recursive: bool = True) -> tuple[Path, ...]:
 def normalize_casefile_documents(
     folder: Path,
     paths: Iterable[Path],
+    *,
+    compute_hashes: bool = True,
 ) -> CaseFileAnalysis:
     """Build a privacy-safe case-file index from already discovered paths."""
     root = _validate_folder(folder)
@@ -118,7 +123,7 @@ def normalize_casefile_documents(
             )
         )
 
-    return CaseFileAnalysis(
+    analysis = CaseFileAnalysis(
         source_dir=str(root),
         documents=tuple(documents),
         total_files=len(documents),
@@ -126,12 +131,74 @@ def normalize_casefile_documents(
         total_non_pdf_files=total_non_pdf_files,
         warnings=(),
     )
+    if not compute_hashes:
+        return analysis
+    return hash_casefile_documents(root, analysis)
 
 
-def analyze_case_folder(folder: Path, *, recursive: bool = True) -> CaseFileAnalysis:
-    """Scan and normalize a local case folder without reading document content."""
+def analyze_case_folder(
+    folder: Path,
+    *,
+    recursive: bool = True,
+    compute_hashes: bool = True,
+) -> CaseFileAnalysis:
+    """Scan and normalize a local case folder, hashing files by default."""
     root = _validate_folder(folder)
-    return normalize_casefile_documents(root, scan_directory(root, recursive=recursive))
+    return normalize_casefile_documents(
+        root,
+        scan_directory(root, recursive=recursive),
+        compute_hashes=compute_hashes,
+    )
+
+
+def hash_casefile_documents(
+    folder: Path,
+    analysis: CaseFileAnalysis,
+) -> CaseFileAnalysis:
+    """Populate SHA-256 metadata and duplicate-file warnings for documents."""
+    root = _validate_folder(folder)
+    documents: list[CaseFileDocument] = []
+    warnings = [
+        warning
+        for warning in analysis.warnings
+        if warning.code != DUPLICATE_FILE_WARNING
+    ]
+    first_path_by_hash: dict[str, str] = {}
+
+    for document in analysis.documents:
+        path = root / document.relative_path
+        digest = file_sha256(path)
+        document_warnings = tuple(
+            warning
+            for warning in document.warnings
+            if warning.code != DUPLICATE_FILE_WARNING
+        )
+        first_path = first_path_by_hash.get(digest)
+        if first_path is None:
+            first_path_by_hash[digest] = document.relative_path
+        else:
+            warning = ExtractionWarning(
+                code=DUPLICATE_FILE_WARNING,
+                message=f"Documento duplicato di {first_path}",
+                path=document.relative_path,
+            )
+            warnings.append(warning)
+            document_warnings = document_warnings + (warning,)
+
+        documents.append(
+            replace(
+                document,
+                sha256=digest,
+                warnings=document_warnings,
+            )
+        )
+
+    return replace(
+        analysis,
+        source_dir=str(root),
+        documents=tuple(documents),
+        warnings=tuple(warnings),
+    )
 
 
 def _validate_folder(folder: Path) -> Path:

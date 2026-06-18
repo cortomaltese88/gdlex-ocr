@@ -12,6 +12,7 @@ from gdlex_ocr.casefile import (
     normalize_casefile_documents,
     scan_directory,
 )
+from gdlex_ocr.manifest import file_sha256
 
 
 class CaseFileTest(unittest.TestCase):
@@ -153,7 +154,99 @@ class CaseFileTest(unittest.TestCase):
             self.assertEqual(DocumentType.SCONOSCIUTO, document.document_type)
             self.assertEqual("low", document.type_confidence)
             self.assertEqual("none", document.type_source)
-            self.assertIsNone(document.sha256)
+            self.assertEqual(file_sha256(pdf), document.sha256)
+
+    def test_document_sha256_matches_manifest_helper(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            pdf = root / "document.pdf"
+            pdf.write_bytes(b"synthetic pdf bytes")
+
+            analysis = analyze_case_folder(root)
+
+            self.assertEqual(file_sha256(pdf), analysis.documents[0].sha256)
+
+    def test_document_sha256_is_deterministic(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            pdf = root / "document.pdf"
+            pdf.write_bytes(b"same bytes")
+
+            first = analyze_case_folder(root)
+            second = analyze_case_folder(root)
+
+            self.assertEqual(
+                [document.sha256 for document in first.documents],
+                [document.sha256 for document in second.documents],
+            )
+
+    def test_duplicate_files_with_same_content_are_warned(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            (root / "001_original.pdf").write_bytes(b"same content")
+            (root / "002_copy.pdf").write_bytes(b"same content")
+
+            analysis = analyze_case_folder(root)
+
+            duplicate_warnings = [
+                warning
+                for warning in analysis.warnings
+                if warning.code == "duplicate_file"
+            ]
+            self.assertEqual(1, len(duplicate_warnings))
+            self.assertEqual("002_copy.pdf", duplicate_warnings[0].path)
+            self.assertIn(
+                duplicate_warnings[0],
+                analysis.documents[1].warnings,
+            )
+
+    def test_different_files_are_not_warned_as_duplicates(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            (root / "001_first.pdf").write_bytes(b"first content")
+            (root / "002_second.pdf").write_bytes(b"second content")
+
+            analysis = analyze_case_folder(root)
+
+            self.assertEqual(
+                [],
+                [
+                    warning
+                    for warning in analysis.warnings
+                    if warning.code == "duplicate_file"
+                ],
+            )
+
+    def test_non_pdf_documents_have_sha256(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            text = root / "notes.txt"
+            text.write_bytes(b"plain text content")
+
+            analysis = analyze_case_folder(root)
+
+            document = analysis.documents[0]
+            self.assertEqual(".txt", document.extension)
+            self.assertEqual(file_sha256(text), document.sha256)
+
+    def test_duplicate_warning_paths_are_relative(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            nested = root / "sub"
+            nested.mkdir()
+            (root / "001_original.pdf").write_bytes(b"same content")
+            (nested / "002_copy.pdf").write_bytes(b"same content")
+
+            analysis = analyze_case_folder(root)
+
+            duplicate_warnings = [
+                warning
+                for warning in analysis.warnings
+                if warning.code == "duplicate_file"
+            ]
+            self.assertEqual(1, len(duplicate_warnings))
+            self.assertEqual("sub/002_copy.pdf", duplicate_warnings[0].path)
+            self.assertNotIn(str(root), duplicate_warnings[0].path or "")
 
 
 if __name__ == "__main__":
