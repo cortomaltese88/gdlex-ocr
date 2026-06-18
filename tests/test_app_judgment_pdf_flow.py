@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+import json
 import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
@@ -74,11 +75,35 @@ class _FakeWorker:
         type(self).run_count += 1
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.log_message.emit("conversione sintetica")
+        manifest_path = self.output_dir / "manifest.json"
         if self.should_fail:
+            manifest_path.write_text(
+                json.dumps(
+                    {
+                        "job": {"status": "failed"},
+                        "outputs": {"manifest": str(manifest_path)},
+                    },
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
             self.failed.emit("conversione fallita")
             return
         markdown_path = self.output_dir / f"{self.pdf_path.stem}_ocr.md"
         markdown_path.write_text(self.markdown_text, encoding="utf-8")
+        manifest_path.write_text(
+            json.dumps(
+                {
+                    "job": {"status": "success"},
+                    "outputs": {
+                        "markdown": str(markdown_path),
+                        "manifest": str(manifest_path),
+                    },
+                },
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
         self.completed.emit(str(markdown_path), str(self.output_dir), "0s", "1.0 pag/min")
 
 
@@ -118,6 +143,33 @@ class AppJudgmentPdfFlowTest(unittest.TestCase):
             self.assertIn("# Scheda sentenza", text)
             self.assertIn("- Autorità giudiziaria: TRIBUNALE DI PADOVA", text)
             self.assertIn("- Dispositivo: condanna", text)
+            manifest = json.loads(
+                (output_dir / "manifest.json").read_text(encoding="utf-8")
+            )
+            judgment = manifest["judgment_analysis"]
+            self.assertTrue(judgment["enabled"])
+            self.assertTrue(judgment["detected"])
+            self.assertEqual(app.JUDGMENT_ANALYSIS_FILENAME, judgment["output_file"])
+            self.assertIn("missing_fields", judgment)
+            self.assertIn("warnings", judgment)
+            for name in (
+                "authority",
+                "composition",
+                "judge",
+                "sentence_number",
+                "proceeding_number",
+                "hearing_or_decision_date",
+                "motivation_type",
+                "motivation_deadline",
+                "deposit_date",
+                "outcome",
+            ):
+                with self.subTest(name=name):
+                    self.assertIn("value", judgment["fields"][name])
+                    self.assertIn("confidence", judgment["fields"][name])
+            serialized = json.dumps(judgment, ensure_ascii=False)
+            self.assertNotIn("Dichiara l'imputato colpevole", serialized)
+            self.assertNotIn("alla pena di mesi sei", serialized)
             self.assertEqual(
                 SYNTHETIC_CONDANNA,
                 (output_dir / "sentenza_ocr.md").read_text(encoding="utf-8"),
@@ -139,6 +191,10 @@ class AppJudgmentPdfFlowTest(unittest.TestCase):
             self.assertEqual(0, status)
             self.assertFalse((output_dir / app.JUDGMENT_ANALYSIS_FILENAME).exists())
             self.assertTrue((output_dir / "sentenza_ocr.md").is_file())
+            manifest = json.loads(
+                (output_dir / "manifest.json").read_text(encoding="utf-8")
+            )
+            self.assertNotIn("judgment_analysis", manifest)
 
     def test_failed_conversion_does_not_try_to_write_analysis(self) -> None:
         _FakeWorker.should_fail = True
@@ -165,6 +221,10 @@ class AppJudgmentPdfFlowTest(unittest.TestCase):
             self.assertNotEqual(0, status)
             self.assertIn("conversione fallita", error.getvalue())
             self.assertFalse((output_dir / app.JUDGMENT_ANALYSIS_FILENAME).exists())
+            manifest = json.loads(
+                (output_dir / "manifest.json").read_text(encoding="utf-8")
+            )
+            self.assertNotIn("judgment_analysis", manifest)
 
     def test_non_judgment_markdown_writes_warning_summary(self) -> None:
         _FakeWorker.markdown_text = NON_SENTENZA
@@ -193,6 +253,13 @@ class AppJudgmentPdfFlowTest(unittest.TestCase):
                 "Testo non riconosciuto come sentenza.",
                 summary.read_text(encoding="utf-8"),
             )
+            manifest = json.loads(
+                (output_dir / "manifest.json").read_text(encoding="utf-8")
+            )
+            judgment = manifest["judgment_analysis"]
+            self.assertTrue(judgment["enabled"])
+            self.assertFalse(judgment["detected"])
+            self.assertEqual(app.JUDGMENT_ANALYSIS_FILENAME, judgment["output_file"])
             self.assertIn("il testo non sembra una sentenza", output.getvalue())
 
     def test_offline_judgment_cli_still_works(self) -> None:

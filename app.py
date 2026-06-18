@@ -15,8 +15,10 @@ from gdlex_ocr.icons import application_icon
 from gdlex_ocr.judgments import (
     extract_judgment_metadata,
     format_judgment_summary,
+    judgment_analysis_to_manifest_dict,
     prepend_judgment_summary,
 )
+from gdlex_ocr.manifest import MANIFEST_FILENAME, load_manifest, safe_write_manifest
 from gdlex_ocr.profiles import DEFAULT_PROFILE, PROFILES
 from gdlex_ocr.searchable_pdf import DEFAULT_OCRMYPDF_TIMEOUT_SECONDS
 from gdlex_ocr.splash import (
@@ -162,6 +164,7 @@ def write_judgment_analysis_for_markdown(
     output_dir: Path | None = None,
     *,
     log_callback: Callable[[str], None] | None = print,
+    update_manifest: bool = False,
 ) -> Path:
     """Write a separate judgment-analysis card next to a Markdown output."""
     destination_dir = markdown_path.parent if output_dir is None else output_dir
@@ -178,12 +181,52 @@ def write_judgment_analysis_for_markdown(
     destination_dir.mkdir(parents=True, exist_ok=True)
     output_path.write_text(summary, encoding="utf-8")
 
+    if update_manifest:
+        _update_judgment_analysis_manifest(
+            destination_dir,
+            analysis,
+            output_path,
+            log_callback=log_callback,
+        )
+
     if log_callback is not None:
         if not analysis.detected:
             log_callback("Avviso: il testo non sembra una sentenza.")
         log_callback(f"Scheda sentenza scritta: {output_path}")
 
     return output_path
+
+
+def _update_judgment_analysis_manifest(
+    output_dir: Path,
+    analysis,
+    output_path: Path,
+    *,
+    log_callback: Callable[[str], None] | None = print,
+) -> bool:
+    manifest_path = output_dir / MANIFEST_FILENAME
+    try:
+        manifest = load_manifest(manifest_path)
+    except (OSError, ValueError) as exc:
+        if log_callback is not None:
+            log_callback(f"Avviso: manifest non aggiornato: {exc}")
+        return False
+
+    try:
+        output_file = output_path.relative_to(output_dir)
+    except ValueError:
+        output_file = output_path
+    manifest["judgment_analysis"] = judgment_analysis_to_manifest_dict(
+        analysis,
+        output_file,
+    )
+    written = safe_write_manifest(manifest, output_dir)
+    if log_callback is not None:
+        if written:
+            log_callback(f"Manifest aggiornato: {manifest_path}")
+        else:
+            log_callback("Avviso: manifest non aggiornato per errore di scrittura.")
+    return written
 
 
 def convert_pdf_to_markdown_cli(
@@ -260,6 +303,7 @@ def convert_pdf_to_markdown_cli(
                 final_path,
                 final_path.parent,
                 log_callback=print,
+                update_manifest=True,
             )
         except (OSError, UnicodeError) as exc:
             print(f"Errore: analisi sentenza non completata: {exc}", file=sys.stderr)

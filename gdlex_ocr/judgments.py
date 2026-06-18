@@ -4,11 +4,15 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from pathlib import Path
 
 CONFIDENCE_HIGH = "high"
 CONFIDENCE_MEDIUM = "medium"
 CONFIDENCE_LOW = "low"
 SNIPPET_MAX_LENGTH = 150
+MANIFEST_VALUE_MAX_LENGTH = 120
+MANIFEST_WARNING_MAX_LENGTH = 240
+MANIFEST_LIST_MAX_ITEMS = 20
 
 _SPACE_RE = re.compile(r"\s+")
 _BLOCK_RE = re.compile(
@@ -118,6 +122,20 @@ class JudgmentAnalysis:
     dispositive_keywords: tuple[str, ...]
     missing_fields: tuple[str, ...]
     warnings: tuple[str, ...]
+
+
+_MANIFEST_FIELD_NAMES = (
+    "authority",
+    "composition",
+    "judge",
+    "sentence_number",
+    "proceeding_number",
+    "hearing_or_decision_date",
+    "motivation_type",
+    "motivation_deadline",
+    "deposit_date",
+    "outcome",
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -255,6 +273,44 @@ def prepend_judgment_summary(markdown: str, analysis: JudgmentAnalysis) -> str:
     """Place the judgment card before the original Markdown text."""
     original = markdown.lstrip("\n")
     return f"{format_judgment_summary(analysis)}\n\n---\n\n{original}"
+
+
+def judgment_analysis_to_manifest_dict(
+    analysis: JudgmentAnalysis,
+    output_path_relative: str | Path,
+) -> dict[str, object]:
+    """Return content-free judgment analysis metadata for manifest.json."""
+    fields = {
+        name: _manifest_field(getattr(analysis, name))
+        for name in _MANIFEST_FIELD_NAMES
+    }
+    return {
+        "enabled": True,
+        "detected": analysis.detected,
+        "output_file": _manifest_path(output_path_relative),
+        "fields": fields,
+        "dispositive_keywords": [
+            keyword for keyword in _dedupe(
+                _manifest_keyword(item)
+                for item in analysis.dispositive_keywords
+                if _manifest_keyword(item) is not None
+            )
+        ][:MANIFEST_LIST_MAX_ITEMS],
+        "missing_fields": [
+            item for item in (
+                _manifest_short_text(value, MANIFEST_VALUE_MAX_LENGTH)
+                for value in analysis.missing_fields
+            )
+            if item is not None
+        ][:MANIFEST_LIST_MAX_ITEMS],
+        "warnings": [
+            item for item in (
+                _manifest_short_text(value, MANIFEST_WARNING_MAX_LENGTH)
+                for value in analysis.warnings
+            )
+            if item is not None
+        ][:MANIFEST_LIST_MAX_ITEMS],
+    }
 
 
 def _split_lines(markdown: str) -> list[_Line]:
@@ -644,3 +700,53 @@ def _field_value(field: ExtractedField | None) -> str:
     if field.confidence == CONFIDENCE_HIGH:
         return field.value
     return f"{field.value} ({field.confidence})"
+
+
+def _manifest_field(field: ExtractedField | None) -> dict[str, str | None]:
+    if field is None:
+        return {
+            "value": None,
+            "confidence": CONFIDENCE_LOW,
+        }
+    return {
+        "value": _manifest_short_text(field.value, MANIFEST_VALUE_MAX_LENGTH),
+        "confidence": field.confidence,
+    }
+
+
+def _manifest_path(path: str | Path) -> str:
+    if isinstance(path, Path):
+        return path.as_posix()
+    return str(path)
+
+
+def _manifest_short_text(value: str, max_length: int) -> str | None:
+    text = _clean_value(value)
+    if not text:
+        return None
+    if len(text) <= max_length:
+        return text
+    return text[:max_length - 3].rstrip() + "..."
+
+
+def _manifest_keyword(value: str) -> str | None:
+    text = _clean_value(value).casefold()
+    if not text:
+        return None
+    if "condann" in text:
+        return "condanna"
+    if "colpevole" in text:
+        return "colpevole"
+    if "assolv" in text:
+        return "assoluzione"
+    if "fatto non sussiste" in text:
+        return "fatto non sussiste"
+    if "non costituisce reato" in text:
+        return "non costituisce reato"
+    if "prosciogl" in text:
+        return "proscioglimento"
+    if "non doversi procedere" in text:
+        return "non doversi procedere"
+    if "estinzione" in text and "reato" in text:
+        return "estinzione reato"
+    return _manifest_short_text(text, 40)

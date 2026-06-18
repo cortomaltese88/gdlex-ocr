@@ -7,6 +7,7 @@ import unittest
 from gdlex_ocr.judgments import (
     extract_judgment_metadata,
     format_judgment_summary,
+    judgment_analysis_to_manifest_dict,
     prepend_judgment_summary,
 )
 
@@ -166,6 +167,61 @@ class JudgmentSummaryTest(unittest.TestCase):
         self.assertTrue(merged.startswith("# Scheda sentenza"))
         self.assertIn("\n---\n\nGIUDICE DI PACE DI VENEZIA", merged)
         self.assertTrue(merged.endswith(GIUDICE_PACE_VENEZIA_ASSOLUZIONE))
+
+
+class JudgmentManifestTest(unittest.TestCase):
+    def test_manifest_dict_contains_privacy_safe_analysis(self) -> None:
+        analysis = extract_judgment_metadata(TRIBUNALE_PADOVA_CONDANNA)
+
+        manifest = judgment_analysis_to_manifest_dict(
+            analysis,
+            "sentenza_analysis.md",
+        )
+
+        self.assertTrue(manifest["enabled"])
+        self.assertTrue(manifest["detected"])
+        self.assertEqual("sentenza_analysis.md", manifest["output_file"])
+        fields = manifest["fields"]
+        for name in (
+            "authority",
+            "composition",
+            "judge",
+            "sentence_number",
+            "proceeding_number",
+            "hearing_or_decision_date",
+            "motivation_type",
+            "motivation_deadline",
+            "deposit_date",
+            "outcome",
+        ):
+            with self.subTest(name=name):
+                self.assertIn("value", fields[name])
+                self.assertIn("confidence", fields[name])
+        self.assertEqual("TRIBUNALE DI PADOVA", fields["authority"]["value"])
+        self.assertEqual("high", fields["authority"]["confidence"])
+        self.assertEqual("condanna", fields["outcome"]["value"])
+        self.assertIn("condanna", manifest["dispositive_keywords"])
+        self.assertIn("colpevole", manifest["dispositive_keywords"])
+        self.assertIn("warnings", manifest)
+        serialized = str(manifest)
+        self.assertNotIn("source", serialized)
+        self.assertNotIn("Dichiara l'imputato colpevole", serialized)
+        self.assertNotIn("alla pena di mesi sei", serialized)
+
+    def test_manifest_dict_for_non_judgment_has_disabled_content_fields(self) -> None:
+        analysis = extract_judgment_metadata(NOT_A_JUDGMENT)
+
+        manifest = judgment_analysis_to_manifest_dict(
+            analysis,
+            "sentenza_analysis.md",
+        )
+
+        self.assertTrue(manifest["enabled"])
+        self.assertFalse(manifest["detected"])
+        self.assertIsNone(manifest["fields"]["authority"]["value"])
+        self.assertEqual("low", manifest["fields"]["authority"]["confidence"])
+        self.assertEqual([], manifest["dispositive_keywords"])
+        self.assertIn("Testo non riconosciuto", " ".join(manifest["warnings"]))
 
 
 if __name__ == "__main__":
