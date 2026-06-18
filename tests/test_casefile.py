@@ -142,7 +142,7 @@ class CaseFileTest(unittest.TestCase):
             )
             self.assertEqual(1, first.documents[0].file_order)
 
-    def test_default_document_type_unknown(self) -> None:
+    def test_analyze_case_folder_assigns_document_type_from_filename(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             root = Path(temporary_directory)
             pdf = root / "sentenza.pdf"
@@ -151,10 +151,39 @@ class CaseFileTest(unittest.TestCase):
             analysis = analyze_case_folder(root)
             document = analysis.documents[0]
 
+            self.assertEqual(DocumentType.SENTENZA, document.document_type)
+            self.assertEqual("high", document.type_confidence)
+            self.assertEqual("filename", document.type_source)
+            self.assertEqual(file_sha256(pdf), document.sha256)
+
+    def test_default_document_type_unknown_for_unrecognized_filename(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            pdf = root / "documento.pdf"
+            pdf.write_bytes(b"x")
+
+            analysis = analyze_case_folder(root)
+            document = analysis.documents[0]
+
             self.assertEqual(DocumentType.SCONOSCIUTO, document.document_type)
             self.assertEqual("low", document.type_confidence)
-            self.assertEqual("none", document.type_source)
+            self.assertEqual("filename", document.type_source)
             self.assertEqual(file_sha256(pdf), document.sha256)
+
+    def test_relative_path_can_drive_document_type(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            folder = root / "memoria"
+            folder.mkdir()
+            pdf = folder / "documento.pdf"
+            pdf.write_bytes(b"x")
+
+            analysis = analyze_case_folder(root)
+            document = analysis.documents[0]
+
+            self.assertEqual(DocumentType.MEMORIA, document.document_type)
+            self.assertEqual("medium", document.type_confidence)
+            self.assertEqual("filename", document.type_source)
 
     def test_document_sha256_matches_manifest_helper(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -198,6 +227,17 @@ class CaseFileTest(unittest.TestCase):
             self.assertIn(
                 duplicate_warnings[0],
                 analysis.documents[1].warnings,
+            )
+            self.assertEqual(
+                [DocumentType.SCONOSCIUTO, DocumentType.SCONOSCIUTO],
+                [document.document_type for document in analysis.documents],
+            )
+            self.assertEqual(
+                [
+                    file_sha256(root / "001_original.pdf"),
+                    file_sha256(root / "002_copy.pdf"),
+                ],
+                [document.sha256 for document in analysis.documents],
             )
 
     def test_different_files_are_not_warned_as_duplicates(self) -> None:

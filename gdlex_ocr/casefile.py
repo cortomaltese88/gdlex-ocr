@@ -9,10 +9,9 @@ from enum import Enum
 from pathlib import Path
 from typing import Iterable
 
+from gdlex_ocr.casefile_classify import classify_by_filename
 from gdlex_ocr.manifest import file_sha256
 
-CONFIDENCE_LOW = "low"
-TYPE_SOURCE_NONE = "none"
 PDF_EXTENSION = ".pdf"
 DUPLICATE_FILE_WARNING = "duplicate_file"
 
@@ -109,6 +108,9 @@ def normalize_casefile_documents(
         else:
             total_non_pdf_files += 1
 
+        document_type, type_confidence, type_source = classify_by_filename(
+            relative_path
+        )
         documents.append(
             CaseFileDocument(
                 id=_document_id(relative_path),
@@ -117,9 +119,9 @@ def normalize_casefile_documents(
                 extension=extension,
                 size_bytes=absolute_path.stat().st_size,
                 file_order=_extract_file_order(absolute_path.name),
-                document_type=DocumentType.SCONOSCIUTO,
-                type_confidence=CONFIDENCE_LOW,
-                type_source=TYPE_SOURCE_NONE,
+                document_type=document_type,
+                type_confidence=type_confidence,
+                type_source=type_source,
             )
         )
 
