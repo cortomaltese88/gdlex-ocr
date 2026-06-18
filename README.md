@@ -221,6 +221,18 @@ La stessa analisi sentenza è disponibile anche dalla GUI tramite la checkbox
 locale, genera `sentenza_analysis.md`, non modifica il Markdown principale e
 non sostituisce la verifica professionale.
 
+Analisi fascicolo locale:
+
+```bash
+gdlex-ocr --analyze-casefile cartella_fascicolo/ --output output/
+```
+
+Analizza una cartella fascicolo e genera `fascicolo_index.json` e
+`fascicolo_index.md` nella directory di output. L'analisi e' euristica e lavora
+sui nomi dei file e sugli indici leggeri trovati nella cartella. Non esegue OCR,
+non legge il contenuto dei PDF e non interpreta il contenuto dei documenti.
+L'elaborazione e' interamente locale e privacy-safe.
+
 Se dopo l'installazione APT parte una vecchia copia di sviluppo, verificare il
 `PATH`: un wrapper `~/.local/bin/gdlex-ocr` può avere precedenza su
 `/usr/bin/gdlex-ocr`. In quel caso usare `/usr/bin/gdlex-ocr --doctor` oppure

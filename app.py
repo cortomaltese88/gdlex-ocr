@@ -9,6 +9,13 @@ from pathlib import Path
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication
 
+from gdlex_ocr.casefile import analyze_case_folder
+from gdlex_ocr.casefile_export import (
+    default_casefile_json_path,
+    default_casefile_markdown_path,
+    write_casefile_analysis_json,
+    write_casefile_analysis_markdown,
+)
 from gdlex_ocr.gui import MainWindow
 from gdlex_ocr.icons import application_icon
 from gdlex_ocr.judgments import (
@@ -58,11 +65,16 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="analizza offline una sentenza da Markdown gia' esistente",
     )
     parser.add_argument(
+        "--analyze-casefile",
+        metavar="CARTELLA",
+        help="analizza una cartella fascicolo e genera indice JSON e Markdown",
+    )
+    parser.add_argument(
         "--output",
         metavar="OUTPUT",
         help=(
-            "file Markdown di output per --analyze-judgment oppure directory "
-            "output per la conversione PDF"
+            "file Markdown di output per --analyze-judgment, directory output "
+            "per --analyze-casefile oppure per la conversione PDF"
         ),
     )
     parser.add_argument(
@@ -101,11 +113,33 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="PDF da convertire in Markdown senza aprire la GUI",
     )
     args = parser.parse_args(argv)
-    if args.analyze_judgment and not (args.version or args.doctor) and not args.output:
+    skip = args.version or args.doctor
+    if args.analyze_casefile and not skip:
+        if not args.output:
+            parser.error("--output e' obbligatorio con --analyze-casefile")
+        if args.input_pdf:
+            parser.error(
+                "--analyze-casefile non puo' essere usato insieme a input_pdf"
+            )
+        if args.analyze_judgment:
+            parser.error(
+                "--analyze-casefile non puo' essere usato insieme a "
+                "--analyze-judgment"
+            )
+        if args.analyze_judgment_after_conversion:
+            parser.error(
+                "--analyze-casefile non puo' essere usato insieme a "
+                "--analyze-judgment-after-conversion"
+            )
+        if args.prepend:
+            parser.error(
+                "--analyze-casefile non puo' essere usato insieme a --prepend"
+            )
+    if args.analyze_judgment and not skip and not args.output:
         parser.error("--output e' obbligatorio con --analyze-judgment")
-    if args.analyze_judgment and args.input_pdf and not (args.version or args.doctor):
+    if args.analyze_judgment and args.input_pdf and not skip:
         parser.error("--analyze-judgment non puo' essere usato insieme a input_pdf")
-    if args.input_pdf and not (args.version or args.doctor) and not args.output:
+    if args.input_pdf and not skip and not args.output:
         parser.error("--output e' obbligatorio con input_pdf")
     return args
 
@@ -152,6 +186,51 @@ def analyze_judgment_markdown(input_name: str, output_name: str, prepend: bool) 
         print(f"Errore: impossibile scrivere l'output Markdown: {exc}", file=sys.stderr)
         return 1
 
+    return 0
+
+
+def analyze_casefile_cli(input_name: str, output_name: str) -> int:
+    input_dir = Path(input_name).expanduser()
+    output_dir = Path(output_name).expanduser()
+
+    if not input_dir.exists():
+        print(f"Errore: cartella non trovata: {input_dir}", file=sys.stderr)
+        return 1
+    if not input_dir.is_dir():
+        print(f"Errore: il percorso non e' una cartella: {input_dir}", file=sys.stderr)
+        return 1
+    if output_dir.exists() and not output_dir.is_dir():
+        print(
+            f"Errore: il percorso di output esiste ed e' un file: {output_dir}",
+            file=sys.stderr,
+        )
+        return 1
+
+    try:
+        output_dir.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        print(f"Errore: impossibile creare la cartella di output: {exc}", file=sys.stderr)
+        return 1
+
+    analysis = analyze_case_folder(input_dir)
+
+    json_path = default_casefile_json_path(output_dir)
+    md_path = default_casefile_markdown_path(output_dir)
+
+    try:
+        write_casefile_analysis_json(analysis, json_path)
+    except OSError as exc:
+        print(f"Errore: impossibile scrivere il JSON: {exc}", file=sys.stderr)
+        return 1
+
+    try:
+        write_casefile_analysis_markdown(analysis, md_path)
+    except OSError as exc:
+        print(f"Errore: impossibile scrivere il Markdown: {exc}", file=sys.stderr)
+        return 1
+
+    print(json_path)
+    print(md_path)
     return 0
 
 
@@ -252,6 +331,9 @@ def main(argv: list[str] | None = None) -> int:
             "  gdlex-ocr --doctor"
         )
         return 0
+
+    if args.analyze_casefile:
+        return analyze_casefile_cli(args.analyze_casefile, args.output)
 
     if args.analyze_judgment:
         return analyze_judgment_markdown(

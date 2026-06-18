@@ -114,6 +114,18 @@ not invoke Docling and does not modify the input. The card is heuristic: it
 does not calculate final appeal deadlines and does not replace professional
 review.
 
+Local casefile analysis:
+
+```bash
+gdlex-ocr --analyze-casefile casefile_folder/ --output output/
+```
+
+Scans a casefile folder and generates `fascicolo_index.json` and
+`fascicolo_index.md` in the output directory. The analysis is heuristic and
+works on filenames and lightweight indexes found in the folder. It does not run
+OCR, does not read PDF contents and does not interpret document content. All
+processing is local and privacy-safe.
+
 For a repeatable local-first synthetic benchmark, without real documents:
 
 ```bash
