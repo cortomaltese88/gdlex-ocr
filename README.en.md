@@ -84,6 +84,18 @@ settings and persists them with `QSettings`, without saving input paths or
 auto-derived output paths. OCRmyPDF stdout and stderr are streamed to the GUI
 log and `run.log` in realtime while keeping timeout and error handling active.
 
+Judgment analysis from already-generated Markdown:
+
+```bash
+gdlex-ocr --analyze-judgment judgment.md --output judgment_analysis.md
+gdlex-ocr --analyze-judgment judgment.md --output judgment_with_card.md --prepend
+```
+
+This mode works offline on an existing Markdown file, does not run OCR, does
+not invoke Docling and does not modify the input. The card is heuristic: it
+does not calculate final appeal deadlines and does not replace professional
+review.
+
 For a repeatable local-first synthetic benchmark, without real documents:
 
 ```bash

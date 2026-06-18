@@ -191,6 +191,17 @@ Durante la creazione di PDF ricercabili con OCRmyPDF, stdout e stderr vengono
 scritti in tempo reale nel log GUI e in `run.log`; timeout configurato e
 gestione degli errori restano attivi.
 
+Analisi sentenza da Markdown gia' generato:
+
+```bash
+gdlex-ocr --analyze-judgment sentenza.md --output sentenza_analysis.md
+gdlex-ocr --analyze-judgment sentenza.md --output sentenza_con_scheda.md --prepend
+```
+
+Questa modalita' lavora offline su un file Markdown esistente, non esegue OCR,
+non invoca Docling e non modifica l'input. La scheda e' euristica: non calcola
+termini definitivi di impugnazione e non sostituisce la verifica professionale.
+
 Se dopo l'installazione APT parte una vecchia copia di sviluppo, verificare il
 `PATH`: un wrapper `~/.local/bin/gdlex-ocr` può avere precedenza su
 `/usr/bin/gdlex-ocr`. In quel caso usare `/usr/bin/gdlex-ocr --doctor` oppure
