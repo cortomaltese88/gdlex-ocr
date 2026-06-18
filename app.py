@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import sys
 from pathlib import Path
+from typing import Callable
 
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication
@@ -16,6 +17,7 @@ from gdlex_ocr.judgments import (
     format_judgment_summary,
     prepend_judgment_summary,
 )
+from gdlex_ocr.profiles import DEFAULT_PROFILE, PROFILES
 from gdlex_ocr.searchable_pdf import DEFAULT_OCRMYPDF_TIMEOUT_SECONDS
 from gdlex_ocr.splash import (
     SPLASH_DURATION_MS,
@@ -24,6 +26,10 @@ from gdlex_ocr.splash import (
 )
 from gdlex_ocr.theme import apply_theme, load_theme_name
 from gdlex_ocr.version import APP_NAME, APP_VERSION
+from gdlex_ocr.worker import OcrWorker
+
+
+JUDGMENT_ANALYSIS_FILENAME = "sentenza_analysis.md"
 
 
 def positive_int(value: str) -> int:
@@ -55,8 +61,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--output",
-        metavar="OUTPUT.md",
-        help="file Markdown di output per --analyze-judgment",
+        metavar="OUTPUT",
+        help=(
+            "file Markdown di output per --analyze-judgment oppure directory "
+            "output per la conversione PDF"
+        ),
     )
     parser.add_argument(
         "--prepend",
@@ -80,9 +89,26 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=None,
         help="numero di job OCRmyPDF (--jobs); default automatico",
     )
+    parser.add_argument(
+        "--analyze-judgment-after-conversion",
+        action="store_true",
+        help=(
+            "dopo la conversione PDF crea sentenza_analysis.md accanto al "
+            "Markdown principale"
+        ),
+    )
+    parser.add_argument(
+        "input_pdf",
+        nargs="?",
+        help="PDF da convertire in Markdown senza aprire la GUI",
+    )
     args = parser.parse_args(argv)
     if args.analyze_judgment and not (args.version or args.doctor) and not args.output:
         parser.error("--output e' obbligatorio con --analyze-judgment")
+    if args.analyze_judgment and args.input_pdf and not (args.version or args.doctor):
+        parser.error("--analyze-judgment non puo' essere usato insieme a input_pdf")
+    if args.input_pdf and not (args.version or args.doctor) and not args.output:
+        parser.error("--output e' obbligatorio con input_pdf")
     return args
 
 
@@ -131,6 +157,117 @@ def analyze_judgment_markdown(input_name: str, output_name: str, prepend: bool) 
     return 0
 
 
+def write_judgment_analysis_for_markdown(
+    markdown_path: Path,
+    output_dir: Path | None = None,
+    *,
+    log_callback: Callable[[str], None] | None = print,
+) -> Path:
+    """Write a separate judgment-analysis card next to a Markdown output."""
+    destination_dir = markdown_path.parent if output_dir is None else output_dir
+    output_path = destination_dir / JUDGMENT_ANALYSIS_FILENAME
+
+    if log_callback is not None:
+        log_callback("Analisi sentenza richiesta.")
+        log_callback(f"Markdown sentenza letto: {markdown_path}")
+
+    markdown = markdown_path.read_text(encoding="utf-8")
+    analysis = extract_judgment_metadata(markdown)
+    summary = format_judgment_summary(analysis)
+
+    destination_dir.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(summary, encoding="utf-8")
+
+    if log_callback is not None:
+        if not analysis.detected:
+            log_callback("Avviso: il testo non sembra una sentenza.")
+        log_callback(f"Scheda sentenza scritta: {output_path}")
+
+    return output_path
+
+
+def convert_pdf_to_markdown_cli(
+    input_pdf: str,
+    output_dir: str,
+    *,
+    analyze_judgment_after_conversion: bool = False,
+    ocr_timeout_seconds: int = DEFAULT_OCRMYPDF_TIMEOUT_SECONDS,
+    ocr_jobs: int | None = None,
+) -> int:
+    """Run the normal PDF-to-Markdown worker without opening the GUI."""
+    pdf_path = Path(input_pdf).expanduser()
+    destination = Path(output_dir).expanduser()
+
+    if not pdf_path.exists():
+        print(f"Errore: input PDF non trovato: {pdf_path}", file=sys.stderr)
+        return 1
+    if not pdf_path.is_file():
+        print(f"Errore: input PDF non e' un file: {pdf_path}", file=sys.stderr)
+        return 1
+
+    profile = PROFILES[DEFAULT_PROFILE]
+    completed: dict[str, str] = {}
+    failed: list[str] = []
+    cancelled: list[str] = []
+
+    def remember_completed(
+        final_path: str,
+        work_dir: str,
+        duration: str,
+        speed: str,
+    ) -> None:
+        completed.update({
+            "final_path": final_path,
+            "work_dir": work_dir,
+            "duration": duration,
+            "speed": speed,
+        })
+
+    worker = OcrWorker(
+        str(pdf_path),
+        str(destination),
+        profile.block_size,
+        profile,
+        create_searchable=profile.create_searchable_pdf,
+        use_searchable_as_source=profile.use_searchable_as_source,
+        ocr_timeout_seconds=ocr_timeout_seconds,
+        ocr_jobs=ocr_jobs,
+    )
+    worker.log_message.connect(print)
+    worker.progress_changed.connect(
+        lambda percent, eta: print(f"Avanzamento {percent}% - ETA {eta}")
+    )
+    worker.completed.connect(remember_completed)
+    worker.failed.connect(failed.append)
+    worker.cancelled.connect(cancelled.append)
+
+    worker.run()
+
+    if cancelled:
+        print(f"Elaborazione annullata: {cancelled[-1]}", file=sys.stderr)
+        return 1
+    if failed or "final_path" not in completed:
+        detail = failed[-1] if failed else "conversione non completata"
+        print(f"Errore: {detail}", file=sys.stderr)
+        return 1
+
+    final_path = Path(completed["final_path"])
+    print(f"Markdown creato: {final_path}")
+
+    if analyze_judgment_after_conversion:
+        try:
+            write_judgment_analysis_for_markdown(
+                final_path,
+                final_path.parent,
+                log_callback=print,
+            )
+        except (OSError, UnicodeError) as exc:
+            print(f"Errore: analisi sentenza non completata: {exc}", file=sys.stderr)
+            return 1
+
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     cli_args = sys.argv[1:] if argv is None else argv
     args = parse_args(cli_args)
@@ -151,6 +288,17 @@ def main(argv: list[str] | None = None) -> int:
             args.analyze_judgment,
             args.output,
             args.prepend,
+        )
+
+    if args.input_pdf:
+        return convert_pdf_to_markdown_cli(
+            args.input_pdf,
+            args.output,
+            analyze_judgment_after_conversion=(
+                args.analyze_judgment_after_conversion
+            ),
+            ocr_timeout_seconds=args.ocr_timeout,
+            ocr_jobs=args.ocr_jobs,
         )
 
     app = QApplication([sys.argv[0], *cli_args])

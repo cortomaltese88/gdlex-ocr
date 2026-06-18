@@ -191,6 +191,16 @@ Durante la creazione di PDF ricercabili con OCRmyPDF, stdout e stderr vengono
 scritti in tempo reale nel log GUI e in `run.log`; timeout configurato e
 gestione degli errori restano attivi.
 
+Analisi sentenza dopo conversione PDF -> Markdown:
+
+```bash
+gdlex-ocr sentenza.pdf --output output/ --analyze-judgment-after-conversion
+```
+
+Questa opzione crea `sentenza_analysis.md` accanto al Markdown principale,
+senza modificarlo. Lavora localmente sul Markdown appena generato e non calcola
+termini definitivi di impugnazione.
+
 Analisi sentenza da Markdown gia' generato:
 
 ```bash

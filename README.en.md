@@ -84,6 +84,16 @@ settings and persists them with `QSettings`, without saving input paths or
 auto-derived output paths. OCRmyPDF stdout and stderr are streamed to the GUI
 log and `run.log` in realtime while keeping timeout and error handling active.
 
+Judgment analysis after PDF-to-Markdown conversion:
+
+```bash
+gdlex-ocr judgment.pdf --output output/ --analyze-judgment-after-conversion
+```
+
+This creates `sentenza_analysis.md` next to the main Markdown file without
+modifying it. It works locally on the Markdown just generated and does not
+calculate final appeal deadlines.
+
 Judgment analysis from already-generated Markdown:
 
 ```bash
