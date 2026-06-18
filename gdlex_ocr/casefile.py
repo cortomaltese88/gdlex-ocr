@@ -7,7 +7,7 @@ import re
 from dataclasses import dataclass, replace
 from enum import Enum
 from pathlib import Path
-from typing import Iterable
+from typing import TYPE_CHECKING, Iterable
 
 from gdlex_ocr.casefile_classify import classify_by_filename
 from gdlex_ocr.manifest import file_sha256
@@ -16,6 +16,9 @@ PDF_EXTENSION = ".pdf"
 DUPLICATE_FILE_WARNING = "duplicate_file"
 
 _FILE_ORDER_RE = re.compile(r"^(\d{1,6})(?:\D|$)")
+
+if TYPE_CHECKING:
+    from gdlex_ocr.casefile_index import CaseFileIndexEntry
 
 
 class DocumentType(Enum):
@@ -63,6 +66,7 @@ class CaseFileIndex:
     source: str
     detected_format: str
     warnings: tuple[ExtractionWarning, ...] = ()
+    entries: tuple["CaseFileIndexEntry", ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -101,6 +105,7 @@ def normalize_casefile_documents(
     from gdlex_ocr.casefile_index import (
         MULTIPLE_CASEFILE_INDEXES_WARNING,
         detect_casefile_indexes,
+        parse_detected_indexes,
     )
 
     root = _validate_folder(folder)
@@ -141,7 +146,10 @@ def normalize_casefile_documents(
             )
         )
 
-    indexes = detect_casefile_indexes(root, normalized_paths)
+    indexes = parse_detected_indexes(
+        root,
+        detect_casefile_indexes(root, normalized_paths),
+    )
     warnings = ()
     if sum(1 for index in indexes if index.confidence == "high") > 1:
         warnings = (

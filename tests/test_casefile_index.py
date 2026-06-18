@@ -1,4 +1,4 @@
-"""Offline tests for filename-only case-file index detection."""
+"""Offline tests for case-file index detection and light parsing."""
 
 from __future__ import annotations
 
@@ -7,7 +7,10 @@ import unittest
 from pathlib import Path
 
 from gdlex_ocr.casefile import analyze_case_folder
-from gdlex_ocr.casefile_index import detect_casefile_indexes
+from gdlex_ocr.casefile_index import (
+    detect_casefile_indexes,
+    parse_casefile_index,
+)
 
 
 class CaseFileIndexTest(unittest.TestCase):
@@ -124,6 +127,182 @@ class CaseFileIndexTest(unittest.TestCase):
 
             self.assertEqual((), analysis.indexes)
             self.assertEqual((), analysis.warnings)
+
+    def test_parse_txt_index_extracts_pdf_entries(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            index = root / "elenco_documenti.txt"
+            index.write_text(
+                "Documento principale 001_sentenza.pdf\n",
+                encoding="utf-8",
+            )
+
+            parsed = parse_casefile_index(
+                root,
+                detect_casefile_indexes(root, (index,))[0],
+            )
+
+            self.assertEqual(1, len(parsed.entries))
+            self.assertEqual("001_sentenza.pdf", parsed.entries[0].referenced_path)
+            self.assertEqual("medium", parsed.entries[0].confidence)
+
+    def test_parse_txt_index_extracts_dates(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            index = root / "elenco_documenti.txt"
+            index.write_text(
+                "18/06/2026 - sentenza.pdf\n",
+                encoding="utf-8",
+            )
+
+            parsed = parse_casefile_index(
+                root,
+                detect_casefile_indexes(root, (index,))[0],
+            )
+
+            self.assertEqual("18/06/2026", parsed.entries[0].document_date)
+
+    def test_parse_csv_index_semicolon(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            index = root / "elenco_documenti.csv"
+            index.write_text(
+                "data;file;tipo\n18/06/2026;atti/001_sentenza.pdf;Sentenza\n",
+                encoding="utf-8",
+            )
+
+            parsed = parse_casefile_index(
+                root,
+                detect_casefile_indexes(root, (index,))[0],
+            )
+
+            self.assertEqual(1, len(parsed.entries))
+            self.assertEqual("atti/001_sentenza.pdf", parsed.entries[0].referenced_path)
+            self.assertEqual("18/06/2026", parsed.entries[0].document_date)
+            self.assertEqual("medium", parsed.entries[0].confidence)
+
+    def test_parse_html_index_extracts_pdf_links(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            index = root / "indice.html"
+            index.write_text(
+                '<a href="atti/001_sentenza.pdf">Sentenza</a>',
+                encoding="utf-8",
+            )
+
+            parsed = parse_casefile_index(
+                root,
+                detect_casefile_indexes(root, (index,))[0],
+            )
+
+            self.assertEqual(1, len(parsed.entries))
+            self.assertEqual("Sentenza", parsed.entries[0].label)
+            self.assertEqual("atti/001_sentenza.pdf", parsed.entries[0].referenced_path)
+            self.assertEqual("high", parsed.entries[0].confidence)
+
+    def test_parse_xml_index_extracts_pdf_attribute(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            index = root / "index.xml"
+            index.write_text(
+                '<index><doc file="atti/001_sentenza.pdf" /></index>',
+                encoding="utf-8",
+            )
+
+            parsed = parse_casefile_index(
+                root,
+                detect_casefile_indexes(root, (index,))[0],
+            )
+
+            self.assertEqual(1, len(parsed.entries))
+            self.assertEqual("atti/001_sentenza.pdf", parsed.entries[0].referenced_path)
+            self.assertEqual("medium", parsed.entries[0].confidence)
+
+    def test_parse_index_too_large_warns(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            index = root / "elenco_documenti.txt"
+            index.write_bytes(b"x" * (2 * 1024 * 1024 + 1))
+
+            parsed = parse_casefile_index(
+                root,
+                detect_casefile_indexes(root, (index,))[0],
+            )
+
+            self.assertEqual((), parsed.entries)
+            self.assertEqual(["index_too_large"], [warning.code for warning in parsed.warnings])
+
+    def test_parse_index_latin1_fallback(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            index = root / "elenco_documenti.txt"
+            index.write_bytes("Sentenza à 001_sentenza.pdf".encode("latin-1"))
+
+            parsed = parse_casefile_index(
+                root,
+                detect_casefile_indexes(root, (index,))[0],
+            )
+
+            self.assertEqual(1, len(parsed.entries))
+            self.assertIn("à", parsed.entries[0].label)
+            self.assertEqual("001_sentenza.pdf", parsed.entries[0].referenced_path)
+
+    def test_parse_index_error_is_non_fatal(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            index = root / "index.xml"
+            index.write_text(
+                '<index><doc file="atti/001_sentenza.pdf"></index>',
+                encoding="utf-8",
+            )
+
+            parsed = parse_casefile_index(
+                root,
+                detect_casefile_indexes(root, (index,))[0],
+            )
+
+            self.assertEqual((), parsed.entries)
+            self.assertEqual(
+                ["index_parse_error"],
+                [warning.code for warning in parsed.warnings],
+            )
+
+    def test_analyze_case_folder_populates_index_entries(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            (root / "atti").mkdir()
+            index = root / "indice.html"
+            pdf = root / "atti" / "001_sentenza.pdf"
+            index.write_text(
+                '<a href="atti/001_sentenza.pdf">Sentenza</a>',
+                encoding="utf-8",
+            )
+            pdf.write_bytes(b"synthetic pdf")
+
+            analysis = analyze_case_folder(root)
+
+            self.assertEqual(1, len(analysis.indexes))
+            self.assertEqual(1, len(analysis.indexes[0].entries))
+            self.assertEqual(
+                "atti/001_sentenza.pdf",
+                analysis.indexes[0].entries[0].referenced_path,
+            )
+
+    def test_index_entry_labels_are_truncated(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            index = root / "elenco_documenti.txt"
+            index.write_text(
+                f"{'Sentenza ' * 40}001_sentenza.pdf\n",
+                encoding="utf-8",
+            )
+
+            parsed = parse_casefile_index(
+                root,
+                detect_casefile_indexes(root, (index,))[0],
+            )
+
+            self.assertLessEqual(len(parsed.entries[0].label), 160)
 
 
 if __name__ == "__main__":
