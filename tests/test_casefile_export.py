@@ -19,7 +19,10 @@ from gdlex_ocr.casefile import (
 from gdlex_ocr.casefile_export import (
     casefile_analysis_to_dict,
     default_casefile_json_path,
+    default_casefile_markdown_path,
+    format_casefile_analysis_markdown,
     write_casefile_analysis_json,
+    write_casefile_analysis_markdown,
 )
 from gdlex_ocr.casefile_index import CaseFileIndexEntry, CaseFileIndexMatch
 from gdlex_ocr.manifest import file_sha256
@@ -293,6 +296,170 @@ class CaseFileExportTest(unittest.TestCase):
 
             self.assertEqual("sconosciuto", document["document_type"])
             json.dumps(payload, ensure_ascii=False)
+
+    # -- Markdown export tests --
+
+    def test_format_casefile_analysis_markdown_contains_summary(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            analysis = self._matched_analysis(Path(temporary_directory))
+
+            markdown = format_casefile_analysis_markdown(analysis)
+
+            self.assertIn("# Indice fascicolo", markdown)
+            self.assertIn("## Riepilogo", markdown)
+            self.assertIn("- File totali: 2", markdown)
+            self.assertIn("- PDF: 1", markdown)
+            self.assertIn("- Non PDF: 1", markdown)
+            self.assertIn("- Indici rilevati: 1", markdown)
+            self.assertIn("- Voci indice: 1", markdown)
+            self.assertIn("- Match indice-documenti: 1", markdown)
+            self.assertIn("- Warning: 0", markdown)
+
+    def test_format_casefile_analysis_markdown_lists_documents(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            analysis = self._matched_analysis(Path(temporary_directory))
+
+            markdown = format_casefile_analysis_markdown(analysis)
+
+            self.assertIn("## Documenti", markdown)
+            self.assertIn("| # | Tipo | Conf. | File | Dimensione | SHA-256 |", markdown)
+            self.assertIn("atti/001_sentenza.pdf", markdown)
+            self.assertIn("indice.html", markdown)
+
+    def test_format_casefile_analysis_markdown_lists_indexes_entries_and_matches(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            analysis = self._matched_analysis(Path(temporary_directory))
+
+            markdown = format_casefile_analysis_markdown(analysis)
+
+            self.assertIn("## Indici rilevati", markdown)
+            self.assertIn("### indice.html", markdown)
+            self.assertIn("- formato: html", markdown)
+            self.assertIn("- confidenza: high", markdown)
+            self.assertIn("- voci: 1", markdown)
+            self.assertIn("| Riga | Etichetta | Riferimento | Match |", markdown)
+            self.assertIn("atti/001_sentenza.pdf", markdown)
+
+    def test_markdown_does_not_leak_absolute_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            analysis = self._matched_analysis(root)
+            absolute_markdown = str(root / "out" / "analysis.md")
+            document = replace(
+                analysis.documents[0],
+                markdown_path=absolute_markdown,
+            )
+            analysis = replace(
+                analysis,
+                documents=(document, *analysis.documents[1:]),
+                warnings=(
+                    ExtractionWarning(
+                        code="synthetic",
+                        message=f"Errore su {absolute_markdown}",
+                        path=absolute_markdown,
+                    ),
+                ),
+            )
+
+            markdown = format_casefile_analysis_markdown(analysis)
+
+            self.assertNotIn(str(root), markdown)
+
+    def test_markdown_truncates_long_labels_and_warnings(self) -> None:
+        long_label = "Sentenza " * 40
+        long_message = "Warning " * 60
+        warning = ExtractionWarning(
+            code="long_warning",
+            message=long_message,
+            path=None,
+        )
+        match = CaseFileIndexMatch(
+            entry_row_number=1,
+            document_id="doc-1",
+            entry_reference="sentenza.pdf",
+            matched_relative_path="sentenza.pdf",
+            confidence="high",
+            strategy="relative_path_exact",
+            warnings=(warning,),
+        )
+        entry = CaseFileIndexEntry(
+            row_number=1,
+            label=long_label,
+            referenced_path="sentenza.pdf",
+            document_date=None,
+            document_type_hint=None,
+            confidence="high",
+            source="test",
+            warnings=(warning,),
+            matches=(match,),
+        )
+        analysis = self._manual_analysis(
+            indexes=(
+                CaseFileIndex(
+                    relative_path="indice.html",
+                    extension=".html",
+                    confidence="high",
+                    source="test",
+                    detected_format="html",
+                    warnings=(warning,),
+                    entries=(entry,),
+                ),
+            ),
+            warnings=(warning,),
+        )
+
+        markdown = format_casefile_analysis_markdown(analysis)
+
+        for line in markdown.splitlines():
+            if "Sentenza" in line and "| 1 |" in line:
+                cells = line.split("|")
+                label_cell = cells[2].strip()
+                self.assertLessEqual(len(label_cell), 160)
+                self.assertTrue(label_cell.endswith("..."))
+            if "long_warning" in line:
+                self.assertLessEqual(len(line), 500)
+
+    def test_write_casefile_analysis_markdown_writes_file(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            analysis = self._matched_analysis(root)
+            output_path = root / "out" / "fascicolo_index.md"
+
+            returned_path = write_casefile_analysis_markdown(analysis, output_path)
+            content = output_path.read_text(encoding="utf-8")
+
+            self.assertEqual(output_path, returned_path)
+            self.assertIn("# Indice fascicolo", content)
+            self.assertIn("## Riepilogo", content)
+
+    def test_write_casefile_analysis_markdown_creates_parent_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            analysis = self._matched_analysis(root)
+            output_path = root / "missing" / "nested" / "fascicolo_index.md"
+
+            write_casefile_analysis_markdown(analysis, output_path)
+
+            self.assertTrue(output_path.is_file())
+
+    def test_write_casefile_analysis_markdown_rejects_directory_output(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            analysis = self._matched_analysis(root)
+
+            with self.assertRaisesRegex(
+                IsADirectoryError,
+                "cartella",
+            ):
+                write_casefile_analysis_markdown(analysis, root)
+
+    def test_default_casefile_markdown_path(self) -> None:
+        self.assertEqual(
+            Path("out") / "fascicolo_index.md",
+            default_casefile_markdown_path(Path("out")),
+        )
 
     def _matched_analysis(self, root: Path) -> CaseFileAnalysis:
         (root / "atti").mkdir()

@@ -1,4 +1,4 @@
-"""Privacy-safe JSON-ready case-file export primitives."""
+"""Privacy-safe JSON and Markdown case-file export primitives."""
 
 from __future__ import annotations
 
@@ -251,3 +251,136 @@ def _truncate(value: str, max_length: int) -> str:
     if len(value) <= max_length:
         return value
     return f"{value[: max_length - 3]}..."
+
+
+# ---------------------------------------------------------------------------
+# Markdown export
+# ---------------------------------------------------------------------------
+
+_SHA256_SHORT_LENGTH = 12
+
+
+def default_casefile_markdown_path(output_dir: Path) -> Path:
+    return Path(output_dir) / "fascicolo_index.md"
+
+
+def format_casefile_analysis_markdown(analysis: CaseFileAnalysis) -> str:
+    payload = casefile_analysis_to_dict(analysis)
+    summary = payload["summary"]
+    lines: list[str] = []
+
+    lines.append("# Indice fascicolo")
+    lines.append("")
+    lines.append(
+        "> Analisi locale euristica."
+        " Non esegue OCR e non interpreta il contenuto dei documenti."
+    )
+    lines.append("")
+
+    # -- Riepilogo --
+    lines.append("## Riepilogo")
+    lines.append("")
+    lines.append(f"- File totali: {summary['total_files']}")
+    lines.append(f"- PDF: {summary['total_pdf_files']}")
+    lines.append(f"- Non PDF: {summary['total_non_pdf_files']}")
+    lines.append(f"- Indici rilevati: {summary['total_indexes']}")
+    lines.append(f"- Voci indice: {summary['total_index_entries']}")
+    lines.append(f"- Match indice-documenti: {summary['total_index_matches']}")
+    lines.append(f"- Warning: {summary['total_warnings']}")
+    lines.append("")
+
+    # -- Documenti --
+    lines.append("## Documenti")
+    lines.append("")
+    documents = payload["documents"]
+    if documents:
+        lines.append("| # | Tipo | Conf. | File | Dimensione | SHA-256 |")
+        lines.append("|---|------|-------|------|------------|---------|")
+        for i, doc in enumerate(documents, 1):
+            doc_type = _md_escape(str(doc["document_type"]))
+            confidence = _md_escape(str(doc["type_confidence"]))
+            rel_path = _md_escape(str(doc["relative_path"]))
+            size = _format_size(doc["size_bytes"])
+            sha_short = (
+                str(doc["sha256"])[:_SHA256_SHORT_LENGTH]
+                if doc["sha256"]
+                else ""
+            )
+            lines.append(
+                f"| {i} | {doc_type} | {confidence}"
+                f" | {rel_path} | {size} | {sha_short} |"
+            )
+    else:
+        lines.append("Nessun documento trovato.")
+    lines.append("")
+
+    # -- Indici rilevati --
+    lines.append("## Indici rilevati")
+    lines.append("")
+    indexes = payload["indexes"]
+    if indexes:
+        for idx in indexes:
+            idx_path = _md_escape(str(idx["relative_path"]))
+            lines.append(f"### {idx_path}")
+            lines.append("")
+            lines.append(f"- formato: {_md_escape(str(idx['detected_format']))}")
+            lines.append(f"- confidenza: {_md_escape(str(idx['confidence']))}")
+            lines.append(f"- voci: {len(idx['entries'])}")
+            lines.append("")
+
+            entries = idx["entries"]
+            if entries:
+                lines.append("| Riga | Etichetta | Riferimento | Match |")
+                lines.append("|------|-----------|-------------|-------|")
+                for entry in entries:
+                    row = entry["row_number"]
+                    label = _md_escape(str(entry["label"]))
+                    ref = _md_escape(str(entry["referenced_path"] or ""))
+                    match_count = len(entry["matches"])
+                    lines.append(f"| {row} | {label} | {ref} | {match_count} |")
+            lines.append("")
+    else:
+        lines.append("Nessun indice rilevato.")
+        lines.append("")
+
+    # -- Warning --
+    lines.append("## Warning")
+    lines.append("")
+    warnings = payload["warnings"]
+    if warnings:
+        for warning in warnings:
+            code = _md_escape(str(warning["code"]))
+            message = _md_escape(str(warning["message"]))
+            lines.append(f"- `{code}`: {message}")
+    else:
+        lines.append("Nessun warning.")
+    lines.append("")
+
+    return "\n".join(lines)
+
+
+def write_casefile_analysis_markdown(
+    analysis: CaseFileAnalysis,
+    output_path: Path,
+) -> Path:
+    path = Path(output_path)
+    if path.is_dir():
+        raise IsADirectoryError(f"Il percorso di output è una cartella: {path}")
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    content = format_casefile_analysis_markdown(analysis)
+    path.write_text(content, encoding="utf-8")
+    return output_path
+
+
+def _md_escape(value: str) -> str:
+    return value.replace("|", "\\|")
+
+
+def _format_size(size_bytes: object) -> str:
+    n = int(size_bytes) if size_bytes is not None else 0
+    if n < 1024:
+        return f"{n} B"
+    if n < 1024 * 1024:
+        return f"{n / 1024:.1f} KB"
+    return f"{n / (1024 * 1024):.1f} MB"
