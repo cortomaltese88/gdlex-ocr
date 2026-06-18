@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import os
+from dataclasses import dataclass
 from pathlib import Path
 
-from PySide6.QtCore import QSettings, QTimer, Qt, QUrl
+from PySide6.QtCore import QSettings, QThread, QTimer, Qt, QUrl, Signal
 from PySide6.QtGui import (
     QAction,
     QActionGroup,
@@ -42,6 +43,14 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from gdlex_ocr.casefile import analyze_case_folder
+from gdlex_ocr.casefile_export import (
+    casefile_analysis_to_dict,
+    default_casefile_json_path,
+    default_casefile_markdown_path,
+    write_casefile_analysis_json,
+    write_casefile_analysis_markdown,
+)
 from gdlex_ocr.icons import tray_icon
 from gdlex_ocr.manifest import (
     format_manifest_verification,
@@ -162,6 +171,56 @@ def resolve_pdf_path(value: str) -> Path:
     return Path(os.path.expanduser(os.path.expandvars(raw_path)))
 
 
+@dataclass(frozen=True, slots=True)
+class CasefileGuiResult:
+    """Summary returned by a casefile analysis run."""
+
+    json_path: Path
+    markdown_path: Path
+    total_files: int
+    total_pdf_files: int
+    total_indexes: int
+    total_warnings: int
+
+
+def run_casefile_analysis(input_dir: Path, output_dir: Path) -> CasefileGuiResult:
+    """Run a full casefile analysis and write JSON + Markdown output."""
+    analysis = analyze_case_folder(input_dir)
+    json_path = default_casefile_json_path(output_dir)
+    md_path = default_casefile_markdown_path(output_dir)
+    write_casefile_analysis_json(analysis, json_path)
+    write_casefile_analysis_markdown(analysis, md_path)
+    payload = casefile_analysis_to_dict(analysis)
+    summary = payload["summary"]
+    return CasefileGuiResult(
+        json_path=json_path,
+        markdown_path=md_path,
+        total_files=summary["total_files"],
+        total_pdf_files=summary["total_pdf_files"],
+        total_indexes=summary["total_indexes"],
+        total_warnings=summary["total_warnings"],
+    )
+
+
+class CasefileWorker(QThread):
+    """Background thread for casefile folder analysis."""
+
+    completed = Signal(object)
+    failed = Signal(str)
+
+    def __init__(self, input_dir: Path, output_dir: Path, parent=None) -> None:
+        super().__init__(parent)
+        self.input_dir = input_dir
+        self.output_dir = output_dir
+
+    def run(self) -> None:
+        try:
+            result = run_casefile_analysis(self.input_dir, self.output_dir)
+            self.completed.emit(result)
+        except Exception as exc:
+            self.failed.emit(str(exc))
+
+
 class AboutDialog(QDialog):
     """Application credits and local-processing information."""
 
@@ -222,6 +281,7 @@ class MainWindow(QMainWindow):
     ) -> None:
         super().__init__()
         self._worker: OcrWorker | None = None
+        self._casefile_worker: CasefileWorker | None = None
         self._settings = settings if settings is not None else self._default_settings()
         self._ocr_timeout_seconds = validate_ocrmypdf_timeout_seconds(
             ocr_timeout_seconds
@@ -547,6 +607,70 @@ class MainWindow(QMainWindow):
             "Backend OCR",
         )
         root_layout.addWidget(self.pdf_output_group)
+
+        # --- Fascicolo ---
+        casefile_group = QGroupBox("Fascicolo")
+        casefile_layout = QGridLayout(casefile_group)
+        casefile_layout.setContentsMargins(18, 14, 18, 14)
+        casefile_layout.setHorizontalSpacing(14)
+        casefile_layout.setVerticalSpacing(12)
+        casefile_layout.setColumnMinimumWidth(0, 150)
+        casefile_layout.setColumnStretch(1, 1)
+        casefile_layout.setRowMinimumHeight(0, 38)
+        casefile_layout.setRowMinimumHeight(1, 38)
+
+        self.casefile_input_edit = QLineEdit()
+        self.casefile_input_edit.setMinimumHeight(36)
+        self.casefile_input_edit.setPlaceholderText(
+            "Cartella del fascicolo da analizzare"
+        )
+        self.casefile_input_button = QPushButton("Sfoglia…")
+        self.casefile_input_button.setMinimumWidth(150)
+        self.casefile_input_button.setMinimumHeight(36)
+        self.casefile_input_button.clicked.connect(self._select_casefile_input)
+        casefile_input_label = QLabel("Cartella fascicolo")
+        casefile_input_label.setAlignment(
+            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+        )
+        casefile_layout.addWidget(casefile_input_label, 0, 0)
+        casefile_layout.addWidget(self.casefile_input_edit, 0, 1)
+        casefile_layout.addWidget(self.casefile_input_button, 0, 2)
+
+        self.casefile_output_edit = QLineEdit()
+        self.casefile_output_edit.setMinimumHeight(36)
+        self.casefile_output_edit.setPlaceholderText(
+            "Cartella di destinazione per i file di indice"
+        )
+        self.casefile_output_button = QPushButton("Sfoglia…")
+        self.casefile_output_button.setMinimumWidth(150)
+        self.casefile_output_button.setMinimumHeight(36)
+        self.casefile_output_button.clicked.connect(
+            self._select_casefile_output
+        )
+        casefile_output_label = QLabel("Cartella output")
+        casefile_output_label.setAlignment(
+            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+        )
+        casefile_layout.addWidget(casefile_output_label, 1, 0)
+        casefile_layout.addWidget(self.casefile_output_edit, 1, 1)
+        casefile_layout.addWidget(self.casefile_output_button, 1, 2)
+
+        casefile_note = QLabel(
+            "Analisi locale euristica: non esegue OCR e non legge il "
+            "contenuto dei PDF. Genera fascicolo_index.json e "
+            "fascicolo_index.md."
+        )
+        casefile_note.setObjectName("sectionHint")
+        casefile_note.setWordWrap(True)
+        casefile_layout.addWidget(casefile_note, 2, 0, 1, 2)
+
+        self.casefile_start_button = QPushButton("Analizza fascicolo")
+        self.casefile_start_button.setMinimumHeight(36)
+        self.casefile_start_button.clicked.connect(
+            self._start_casefile_analysis
+        )
+        casefile_layout.addWidget(self.casefile_start_button, 2, 2)
+        root_layout.addWidget(casefile_group)
 
         # --- Avanzamento ---
         self.progress_group = QGroupBox("Avanzamento")
@@ -1150,6 +1274,129 @@ class MainWindow(QMainWindow):
             self.output_edit.setText(directory)
             self._output_path_customized = True
             self._save_gui_settings()
+
+    # ------------------------------------------------------------------
+    # Casefile analysis
+    # ------------------------------------------------------------------
+
+    def _select_casefile_input(self) -> None:
+        start_dir = self.casefile_input_edit.text().strip() or str(Path.home())
+        dialog = _themed_file_dialog(
+            self,
+            "Seleziona la cartella del fascicolo",
+            start_dir,
+            QFileDialog.FileMode.Directory,
+            options=QFileDialog.Option.ShowDirsOnly,
+        )
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        directory = dialog.selectedFiles()[0] if dialog.selectedFiles() else ""
+        if directory:
+            self.casefile_input_edit.setText(directory)
+
+    def _select_casefile_output(self) -> None:
+        start_dir = self.casefile_output_edit.text().strip() or str(Path.home())
+        dialog = _themed_file_dialog(
+            self,
+            "Seleziona la cartella di output",
+            start_dir,
+            QFileDialog.FileMode.Directory,
+            options=QFileDialog.Option.ShowDirsOnly,
+        )
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        directory = dialog.selectedFiles()[0] if dialog.selectedFiles() else ""
+        if directory:
+            self.casefile_output_edit.setText(directory)
+
+    def _start_casefile_analysis(self) -> None:
+        input_text = self.casefile_input_edit.text().strip()
+        if not input_text:
+            QMessageBox.warning(
+                self,
+                "Dati mancanti",
+                "Selezionare la cartella del fascicolo.",
+            )
+            return
+        input_dir = Path(os.path.expanduser(os.path.expandvars(input_text)))
+        if not input_dir.is_dir():
+            QMessageBox.warning(
+                self,
+                "Cartella non trovata",
+                "La cartella del fascicolo non esiste o non è una cartella.",
+            )
+            return
+
+        output_text = self.casefile_output_edit.text().strip()
+        if not output_text:
+            QMessageBox.warning(
+                self,
+                "Dati mancanti",
+                "Selezionare la cartella di output.",
+            )
+            return
+        output_dir = Path(os.path.expanduser(os.path.expandvars(output_text)))
+        try:
+            output_dir.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            QMessageBox.critical(
+                self,
+                "Cartella non accessibile",
+                f"Impossibile usare la cartella di output:\n{exc}",
+            )
+            return
+
+        self._set_casefile_running(True)
+        self._append_log("Avvio analisi fascicolo…")
+
+        self._casefile_worker = CasefileWorker(
+            input_dir, output_dir, parent=self
+        )
+        self._casefile_worker.completed.connect(self._casefile_completed)
+        self._casefile_worker.failed.connect(self._casefile_failed)
+        self._casefile_worker.finished.connect(self._casefile_worker_finished)
+        self._casefile_worker.start()
+
+    def _casefile_completed(self, result: CasefileGuiResult) -> None:
+        self._append_log(
+            f"Fascicolo: {result.total_files} file, "
+            f"{result.total_pdf_files} PDF, "
+            f"{result.total_indexes} indici, "
+            f"{result.total_warnings} warning"
+        )
+        QMessageBox.information(
+            self,
+            "Analisi fascicolo completata",
+            f"Analisi fascicolo completata.\n\n"
+            f"File totali: {result.total_files}\n"
+            f"PDF: {result.total_pdf_files}\n"
+            f"Indici: {result.total_indexes}\n"
+            f"Warning: {result.total_warnings}\n\n"
+            f"JSON: {result.json_path}\n"
+            f"Markdown: {result.markdown_path}",
+        )
+
+    def _casefile_failed(self, message: str) -> None:
+        self._append_log(f"Errore analisi fascicolo: {message}")
+        QMessageBox.critical(
+            self,
+            "Errore analisi fascicolo",
+            f"Impossibile completare l'analisi:\n{message}",
+        )
+
+    def _casefile_worker_finished(self) -> None:
+        worker = self._casefile_worker
+        self._casefile_worker = None
+        self._set_casefile_running(False)
+        if worker is not None:
+            worker.deleteLater()
+
+    def _set_casefile_running(self, running: bool) -> None:
+        self.casefile_input_edit.setEnabled(not running)
+        self.casefile_input_button.setEnabled(not running)
+        self.casefile_output_edit.setEnabled(not running)
+        self.casefile_output_button.setEnabled(not running)
+        self.casefile_start_button.setEnabled(not running)
 
     # ------------------------------------------------------------------
     # Processing
