@@ -8,7 +8,8 @@ GD LEX OCR is a desktop application for converting legal PDF bundles and
 documents into Markdown while keeping the workflow local, inspectable and
 repeatable. It combines Docling-based PDF conversion, optional OCRmyPDF /
 Tesseract searchable-PDF generation, processing profiles and an audit manifest
-for each job.
+for each job. The 0.2.x line adds a local **Judgments / Appeals** module that
+creates an heuristic judgment card from Markdown or after PDF conversion.
 
 ## What It Does
 
@@ -17,6 +18,7 @@ for each job.
 - Preserves the original PDF as read-only input.
 - Can create a searchable PDF through a local OCR backend.
 - Writes `manifest.json` and `run.log` next to the generated outputs.
+- Can generate a local `sentenza_analysis.md` judgment card for appeal review.
 - Offers a PySide6 desktop GUI with local diagnostics.
 
 ## Why Local-First
@@ -92,10 +94,13 @@ gdlex-ocr judgment.pdf --output output/ --analyze-judgment-after-conversion
 
 This creates `sentenza_analysis.md` next to the main Markdown file without
 modifying it. It works locally on the Markdown just generated and does not
-calculate final appeal deadlines.
+calculate final appeal deadlines. When the job manifest is active, it also
+writes a privacy-safe `judgment_analysis` section with technical metadata and
+detected signals.
 
 The same judgment analysis is also available from the GUI through a dedicated
-checkbox.
+checkbox. It remains local, does not modify the main Markdown, and does not
+replace professional review.
 
 Judgment analysis from already-generated Markdown:
 
@@ -145,6 +150,9 @@ RapidOCR when enabled by the selected profile and upstream configuration.
 Each completed or failed job writes a `manifest.json` with app identity, job
 UUID, timestamps, input path, input SHA-256, page count, selected profile,
 block statistics, OCR backend metadata, output paths, warnings and errors.
+When post-conversion judgment analysis is enabled, the manifest also includes
+`judgment_analysis` metadata for `sentenza_analysis.md` without copying the
+judgment text.
 
 The manifest helps verify which input was processed and which outputs were
 created without committing sensitive files to the repository.

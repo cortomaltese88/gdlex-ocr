@@ -1,13 +1,13 @@
-# Checklist release v0.1.9
+# Checklist release v0.2.0
 
-La release `v0.1.9` è in preparazione. Gli item aperti rimangono promemoria
+La release `v0.2.0` è in preparazione. Gli item aperti rimangono promemoria
 operativi per audit manuale o pubblicazione; non vanno barrati senza una nuova
 verifica effettiva.
 
-## Pre-release v0.1.9
+## Pre-release v0.2.0
 
-- [x] Verificare che `gdlex_ocr/version.py` riporti `0.1.9`.
-- [x] Verificare coerenza tra README, changelog e comportamento della GUI.
+- [x] Verificare che `gdlex_ocr/version.py` riporti `0.2.0`.
+- [x] Verificare coerenza tra README, changelog, manpage e comportamento della GUI.
 - [x] Controllare che `requirements.txt` contenga versioni fissate e installabili.
 - [ ] Verificare nuovamente launcher, icone e installazione/rimozione desktop
   per utente prima della prossima release.
@@ -31,20 +31,28 @@ git status -sb
 
 - [x] Confermare che i documenti siano elaborati localmente e non caricati su servizi cloud.
 - [x] Documentare che Docling può scaricare modelli upstream al primo avvio.
+- [x] Documentare che l'analisi sentenza lavora localmente su Markdown o dopo
+  conversione PDF, non calcola termini definitivi di impugnazione e non
+  sostituisce la verifica professionale.
+- [x] Documentare che l'analisi post-conversione genera `sentenza_analysis.md`,
+  non modifica il Markdown principale e registra `judgment_analysis`
+  privacy-safe nel manifest.
 - [x] Usare solo fixture sintetiche o non sensibili nei test e negli esempi.
 - [x] Non includere PDF originali, output OCR, Markdown generati o `run.log`.
 - [x] Verificare che directory temporanee `.gdlex_ocr_*` non siano incluse.
 - [ ] Controllare manualmente screenshot e metadati delle immagini prima della
   prossima pubblicazione.
 
-## Perimetro test v0.1.9
+## Perimetro test v0.2.0
 
 - [x] Non eseguire OCR reale durante la preparazione della release.
 - [x] Usare esclusivamente smoke test e fixture sintetiche.
 - [x] Verificare identità/versione, integrazione desktop, splash, system tray,
   discovery `unittest`, opzioni OCRmyPDF GUI, profilo **Fascicolo legale**,
-  payload Debian, benchmark sintetico e stress test subprocess tramite la suite
-  offline.
+  modulo **Sentenze / Impugnazioni**, CLI `--analyze-judgment`, opzione
+  `--prepend`, analisi post-conversione PDF, manifest `judgment_analysis`,
+  payload Debian, benchmark sintetico e stress test subprocess tramite la
+  suite offline.
 
 ## File sensibili e contenuto release
 
@@ -71,7 +79,7 @@ git diff
 ## Packaging
 
 - [x] Applicare la scelta descritta in `PACKAGING.md`.
-- [x] Non incorporare la `.venv` nel pacchetto v0.1.9.
+- [x] Non incorporare la `.venv` nel pacchetto v0.2.0.
 - [ ] Se viene creato un nuovo `.deb`, verificarne contenuto, dipendenze e
   copyright in ambiente pulito.
 - [x] Verificare il `.deb` con `dpkg-deb`, estrazione temporanea e `lintian`.
@@ -83,11 +91,13 @@ git diff
 
 ```bash
 bash scripts/build-deb.sh
-dpkg-deb -f dist/gdlex-ocr_0.1.9_all.deb Package Version Architecture Depends Suggests
-dpkg-deb --contents dist/gdlex-ocr_0.1.9_all.deb | \
-  grep -E '(\.venv|__pycache__|\.git|run\.log|manifest\.json|Fascicolo|Downloads|Documenti)' || true
-sha256sum dist/gdlex-ocr_0.1.9_all.deb
-sudo apt install ./dist/gdlex-ocr_0.1.9_all.deb
+dpkg-deb -f dist/gdlex-ocr_0.2.0_all.deb Package Version Architecture Depends Suggests
+dpkg-deb --contents dist/gdlex-ocr_0.2.0_all.deb | \
+  grep -E 'judgments|folder-matrix|icon-64|gdlex-ocr.desktop|gdlex-ocr.1'
+dpkg-deb --contents dist/gdlex-ocr_0.2.0_all.deb | \
+  grep -E '(\.venv|__pycache__|\.git|run\.log|manifest\.json|Downloads|Documenti)' || true
+sha256sum dist/gdlex-ocr_0.2.0_all.deb
+sudo apt install ./dist/gdlex-ocr_0.2.0_all.deb
 /usr/bin/gdlex-ocr --doctor
 ```
 

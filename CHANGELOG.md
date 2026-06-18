@@ -4,6 +4,33 @@ Tutte le modifiche rilevanti del progetto saranno documentate in questo file.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-06-18
+
+### Funzionalità
+
+- Prima release della linea **Sentenze / Impugnazioni**.
+- Aggiunto parser offline per sentenze da Markdown, con estrazione euristica
+  privacy-safe di autorità, parti, imputazioni, dispositivo, termini e alert
+  utili alla verifica dell'impugnazione.
+- Aggiunta CLI `--analyze-judgment INPUT.md --output OUTPUT` per generare una
+  scheda locale da Markdown già prodotto, senza OCR e senza Docling.
+- Aggiunta opzione `--prepend` per anteporre la scheda al Markdown di output
+  mantenendo invariato il file di input.
+- Aggiunta integrazione post-conversione PDF
+  `--analyze-judgment-after-conversion`, che crea `sentenza_analysis.md`
+  accanto al Markdown principale senza modificarlo.
+- Esteso il manifest runtime con la sezione `judgment_analysis`, limitata a
+  metadati tecnici e segnali privacy-safe.
+- Aggiunta checkbox GUI **Analisi sentenza per impugnazione** per usare la
+  stessa analisi locale dopo la conversione PDF.
+
+### Correzioni e hardening
+
+- Rafforzato il parser sentenze su autorità giudiziaria, prescrizione,
+  patteggiamento, formule assolutorie e termini espressi in lettere.
+- Ampliati i test sintetici offline per CLI, flusso PDF, GUI, manifest e casi
+  limite del parser. La suite corrente copre 331 test.
+
 ## [0.1.9] - 2026-06-17
 
 ### Correzioni e hardening

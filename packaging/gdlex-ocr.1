@@ -1,4 +1,4 @@
-.TH GDLEX-OCR 1 "17 June 2026" "GD LEX OCR 0.1.9" "User Commands"
+.TH GDLEX-OCR 1 "18 June 2026" "GD LEX OCR 0.2.0" "User Commands"
 .SH NAME
 gdlex-ocr \- convert PDF documents to Markdown using local OCR
 .SH SYNOPSIS
@@ -11,6 +11,10 @@ The application processes PDF documents locally with Docling and can
 optionally create searchable PDFs using OCRmyPDF and Tesseract.
 An explicitly configured local external command may also be used without
 shell execution. Proprietary GUI applications are not automated.
+.PP
+The Sentenze / Impugnazioni module can create a local heuristic judgment card
+from Markdown or after PDF conversion. It does not upload documents, does not
+calculate final appeal deadlines, and does not replace professional review.
 .PP
 Python dependencies are not bundled in the Debian package.
 At first launch the wrapper creates the per-user virtual environment
@@ -36,10 +40,31 @@ Set the maximum OCRmyPDF timeout. The default is 1800 seconds.
 .BI \-\-ocr\-jobs " N"
 Pass the number of parallel jobs to OCRmyPDF. When omitted, OCRmyPDF keeps
 its default behavior.
+.TP
+.BI \-\-analyze\-judgment " INPUT.md"
+Analyze an already generated Markdown judgment locally. Requires
+.B \-\-output
+to point to the Markdown analysis file to write. This mode does not run OCR,
+does not invoke Docling, and does not modify the input file.
+.TP
+.B \-\-prepend
+With
+.B \-\-analyze\-judgment ,
+write the judgment card before the source Markdown in the output file.
+.TP
+.B \-\-analyze\-judgment\-after\-conversion
+After PDF-to-Markdown conversion, write
+.I sentenza_analysis.md
+next to the main Markdown without modifying the main Markdown file. The runtime
+manifest records a privacy-safe
+.I judgment_analysis
+section when available.
 .PP
 The graphical application exposes equivalent OCRmyPDF timeout and jobs
-controls in the OCR backend settings. OCRmyPDF output is streamed to the GUI
-log and run.log while preserving timeout and error handling.
+controls in the OCR backend settings and a dedicated
+.B "Analisi sentenza per impugnazione"
+checkbox. OCRmyPDF output is streamed to the GUI log and run.log while
+preserving timeout and error handling.
 .TP
 .B \-\-version
 Print the installed application version without starting the graphical
@@ -63,6 +88,10 @@ Installed application sources and assets.
 .TP
 .I /usr/share/doc/gdlex-ocr/requirements.txt
 Pinned Python runtime dependencies.
+.TP
+.I sentenza_analysis.md
+Default local judgment-analysis output created next to the converted Markdown
+when post-conversion analysis is enabled.
 .SH EXIT STATUS
 .B gdlex-ocr \-\-doctor
 returns 0 when all checks pass, 1 for missing essential components, and 2

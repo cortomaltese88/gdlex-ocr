@@ -1,3 +1,22 @@
+gdlex-ocr (0.2.0) unstable; urgency=medium
+
+  * First release of the Sentenze / Impugnazioni line.
+  * Add offline Markdown judgment parser and CLI:
+    --analyze-judgment INPUT.md --output OUTPUT.
+  * Add --prepend to write the judgment card before the Markdown output while
+    preserving the input file.
+  * Add post-conversion PDF integration through
+    --analyze-judgment-after-conversion, writing sentenza_analysis.md next to
+    the main Markdown without modifying it.
+  * Record privacy-safe judgment_analysis metadata in manifest.json.
+  * Add the GUI checkbox "Analisi sentenza per impugnazione".
+  * Harden judgment parsing for court authority, limitation periods, plea
+    bargaining, acquittal formulas, and deadlines written in words.
+  * Expand synthetic offline tests for CLI, PDF flow, GUI, manifest, and parser
+    edge cases.
+
+ -- Studio GD LEX <cortomaltese88@users.noreply.github.com>  Thu, 18 Jun 2026 12:00:00 +0200
+
 gdlex-ocr (0.1.9) unstable; urgency=low
 
   * Fix system tray icon initialization to prevent double-registration on KDE.

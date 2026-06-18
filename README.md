@@ -2,12 +2,14 @@
 
 [English README](README.en.md)
 
-## Versione 0.1.9
+## Versione 0.2.0
 
 GD LEX OCR è un'applicazione desktop locale in Python e PySide6 per
 convertire fascicoli e documenti PDF in Markdown tramite Docling. È pensata
 per workflow legali in cui servono elaborazione locale, output verificabile e
-tracciabilità tecnica del risultato, senza modificare il PDF originale.
+tracciabilità tecnica del risultato, senza modificare il PDF originale. La
+linea 0.2.x aggiunge il modulo locale **Sentenze / Impugnazioni** per produrre
+una scheda euristica da Markdown o dopo conversione PDF.
 
 ## Prerequisiti minimi
 
@@ -60,9 +62,6 @@ dal PDF originale con un warning chiaro.
 L'opzione **Usa il PDF ricercabile come sorgente Docling** crea prima il PDF
 con il backend selezionato e poi lo usa per la conversione. È pensata
 soprattutto per **Accurato testo**. Il PDF originale non viene modificato.
-
-La stessa analisi sentenza è disponibile anche dalla GUI tramite checkbox
-dedicata.
 
 Tesseract viene rilevato come motore OCR, ma non è usato direttamente come
 backend PDF multipagina: tale integrazione resta affidata a OCRmyPDF.
@@ -144,7 +143,7 @@ bash scripts/uninstall-desktop.sh
 
 ## Pacchetto Debian leggero
 
-Il pacchetto `.deb` v0.1.9 installa sorgenti, asset, launcher e documentazione,
+Il pacchetto `.deb` v0.2.0 installa sorgenti, asset, launcher e documentazione,
 ma non incorpora `.venv`, dipendenze Python, modelli OCR o documenti elaborati.
 Per costruirlo:
 
@@ -202,7 +201,9 @@ gdlex-ocr sentenza.pdf --output output/ --analyze-judgment-after-conversion
 
 Questa opzione crea `sentenza_analysis.md` accanto al Markdown principale,
 senza modificarlo. Lavora localmente sul Markdown appena generato e non calcola
-termini definitivi di impugnazione.
+termini definitivi di impugnazione. Quando è attivo il manifest del job,
+aggiunge anche la sezione `judgment_analysis` con soli metadati tecnici e
+segnali privacy-safe.
 
 Analisi sentenza da Markdown gia' generato:
 
@@ -214,6 +215,11 @@ gdlex-ocr --analyze-judgment sentenza.md --output sentenza_con_scheda.md --prepe
 Questa modalita' lavora offline su un file Markdown esistente, non esegue OCR,
 non invoca Docling e non modifica l'input. La scheda e' euristica: non calcola
 termini definitivi di impugnazione e non sostituisce la verifica professionale.
+
+La stessa analisi sentenza è disponibile anche dalla GUI tramite la checkbox
+**Analisi sentenza per impugnazione**. Anche in questo caso l'elaborazione resta
+locale, genera `sentenza_analysis.md`, non modifica il Markdown principale e
+non sostituisce la verifica professionale.
 
 Se dopo l'installazione APT parte una vecchia copia di sviluppo, verificare il
 `PATH`: un wrapper `~/.local/bin/gdlex-ocr` può avere precedenza su
@@ -252,6 +258,9 @@ di avvio e fine, stato (`success`, `failed`, `cancelled`), dati dell'input
 (path, dimensione, SHA-256, numero pagine), profilo usato, statistiche blocchi,
 metadati del backend OCR, struttura Markdown applicata, motivazione della
 strategia segnalibri, percorsi di tutti gli output prodotti, warning ed errori.
+Quando viene richiesta l'analisi sentenza post-conversione, include anche
+`judgment_analysis` con output `sentenza_analysis.md`, stato dell'analisi e
+segnali tecnici privacy-safe, senza copiare il testo della sentenza.
 
 La GUI consente di aprire direttamente `manifest.json` e `run.log`. Il pulsante
 **Verifica output** controlla che i file dichiarati esistano e siano file
