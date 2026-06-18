@@ -240,6 +240,32 @@ class CaseFileIndexTest(unittest.TestCase):
             self.assertEqual("atti/001_sentenza.pdf", parsed.entries[0].referenced_path)
             self.assertEqual("high", parsed.entries[0].confidence)
 
+    def test_index_safe_entry_reference_strips_relative_traversal(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            index = root / "indice.html"
+            index.write_text(
+                '<a href="../foo/bar.pdf">Documento</a>',
+                encoding="utf-8",
+            )
+            parsed = parse_casefile_index(
+                root,
+                detect_casefile_indexes(root, (index,))[0],
+            )
+
+            entry = parsed.entries[0]
+            self.assertEqual("bar.pdf", entry.referenced_path)
+            self.assertNotIn("../", entry.referenced_path or "")
+
+            matched = match_index_entries_to_documents(
+                (parsed,),
+                (self._document("bar.pdf"),),
+            )
+            match = matched[0].entries[0].matches[0]
+            self.assertEqual("bar.pdf", match.entry_reference)
+            self.assertNotIn("../", match.entry_reference or "")
+            self.assertFalse(Path(match.entry_reference or "").is_absolute())
+
     def test_parse_xml_index_extracts_pdf_attribute(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             root = Path(temporary_directory)
@@ -257,6 +283,29 @@ class CaseFileIndexTest(unittest.TestCase):
             self.assertEqual(1, len(parsed.entries))
             self.assertEqual("atti/001_sentenza.pdf", parsed.entries[0].referenced_path)
             self.assertEqual("medium", parsed.entries[0].confidence)
+
+    def test_xml_entity_expansion_is_rejected_or_non_fatal(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            index = root / "index.xml"
+            index.write_text(
+                """<!DOCTYPE index [
+<!ENTITY a "atti/001_sentenza.pdf">
+]>
+<index><doc file="&a;" /></index>""",
+                encoding="utf-8",
+            )
+
+            parsed = parse_casefile_index(
+                root,
+                detect_casefile_indexes(root, (index,))[0],
+            )
+
+            self.assertEqual((), parsed.entries)
+            self.assertEqual(
+                ["index_parse_error"],
+                [warning.code for warning in parsed.warnings],
+            )
 
     def test_parse_index_too_large_warns(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:

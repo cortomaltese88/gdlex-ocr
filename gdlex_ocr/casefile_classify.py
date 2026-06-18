@@ -61,6 +61,8 @@ def classify_by_filename(filename: str) -> tuple["DocumentType", str, str]:
 
 
 def _normalize_filename(filename: str) -> str:
+    if not filename or not filename.strip():
+        return ""
     path_without_extension = PurePosixPath(filename.replace("\\", "/")).with_suffix("")
     decomposed = unicodedata.normalize("NFKD", str(path_without_extension).casefold())
     without_accents = "".join(

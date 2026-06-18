@@ -38,6 +38,15 @@ class CaseFileClassifyTest(unittest.TestCase):
                 self.assertEqual(expected_confidence, confidence)
                 self.assertEqual("filename", source)
 
+    def test_classify_empty_filename_is_unknown(self) -> None:
+        for filename in ("", "   "):
+            with self.subTest(filename=filename):
+                document_type, confidence, source = classify_by_filename(filename)
+
+                self.assertEqual(DocumentType.SCONOSCIUTO, document_type)
+                self.assertEqual("low", confidence)
+                self.assertEqual("filename", source)
+
     def test_allegato_is_low_or_medium_confidence(self) -> None:
         document_type, confidence, source = classify_by_filename("allegato 1.pdf")
 

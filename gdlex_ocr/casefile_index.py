@@ -5,7 +5,6 @@ from __future__ import annotations
 import csv
 import re
 import unicodedata
-import xml.etree.ElementTree as ET
 from dataclasses import dataclass, replace
 from html.parser import HTMLParser
 from io import StringIO
@@ -13,6 +12,9 @@ from pathlib import Path
 from posixpath import basename
 from typing import Callable, Iterable
 from urllib.parse import unquote, urlsplit
+
+import defusedxml.ElementTree as ET
+from defusedxml.common import DefusedXmlException
 
 from gdlex_ocr.casefile import CaseFileDocument, CaseFileIndex, ExtractionWarning
 from gdlex_ocr.casefile_classify import classify_by_filename
@@ -157,7 +159,14 @@ def parse_casefile_index(folder: Path, index: CaseFileIndex) -> CaseFileIndex:
         payload = path.read_bytes()
         text = _decode_index_payload(payload)
         entries = _parse_index_text(index.detected_format, text)
-    except (OSError, UnicodeError, csv.Error, ET.ParseError, ValueError) as exc:
+    except (
+        OSError,
+        UnicodeError,
+        csv.Error,
+        ET.ParseError,
+        DefusedXmlException,
+        ValueError,
+    ) as exc:
         return _with_index_warning(
             index,
             INDEX_PARSE_ERROR_WARNING,
@@ -298,8 +307,24 @@ def _safe_entry_reference(value: str | None) -> str | None:
     normalized = _normalize_reference_path(value)
     parsed = urlsplit(value.strip())
     if parsed.scheme or parsed.netloc or _ABSOLUTE_REFERENCE_RE.match(normalized):
-        return basename(normalized) or None
+        return _safe_basename(normalized) or None
+    if normalized.startswith("./"):
+        normalized = normalized[2:]
+    if _has_parent_segment(normalized):
+        return _safe_basename(normalized) or None
     return normalized or None
+
+
+def _has_parent_segment(value: str) -> bool:
+    return ".." in value.replace("\\", "/").split("/")
+
+
+def _safe_basename(value: str) -> str:
+    normalized = _normalize_reference_path(value).rstrip("/")
+    for part in reversed(normalized.split("/")):
+        if part and part not in {".", ".."}:
+            return part
+    return ""
 
 
 def _detect_index(root: Path, path: Path) -> CaseFileIndex | None:
@@ -392,7 +417,7 @@ def _parse_csv_index(text: str) -> tuple[CaseFileIndexEntry, ...]:
         cells = [_clean_text(cell) for cell in row]
         if not any(cells) or _is_probable_csv_header(cells, entries):
             continue
-        referenced_path = _first_pdf_path(" ".join(cells))
+        referenced_path = _safe_entry_reference(_first_pdf_path(" ".join(cells)))
         label = _csv_label(cells, referenced_path)
         if label is None:
             continue
@@ -423,7 +448,9 @@ def _parse_html_index(text: str) -> tuple[CaseFileIndexEntry, ...]:
     for href, link_text in parser.links:
         if ".pdf" not in href.casefold():
             continue
-        referenced_path = href.strip()
+        referenced_path = _safe_entry_reference(href)
+        if referenced_path is None:
+            continue
         seen_paths.add(referenced_path)
         label = _short_label(link_text) or _basename_label(referenced_path)
         entries.append(
@@ -441,7 +468,7 @@ def _parse_html_index(text: str) -> tuple[CaseFileIndexEntry, ...]:
         )
 
     for row in parser.rows:
-        referenced_path = _first_pdf_path(row)
+        referenced_path = _safe_entry_reference(_first_pdf_path(row))
         if referenced_path is None or referenced_path in seen_paths:
             continue
         entry = _entry_from_text(
@@ -464,7 +491,7 @@ def _parse_xml_index(text: str) -> tuple[CaseFileIndexEntry, ...]:
     for element in root.iter():
         element_text = _clean_text(" ".join(element.itertext()))
         for value in (*element.attrib.values(), element_text):
-            referenced_path = _first_pdf_path(value)
+            referenced_path = _safe_entry_reference(_first_pdf_path(value))
             if referenced_path is None or referenced_path in seen_paths:
                 continue
             seen_paths.add(referenced_path)
@@ -494,7 +521,7 @@ def _entry_from_text(
     confidence: str | None = None,
 ) -> CaseFileIndexEntry | None:
     label = _short_label(line)
-    referenced_path = _first_pdf_path(line)
+    referenced_path = _safe_entry_reference(_first_pdf_path(line))
     if referenced_path is None and len(label) < _MIN_TEXT_LABEL_LENGTH:
         return None
     if not label and referenced_path is not None:

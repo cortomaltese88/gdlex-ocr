@@ -200,9 +200,11 @@ def _safe_path(value: str) -> str:
     normalized = _normalize_path_text(value)
     parsed = urlsplit(value.strip())
     if parsed.scheme or parsed.netloc or _is_absolute_path(normalized):
-        return basename(normalized.rstrip("/")) or basename(parsed.path) or ""
+        return _safe_basename(normalized) or _safe_basename(parsed.path)
     if normalized.startswith("./"):
         normalized = normalized[2:]
+    if _has_parent_segment(normalized):
+        return _safe_basename(normalized)
     return normalized
 
 
@@ -218,6 +220,18 @@ def _normalize_path_text(value: str) -> str:
 
 def _is_absolute_path(value: str) -> bool:
     return value.startswith("/") or _WINDOWS_ABSOLUTE_RE.match(value) is not None
+
+
+def _has_parent_segment(value: str) -> bool:
+    return ".." in value.replace("\\", "/").split("/")
+
+
+def _safe_basename(value: str) -> str:
+    normalized = _normalize_path_text(value).rstrip("/")
+    for part in reversed(normalized.split("/")):
+        if part and part not in {".", ".."}:
+            return part
+    return ""
 
 
 def _safe_enum_value(value: Any) -> str:
@@ -240,7 +254,16 @@ def _short_warning_message(value: str) -> str:
         lambda match: basename(_normalize_path_text(match.group(0))),
         message,
     )
+    message = _strip_relative_traversal_tokens(message)
     return _truncate(message, _MAX_WARNING_MESSAGE_LENGTH)
+
+
+def _strip_relative_traversal_tokens(message: str) -> str:
+    return re.sub(
+        r"(?<!\S)\S*(?:\.\.[\\/])+\S*",
+        lambda match: _safe_path(match.group(0)) or "",
+        message,
+    )
 
 
 def _clean_text(value: str) -> str:

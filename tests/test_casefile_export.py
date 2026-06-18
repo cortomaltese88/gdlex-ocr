@@ -214,6 +214,61 @@ class CaseFileExportTest(unittest.TestCase):
             self.assertNotIn(str(root), serialized)
             self.assertNotIn(str(root).replace("/", "\\/"), serialized)
 
+    def test_export_safe_path_strips_relative_traversal(self) -> None:
+        warning = ExtractionWarning(
+            code="synthetic",
+            message="Errore su ../../../etc/passwd e ../foo/bar.pdf",
+            path="../../../etc/passwd",
+        )
+        match = CaseFileIndexMatch(
+            entry_row_number=1,
+            document_id="doc-1",
+            entry_reference="../foo/bar.pdf",
+            matched_relative_path="atti/../../segreto.pdf",
+            confidence="high",
+            strategy="basename_exact",
+            warnings=(warning,),
+        )
+        entry = CaseFileIndexEntry(
+            row_number=1,
+            label="Documento",
+            referenced_path="../foo/bar.pdf",
+            document_date=None,
+            document_type_hint=None,
+            confidence="high",
+            source="test",
+            warnings=(warning,),
+            matches=(match,),
+        )
+        analysis = self._manual_analysis(
+            indexes=(
+                CaseFileIndex(
+                    relative_path="indici/../../indice.html",
+                    extension=".html",
+                    confidence="high",
+                    source="test",
+                    detected_format="html",
+                    warnings=(warning,),
+                    entries=(entry,),
+                ),
+            ),
+            warnings=(warning,),
+        )
+
+        serialized = json.dumps(
+            casefile_analysis_to_dict(analysis),
+            ensure_ascii=False,
+        )
+        markdown = format_casefile_analysis_markdown(analysis)
+
+        for content in (serialized, markdown):
+            self.assertNotIn("../", content)
+            self.assertNotIn("..\\", content)
+            self.assertNotIn("../../../etc/passwd", content)
+            self.assertNotIn("atti/../../segreto.pdf", content)
+            self.assertIn("passwd", content)
+            self.assertIn("bar.pdf", content)
+
     def test_export_truncates_long_labels_and_warnings(self) -> None:
         long_label = "Sentenza " * 40
         long_message = "Warning " * 60
