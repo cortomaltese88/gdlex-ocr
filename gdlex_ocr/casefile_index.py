@@ -4,21 +4,24 @@ from __future__ import annotations
 
 import csv
 import re
+import unicodedata
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass, replace
 from html.parser import HTMLParser
 from io import StringIO
 from pathlib import Path
 from posixpath import basename
-from typing import Iterable
-from urllib.parse import urlsplit
+from typing import Callable, Iterable
+from urllib.parse import unquote, urlsplit
 
-from gdlex_ocr.casefile import CaseFileIndex, ExtractionWarning
+from gdlex_ocr.casefile import CaseFileDocument, CaseFileIndex, ExtractionWarning
 from gdlex_ocr.casefile_classify import classify_by_filename
 
 MULTIPLE_CASEFILE_INDEXES_WARNING = "multiple_casefile_indexes"
 INDEX_TOO_LARGE_WARNING = "index_too_large"
 INDEX_PARSE_ERROR_WARNING = "index_parse_error"
+AMBIGUOUS_INDEX_MATCH_WARNING = "ambiguous_index_match"
+UNMATCHED_INDEX_ENTRY_WARNING = "unmatched_index_entry"
 
 _INDEX_EXTENSIONS = {".html", ".htm", ".xml", ".txt", ".csv"}
 _HIGH_TERMS = ("indice", "index")
@@ -33,6 +36,19 @@ _DATE_RE = re.compile(
     r"\b(?:\d{2}[/-]\d{2}[/-]\d{4}|\d{4}-\d{2}-\d{2})\b"
 )
 _PDF_PATH_RE = re.compile(r"(?i)([^\s\"'<>;]+?\.pdf)\b")
+_ABSOLUTE_REFERENCE_RE = re.compile(r"^(?:/|[a-zA-Z]:[\\/])")
+_BASENAME_SEPARATOR_RE = re.compile(r"[\s_-]+")
+
+
+@dataclass(frozen=True, slots=True)
+class CaseFileIndexMatch:
+    entry_row_number: int
+    document_id: str
+    entry_reference: str | None
+    matched_relative_path: str
+    confidence: str
+    strategy: str
+    warnings: tuple[ExtractionWarning, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -45,6 +61,7 @@ class CaseFileIndexEntry:
     confidence: str
     source: str
     warnings: tuple[ExtractionWarning, ...] = ()
+    matches: tuple[CaseFileIndexMatch, ...] = ()
 
 
 def detect_casefile_indexes(
@@ -77,6 +94,40 @@ def parse_detected_indexes(
     """Parse already detected index files without affecting folder analysis."""
     root = Path(folder).expanduser().resolve()
     return tuple(parse_casefile_index(root, index) for index in indexes)
+
+
+def match_index_entries_to_documents(
+    indexes: Iterable[CaseFileIndex],
+    documents: Iterable[CaseFileDocument],
+) -> tuple[CaseFileIndex, ...]:
+    """Attach conservative, in-memory index-entry matches to documents."""
+    document_tuple = tuple(documents)
+    exact_paths = _group_documents(
+        document_tuple,
+        lambda document: _normalize_reference_path(document.relative_path).casefold(),
+    )
+    exact_basenames = _group_documents(
+        document_tuple,
+        lambda document: _reference_basename(document.relative_path).casefold(),
+    )
+    normalized_basenames = _group_documents(
+        document_tuple,
+        lambda document: _normalize_basename(document.relative_path),
+    )
+
+    matched_indexes: list[CaseFileIndex] = []
+    for index in indexes:
+        entries = tuple(
+            _match_index_entry(
+                entry,
+                exact_paths,
+                exact_basenames,
+                normalized_basenames,
+            )
+            for entry in index.entries
+        )
+        matched_indexes.append(replace(index, entries=entries))
+    return tuple(matched_indexes)
 
 
 def parse_casefile_index(folder: Path, index: CaseFileIndex) -> CaseFileIndex:
@@ -115,6 +166,140 @@ def parse_casefile_index(folder: Path, index: CaseFileIndex) -> CaseFileIndex:
         )
 
     return replace(index, entries=entries)
+
+
+def _match_index_entry(
+    entry: CaseFileIndexEntry,
+    exact_paths: dict[str, tuple[CaseFileDocument, ...]],
+    exact_basenames: dict[str, tuple[CaseFileDocument, ...]],
+    normalized_basenames: dict[str, tuple[CaseFileDocument, ...]],
+) -> CaseFileIndexEntry:
+    if entry.referenced_path is None:
+        return replace(entry, matches=())
+
+    reference_path = _normalize_reference_path(entry.referenced_path)
+    candidates = exact_paths.get(reference_path.casefold(), ())
+    matched = _match_candidates(
+        entry,
+        candidates,
+        strategy="relative_path_exact",
+        unique_confidence="high",
+        ambiguous_message="Riferimento indice ambiguo sul percorso relativo",
+    )
+    if matched is not None:
+        return matched
+
+    reference_basename = _reference_basename(reference_path)
+    candidates = exact_basenames.get(reference_basename.casefold(), ())
+    matched = _match_candidates(
+        entry,
+        candidates,
+        strategy="basename_exact",
+        unique_confidence="high",
+        ambiguous_message="Riferimento indice ambiguo sul nome file",
+    )
+    if matched is not None:
+        return matched
+
+    normalized_basename = _normalize_basename(reference_path)
+    candidates = normalized_basenames.get(normalized_basename, ())
+    matched = _match_candidates(
+        entry,
+        candidates,
+        strategy="normalized_basename",
+        unique_confidence="medium",
+        ambiguous_message="Riferimento indice ambiguo sul nome file normalizzato",
+    )
+    if matched is not None:
+        return matched
+
+    return _entry_with_warning(
+        entry,
+        UNMATCHED_INDEX_ENTRY_WARNING,
+        "Voce indice non collegata ad alcun documento",
+    )
+
+
+def _match_candidates(
+    entry: CaseFileIndexEntry,
+    candidates: tuple[CaseFileDocument, ...],
+    *,
+    strategy: str,
+    unique_confidence: str,
+    ambiguous_message: str,
+) -> CaseFileIndexEntry | None:
+    if not candidates:
+        return None
+    if len(candidates) > 1:
+        return _entry_with_warning(
+            entry,
+            AMBIGUOUS_INDEX_MATCH_WARNING,
+            ambiguous_message,
+        )
+
+    document = candidates[0]
+    match = CaseFileIndexMatch(
+        entry_row_number=entry.row_number,
+        document_id=document.id,
+        entry_reference=_safe_entry_reference(entry.referenced_path),
+        matched_relative_path=document.relative_path,
+        confidence=unique_confidence,
+        strategy=strategy,
+    )
+    return replace(entry, matches=(match,))
+
+
+def _entry_with_warning(
+    entry: CaseFileIndexEntry,
+    code: str,
+    message: str,
+) -> CaseFileIndexEntry:
+    warning = ExtractionWarning(
+        code=code,
+        message=message,
+        path=_safe_entry_reference(entry.referenced_path),
+    )
+    return replace(entry, warnings=entry.warnings + (warning,), matches=())
+
+
+def _group_documents(
+    documents: tuple[CaseFileDocument, ...],
+    key_factory: Callable[[CaseFileDocument], str],
+) -> dict[str, tuple[CaseFileDocument, ...]]:
+    grouped: dict[str, list[CaseFileDocument]] = {}
+    for document in documents:
+        key = key_factory(document)
+        grouped.setdefault(key, []).append(document)
+    return {key: tuple(values) for key, values in grouped.items()}
+
+
+def _normalize_reference_path(value: str) -> str:
+    parsed = urlsplit(value.strip().replace("\\", "/"))
+    path = parsed.path if parsed.path else value
+    return unquote(path).strip().replace("\\", "/")
+
+
+def _reference_basename(value: str) -> str:
+    return basename(_normalize_reference_path(value))
+
+
+def _normalize_basename(value: str) -> str:
+    decomposed = unicodedata.normalize("NFKD", _reference_basename(value))
+    without_accents = "".join(
+        char for char in decomposed if not unicodedata.combining(char)
+    )
+    folded = without_accents.casefold()
+    return _BASENAME_SEPARATOR_RE.sub(" ", folded).strip()
+
+
+def _safe_entry_reference(value: str | None) -> str | None:
+    if value is None:
+        return None
+    normalized = _normalize_reference_path(value)
+    parsed = urlsplit(value.strip())
+    if parsed.scheme or parsed.netloc or _ABSOLUTE_REFERENCE_RE.match(normalized):
+        return basename(normalized) or None
+    return normalized or None
 
 
 def _detect_index(root: Path, path: Path) -> CaseFileIndex | None:

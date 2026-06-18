@@ -105,6 +105,7 @@ def normalize_casefile_documents(
     from gdlex_ocr.casefile_index import (
         MULTIPLE_CASEFILE_INDEXES_WARNING,
         detect_casefile_indexes,
+        match_index_entries_to_documents,
         parse_detected_indexes,
     )
 
@@ -150,6 +151,7 @@ def normalize_casefile_documents(
         root,
         detect_casefile_indexes(root, normalized_paths),
     )
+    indexes = match_index_entries_to_documents(indexes, documents)
     warnings = ()
     if sum(1 for index in indexes if index.confidence == "high") > 1:
         warnings = (

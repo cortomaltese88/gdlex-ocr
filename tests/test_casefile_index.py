@@ -6,14 +6,54 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from gdlex_ocr.casefile import analyze_case_folder
+from gdlex_ocr.casefile import (
+    CaseFileDocument,
+    CaseFileIndex,
+    DocumentType,
+    analyze_case_folder,
+)
 from gdlex_ocr.casefile_index import (
+    CaseFileIndexEntry,
+    match_index_entries_to_documents,
     detect_casefile_indexes,
     parse_casefile_index,
 )
 
 
 class CaseFileIndexTest(unittest.TestCase):
+    def _document(self, relative_path: str) -> CaseFileDocument:
+        return CaseFileDocument(
+            id=f"doc-{relative_path}",
+            filename=Path(relative_path).name,
+            relative_path=relative_path,
+            extension=Path(relative_path).suffix.lower(),
+            size_bytes=1,
+            file_order=None,
+            document_type=DocumentType.SCONOSCIUTO,
+            type_confidence="low",
+            type_source="filename",
+        )
+
+    def _index_with_entry(self, referenced_path: str) -> CaseFileIndex:
+        return CaseFileIndex(
+            relative_path="indice.html",
+            extension=".html",
+            confidence="high",
+            source="filename",
+            detected_format="html",
+            entries=(
+                CaseFileIndexEntry(
+                    row_number=1,
+                    label="Documento",
+                    referenced_path=referenced_path,
+                    document_date=None,
+                    document_type_hint=None,
+                    confidence="high",
+                    source="html",
+                ),
+            ),
+        )
+
     def test_detects_html_index_high_confidence(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             root = Path(temporary_directory)
@@ -303,6 +343,113 @@ class CaseFileIndexTest(unittest.TestCase):
             )
 
             self.assertLessEqual(len(parsed.entries[0].label), 160)
+
+    def test_match_relative_path_exact(self) -> None:
+        indexes = match_index_entries_to_documents(
+            (self._index_with_entry("atti/001_sentenza.pdf"),),
+            (self._document("atti/001_sentenza.pdf"),),
+        )
+
+        match = indexes[0].entries[0].matches[0]
+        self.assertEqual("relative_path_exact", match.strategy)
+        self.assertEqual("high", match.confidence)
+        self.assertEqual("atti/001_sentenza.pdf", match.matched_relative_path)
+        self.assertEqual((), indexes[0].entries[0].warnings)
+
+    def test_match_basename_exact_unique(self) -> None:
+        indexes = match_index_entries_to_documents(
+            (self._index_with_entry("001_sentenza.pdf"),),
+            (self._document("atti/001_sentenza.pdf"),),
+        )
+
+        match = indexes[0].entries[0].matches[0]
+        self.assertEqual("basename_exact", match.strategy)
+        self.assertEqual("high", match.confidence)
+        self.assertEqual("atti/001_sentenza.pdf", match.matched_relative_path)
+
+    def test_match_basename_ambiguous_warns(self) -> None:
+        indexes = match_index_entries_to_documents(
+            (self._index_with_entry("001_sentenza.pdf"),),
+            (
+                self._document("atti/001_sentenza.pdf"),
+                self._document("allegati/001_sentenza.pdf"),
+            ),
+        )
+        entry = indexes[0].entries[0]
+
+        self.assertEqual((), entry.matches)
+        self.assertEqual(["ambiguous_index_match"], [warning.code for warning in entry.warnings])
+
+    def test_unmatched_entry_warns(self) -> None:
+        indexes = match_index_entries_to_documents(
+            (self._index_with_entry("missing.pdf"),),
+            (self._document("atti/001_sentenza.pdf"),),
+        )
+        entry = indexes[0].entries[0]
+
+        self.assertEqual((), entry.matches)
+        self.assertEqual(["unmatched_index_entry"], [warning.code for warning in entry.warnings])
+
+    def test_normalized_basename_match(self) -> None:
+        indexes = match_index_entries_to_documents(
+            (self._index_with_entry("001 sèntenza finale.pdf"),),
+            (self._document("atti/001-sentenza_finale.pdf"),),
+        )
+
+        match = indexes[0].entries[0].matches[0]
+        self.assertEqual("normalized_basename", match.strategy)
+        self.assertEqual("medium", match.confidence)
+        self.assertEqual("atti/001-sentenza_finale.pdf", match.matched_relative_path)
+
+    def test_analyze_case_folder_matches_html_index_entries(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            (root / "atti").mkdir()
+            (root / "indice.html").write_text(
+                '<a href="atti/001_sentenza.pdf">Sentenza</a>',
+                encoding="utf-8",
+            )
+            (root / "atti" / "001_sentenza.pdf").write_bytes(b"synthetic pdf")
+
+            analysis = analyze_case_folder(root)
+
+            match = analysis.indexes[0].entries[0].matches[0]
+            self.assertEqual("relative_path_exact", match.strategy)
+            self.assertEqual(analysis.documents[0].id, match.document_id)
+            self.assertEqual("atti/001_sentenza.pdf", match.matched_relative_path)
+
+    def test_matches_use_relative_paths_only(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            absolute_reference = str(root / "atti" / "001_sentenza.pdf")
+
+            indexes = match_index_entries_to_documents(
+                (self._index_with_entry(absolute_reference),),
+                (self._document("atti/001_sentenza.pdf"),),
+            )
+
+            match = indexes[0].entries[0].matches[0]
+            self.assertEqual("001_sentenza.pdf", match.entry_reference)
+            self.assertEqual("atti/001_sentenza.pdf", match.matched_relative_path)
+            self.assertNotIn(str(root), match.entry_reference or "")
+            self.assertNotIn(str(root), match.matched_relative_path)
+
+    def test_existing_duplicate_warning_still_works(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            (root / "001_original.pdf").write_bytes(b"same content")
+            (root / "002_copy.pdf").write_bytes(b"same content")
+
+            analysis = analyze_case_folder(root)
+
+            self.assertEqual(
+                ["duplicate_file"],
+                [
+                    warning.code
+                    for warning in analysis.warnings
+                    if warning.code == "duplicate_file"
+                ],
+            )
 
 
 if __name__ == "__main__":
