@@ -11,7 +11,7 @@ from unittest.mock import MagicMock, patch
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtCore import QSettings
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QScrollArea, QTabWidget
 
 from gdlex_ocr.gui import CasefileGuiResult, MainWindow, run_casefile_analysis
 
@@ -143,6 +143,144 @@ class CasefileGuiControlsTest(unittest.TestCase):
         self.assertTrue(self.window.start_button.isEnabled())
         self.assertTrue(self.window.pdf_edit.isEnabled())
         self.assertTrue(self.window.output_edit.isEnabled())
+
+    # ------------------------------------------------------------------
+    # Tab-based layout tests
+    # ------------------------------------------------------------------
+
+    def test_main_gui_has_separate_casefile_tab(self) -> None:
+        tabs = self.window.main_tabs
+        self.assertIsInstance(tabs, QTabWidget)
+        tab_labels = [tabs.tabText(i) for i in range(tabs.count())]
+        self.assertIn("OCR documento", tab_labels)
+        self.assertIn("Fascicolo", tab_labels)
+        self.assertEqual(2, tabs.count())
+
+    def test_ocr_controls_remain_in_ocr_tab(self) -> None:
+        ocr_tab = self.window.ocr_tab
+        self.assertIsNotNone(ocr_tab)
+        for widget in (
+            self.window.pdf_edit,
+            self.window.output_edit,
+            self.window.profile_combo,
+            self.window.block_size_spin,
+            self.window.searchable_checkbox,
+            self.window.judgment_analysis_checkbox,
+            self.window.start_button,
+            self.window.cancel_button,
+            self.window.progress_bar,
+            self.window.log_view,
+        ):
+            ancestor = widget.parent()
+            while ancestor is not None and ancestor is not ocr_tab:
+                ancestor = ancestor.parent()
+            self.assertIs(
+                ancestor,
+                ocr_tab,
+                f"{widget.objectName() or type(widget).__name__} "
+                f"is not inside ocr_tab",
+            )
+
+    def test_casefile_controls_are_in_casefile_tab(self) -> None:
+        casefile_tab = self.window.casefile_tab
+        self.assertIsNotNone(casefile_tab)
+        for widget in (
+            self.window.casefile_input_edit,
+            self.window.casefile_output_edit,
+            self.window.casefile_start_button,
+            self.window.casefile_log_view,
+        ):
+            ancestor = widget.parent()
+            while ancestor is not None and ancestor is not casefile_tab:
+                ancestor = ancestor.parent()
+            self.assertIs(
+                ancestor,
+                casefile_tab,
+                f"{widget.objectName() or type(widget).__name__} "
+                f"is not inside casefile_tab",
+            )
+
+    def test_casefile_gui_does_not_overlap_by_layout_structure(self) -> None:
+        ocr_tab = self.window.ocr_tab
+        casefile_tab = self.window.casefile_tab
+        self.assertIsNot(ocr_tab, casefile_tab)
+
+        casefile_ancestor = self.window.casefile_input_edit.parent()
+        while casefile_ancestor is not None and casefile_ancestor is not ocr_tab:
+            casefile_ancestor = casefile_ancestor.parent()
+        self.assertIsNone(
+            casefile_ancestor if casefile_ancestor is not ocr_tab else None,
+            "Casefile controls must not share layout with OCR tab",
+        )
+
+    def test_judgment_checkbox_still_exists(self) -> None:
+        cb = self.window.judgment_analysis_checkbox
+        self.assertIsNotNone(cb)
+        self.assertEqual("Analisi sentenza per impugnazione", cb.text())
+        self.assertFalse(cb.isChecked())
+
+    def test_no_casefile_input_path_saved_in_qsettings(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            settings_path = Path(tmpdir) / "settings.ini"
+            settings = QSettings(str(settings_path), QSettings.Format.IniFormat)
+            window = MainWindow(settings=settings)
+
+            window.casefile_input_edit.setText("/secret/fascicolo")
+            window.casefile_output_edit.setText("/secret/output")
+            window._save_gui_settings()
+            settings.sync()
+
+            if settings_path.exists():
+                saved_text = settings_path.read_text(encoding="utf-8")
+                self.assertNotIn("/secret/fascicolo", saved_text)
+                self.assertNotIn("/secret/output", saved_text)
+
+            window.close()
+            window.deleteLater()
+            self.app.processEvents()
+
+    def test_casefile_tab_has_dedicated_log(self) -> None:
+        self.assertIsNotNone(self.window.casefile_log_view)
+        self.assertTrue(self.window.casefile_log_view.isReadOnly())
+        self.assertIsNot(self.window.casefile_log_view, self.window.log_view)
+
+    def test_casefile_log_receives_analysis_messages(self) -> None:
+        self.window._append_casefile_log("test message")
+        text = self.window.casefile_log_view.toPlainText()
+        self.assertIn("test message", text)
+        ocr_text = self.window.log_view.toPlainText()
+        self.assertNotIn("test message", ocr_text)
+
+    def test_stable_object_names(self) -> None:
+        self.assertEqual("mainTabs", self.window.main_tabs.objectName())
+        self.assertEqual("ocrTab", self.window.ocr_tab.objectName())
+        self.assertEqual("casefileTab", self.window.casefile_tab.objectName())
+        self.assertEqual(
+            "casefileInputEdit",
+            self.window.casefile_input_edit.objectName(),
+        )
+        self.assertEqual(
+            "casefileOutputEdit",
+            self.window.casefile_output_edit.objectName(),
+        )
+        self.assertEqual(
+            "casefileAnalyzeButton",
+            self.window.casefile_start_button.objectName(),
+        )
+        self.assertEqual(
+            "judgmentAnalysisCheckbox",
+            self.window.judgment_analysis_checkbox.objectName(),
+        )
+
+    def test_tabs_use_scroll_areas(self) -> None:
+        tabs = self.window.main_tabs
+        for i in range(tabs.count()):
+            widget = tabs.widget(i)
+            self.assertIsInstance(
+                widget,
+                QScrollArea,
+                f"Tab {i} ({tabs.tabText(i)}) is not wrapped in QScrollArea",
+            )
 
 
 class CasefileAnalysisHelperTest(unittest.TestCase):

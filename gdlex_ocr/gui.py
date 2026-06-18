@@ -35,6 +35,7 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QProgressBar,
     QPushButton,
+    QScrollArea,
     QSpinBox,
     QSystemTrayIcon,
     QTabWidget,
@@ -361,6 +362,26 @@ class MainWindow(QMainWindow):
         header_layout.addLayout(release_layout)
         root_layout.addWidget(header)
 
+        # === Main tab widget ===
+        self.main_tabs = QTabWidget()
+        self.main_tabs.setObjectName("mainTabs")
+        root_layout.addWidget(self.main_tabs, 1)
+
+        # ----------------------------------------------------------
+        # Tab: OCR documento
+        # ----------------------------------------------------------
+        self.ocr_tab = QWidget()
+        self.ocr_tab.setObjectName("ocrTab")
+        ocr_scroll = QScrollArea()
+        ocr_scroll.setWidgetResizable(True)
+        ocr_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        ocr_scroll.setWidget(self.ocr_tab)
+        self.main_tabs.addTab(ocr_scroll, "OCR documento")
+
+        ocr_layout = QVBoxLayout(self.ocr_tab)
+        ocr_layout.setContentsMargins(0, 6, 0, 0)
+        ocr_layout.setSpacing(8)
+
         source_group = QGroupBox("Documento e destinazione")
         source_group.setMinimumHeight(118)
         source_layout = QGridLayout(source_group)
@@ -408,7 +429,7 @@ class MainWindow(QMainWindow):
         source_layout.addWidget(output_label, 1, 0)
         source_layout.addWidget(self.output_edit, 1, 1)
         source_layout.addWidget(self.output_button, 1, 2)
-        root_layout.addWidget(source_group)
+        ocr_layout.addWidget(source_group)
 
         # --- Opzioni OCR ---
         options_group = QGroupBox("Opzioni OCR")
@@ -462,7 +483,7 @@ class MainWindow(QMainWindow):
             Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
         )
         options_layout.addWidget(local_note, 1, 3)
-        root_layout.addWidget(options_group)
+        ocr_layout.addWidget(options_group)
 
         self._on_profile_changed(DEFAULT_PROFILE)
 
@@ -529,6 +550,7 @@ class MainWindow(QMainWindow):
         self.judgment_analysis_checkbox = QCheckBox(
             "Analisi sentenza per impugnazione"
         )
+        self.judgment_analysis_checkbox.setObjectName("judgmentAnalysisCheckbox")
         self.judgment_analysis_checkbox.setChecked(False)
         self.judgment_analysis_checkbox.setToolTip(
             "Genera una scheda sentenza locale (sentenza_analysis.md) e "
@@ -606,71 +628,7 @@ class MainWindow(QMainWindow):
             self.pdf_output_backend_tab,
             "Backend OCR",
         )
-        root_layout.addWidget(self.pdf_output_group)
-
-        # --- Fascicolo ---
-        casefile_group = QGroupBox("Fascicolo")
-        casefile_layout = QGridLayout(casefile_group)
-        casefile_layout.setContentsMargins(18, 14, 18, 14)
-        casefile_layout.setHorizontalSpacing(14)
-        casefile_layout.setVerticalSpacing(12)
-        casefile_layout.setColumnMinimumWidth(0, 150)
-        casefile_layout.setColumnStretch(1, 1)
-        casefile_layout.setRowMinimumHeight(0, 38)
-        casefile_layout.setRowMinimumHeight(1, 38)
-
-        self.casefile_input_edit = QLineEdit()
-        self.casefile_input_edit.setMinimumHeight(36)
-        self.casefile_input_edit.setPlaceholderText(
-            "Cartella del fascicolo da analizzare"
-        )
-        self.casefile_input_button = QPushButton("Sfoglia…")
-        self.casefile_input_button.setMinimumWidth(150)
-        self.casefile_input_button.setMinimumHeight(36)
-        self.casefile_input_button.clicked.connect(self._select_casefile_input)
-        casefile_input_label = QLabel("Cartella fascicolo")
-        casefile_input_label.setAlignment(
-            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
-        )
-        casefile_layout.addWidget(casefile_input_label, 0, 0)
-        casefile_layout.addWidget(self.casefile_input_edit, 0, 1)
-        casefile_layout.addWidget(self.casefile_input_button, 0, 2)
-
-        self.casefile_output_edit = QLineEdit()
-        self.casefile_output_edit.setMinimumHeight(36)
-        self.casefile_output_edit.setPlaceholderText(
-            "Cartella di destinazione per i file di indice"
-        )
-        self.casefile_output_button = QPushButton("Sfoglia…")
-        self.casefile_output_button.setMinimumWidth(150)
-        self.casefile_output_button.setMinimumHeight(36)
-        self.casefile_output_button.clicked.connect(
-            self._select_casefile_output
-        )
-        casefile_output_label = QLabel("Cartella output")
-        casefile_output_label.setAlignment(
-            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
-        )
-        casefile_layout.addWidget(casefile_output_label, 1, 0)
-        casefile_layout.addWidget(self.casefile_output_edit, 1, 1)
-        casefile_layout.addWidget(self.casefile_output_button, 1, 2)
-
-        casefile_note = QLabel(
-            "Analisi locale euristica: non esegue OCR e non legge il "
-            "contenuto dei PDF. Genera fascicolo_index.json e "
-            "fascicolo_index.md."
-        )
-        casefile_note.setObjectName("sectionHint")
-        casefile_note.setWordWrap(True)
-        casefile_layout.addWidget(casefile_note, 2, 0, 1, 2)
-
-        self.casefile_start_button = QPushButton("Analizza fascicolo")
-        self.casefile_start_button.setMinimumHeight(36)
-        self.casefile_start_button.clicked.connect(
-            self._start_casefile_analysis
-        )
-        casefile_layout.addWidget(self.casefile_start_button, 2, 2)
-        root_layout.addWidget(casefile_group)
+        ocr_layout.addWidget(self.pdf_output_group)
 
         # --- Avanzamento ---
         self.progress_group = QGroupBox("Avanzamento")
@@ -696,10 +654,9 @@ class MainWindow(QMainWindow):
         self.progress_bar.setValue(0)
         self.progress_bar.setFormat("%p%")
         progress_layout.addWidget(self.progress_bar)
-        root_layout.addWidget(self.progress_group)
+        ocr_layout.addWidget(self.progress_group)
 
         log_group = QGroupBox("Log elaborazione")
-        log_group.setMaximumHeight(100)
         log_layout = QVBoxLayout(log_group)
         log_layout.setContentsMargins(12, 12, 12, 10)
         self.log_view = QTextEdit()
@@ -713,7 +670,7 @@ class MainWindow(QMainWindow):
         monospace_font.setPointSize(9)
         self.log_view.setFont(monospace_font)
         log_layout.addWidget(self.log_view)
-        root_layout.addWidget(log_group, 1)
+        ocr_layout.addWidget(log_group, 1)
 
         actions_layout = QVBoxLayout()
         actions_layout.setSpacing(8)
@@ -770,7 +727,104 @@ class MainWindow(QMainWindow):
         run_buttons_row.addWidget(self.cancel_button)
 
         actions_layout.addLayout(run_buttons_row)
-        root_layout.addLayout(actions_layout)
+        ocr_layout.addLayout(actions_layout)
+
+        # ----------------------------------------------------------
+        # Tab: Fascicolo
+        # ----------------------------------------------------------
+        self.casefile_tab = QWidget()
+        self.casefile_tab.setObjectName("casefileTab")
+        casefile_scroll = QScrollArea()
+        casefile_scroll.setWidgetResizable(True)
+        casefile_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        casefile_scroll.setWidget(self.casefile_tab)
+        self.main_tabs.addTab(casefile_scroll, "Fascicolo")
+
+        casefile_tab_layout = QVBoxLayout(self.casefile_tab)
+        casefile_tab_layout.setContentsMargins(0, 6, 0, 0)
+        casefile_tab_layout.setSpacing(8)
+
+        casefile_group = QGroupBox("Fascicolo PDP/TIAP")
+        casefile_layout = QGridLayout(casefile_group)
+        casefile_layout.setContentsMargins(18, 14, 18, 14)
+        casefile_layout.setHorizontalSpacing(14)
+        casefile_layout.setVerticalSpacing(12)
+        casefile_layout.setColumnMinimumWidth(0, 150)
+        casefile_layout.setColumnStretch(1, 1)
+        casefile_layout.setRowMinimumHeight(0, 38)
+        casefile_layout.setRowMinimumHeight(1, 38)
+
+        self.casefile_input_edit = QLineEdit()
+        self.casefile_input_edit.setObjectName("casefileInputEdit")
+        self.casefile_input_edit.setMinimumHeight(36)
+        self.casefile_input_edit.setPlaceholderText(
+            "Cartella del fascicolo da analizzare"
+        )
+        self.casefile_input_button = QPushButton("Sfoglia…")
+        self.casefile_input_button.setMinimumWidth(150)
+        self.casefile_input_button.setMinimumHeight(36)
+        self.casefile_input_button.clicked.connect(self._select_casefile_input)
+        casefile_input_label = QLabel("Cartella fascicolo")
+        casefile_input_label.setAlignment(
+            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+        )
+        casefile_layout.addWidget(casefile_input_label, 0, 0)
+        casefile_layout.addWidget(self.casefile_input_edit, 0, 1)
+        casefile_layout.addWidget(self.casefile_input_button, 0, 2)
+
+        self.casefile_output_edit = QLineEdit()
+        self.casefile_output_edit.setObjectName("casefileOutputEdit")
+        self.casefile_output_edit.setMinimumHeight(36)
+        self.casefile_output_edit.setPlaceholderText(
+            "Cartella di destinazione per i file di indice"
+        )
+        self.casefile_output_button = QPushButton("Sfoglia…")
+        self.casefile_output_button.setMinimumWidth(150)
+        self.casefile_output_button.setMinimumHeight(36)
+        self.casefile_output_button.clicked.connect(
+            self._select_casefile_output
+        )
+        casefile_output_label = QLabel("Cartella output")
+        casefile_output_label.setAlignment(
+            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+        )
+        casefile_layout.addWidget(casefile_output_label, 1, 0)
+        casefile_layout.addWidget(self.casefile_output_edit, 1, 1)
+        casefile_layout.addWidget(self.casefile_output_button, 1, 2)
+
+        casefile_note = QLabel(
+            "Analisi locale euristica: non esegue OCR e non legge il "
+            "contenuto dei PDF. Genera fascicolo_index.json e "
+            "fascicolo_index.md."
+        )
+        casefile_note.setObjectName("sectionHint")
+        casefile_note.setWordWrap(True)
+        casefile_layout.addWidget(casefile_note, 2, 0, 1, 2)
+
+        self.casefile_start_button = QPushButton("Analizza fascicolo")
+        self.casefile_start_button.setObjectName("casefileAnalyzeButton")
+        self.casefile_start_button.setMinimumHeight(36)
+        self.casefile_start_button.clicked.connect(
+            self._start_casefile_analysis
+        )
+        casefile_layout.addWidget(self.casefile_start_button, 2, 2)
+        casefile_tab_layout.addWidget(casefile_group)
+
+        # --- Casefile log ---
+        casefile_log_group = QGroupBox("Log fascicolo")
+        casefile_log_layout = QVBoxLayout(casefile_log_group)
+        casefile_log_layout.setContentsMargins(12, 12, 12, 10)
+        self.casefile_log_view = QTextEdit()
+        self.casefile_log_view.setObjectName("casefileLogView")
+        self.casefile_log_view.setReadOnly(True)
+        self.casefile_log_view.setPlaceholderText(
+            "Il log dell'analisi fascicolo apparirà qui."
+        )
+        self.casefile_log_view.document().setMaximumBlockCount(2000)
+        self.casefile_log_view.setFont(monospace_font)
+        casefile_log_layout.addWidget(self.casefile_log_view)
+        casefile_tab_layout.addWidget(casefile_log_group, 1)
+
         self._load_gui_settings()
         self._connect_settings_persistence()
         self._setup_tray()
@@ -1347,7 +1401,8 @@ class MainWindow(QMainWindow):
             return
 
         self._set_casefile_running(True)
-        self._append_log("Avvio analisi fascicolo…")
+        self.casefile_log_view.clear()
+        self._append_casefile_log("Avvio analisi fascicolo…")
 
         self._casefile_worker = CasefileWorker(
             input_dir, output_dir, parent=self
@@ -1358,7 +1413,7 @@ class MainWindow(QMainWindow):
         self._casefile_worker.start()
 
     def _casefile_completed(self, result: CasefileGuiResult) -> None:
-        self._append_log(
+        self._append_casefile_log(
             f"Fascicolo: {result.total_files} file, "
             f"{result.total_pdf_files} PDF, "
             f"{result.total_indexes} indici, "
@@ -1377,7 +1432,7 @@ class MainWindow(QMainWindow):
         )
 
     def _casefile_failed(self, message: str) -> None:
-        self._append_log(f"Errore analisi fascicolo: {message}")
+        self._append_casefile_log(f"Errore analisi fascicolo: {message}")
         QMessageBox.critical(
             self,
             "Errore analisi fascicolo",
@@ -1532,6 +1587,11 @@ class MainWindow(QMainWindow):
     def _append_log(self, message: str) -> None:
         self.log_view.append(message)
         scrollbar = self.log_view.verticalScrollBar()
+        scrollbar.setValue(scrollbar.maximum())
+
+    def _append_casefile_log(self, message: str) -> None:
+        self.casefile_log_view.append(message)
+        scrollbar = self.casefile_log_view.verticalScrollBar()
         scrollbar.setValue(scrollbar.maximum())
 
     def _update_progress(self, percent: int, eta: str) -> None:
