@@ -14,8 +14,11 @@ from gdlex_ocr.manifest import file_sha256
 
 PDF_EXTENSION = ".pdf"
 DUPLICATE_FILE_WARNING = "duplicate_file"
+COMPLETE_MARKER_FILENAME = "COMPLETE"
+ATTACHMENT_INDEX_FILENAME = "ListaAllegati.html"
 
 _FILE_ORDER_RE = re.compile(r"^(\d{1,6})(?:\D|$)")
+_NUMERIC_DIR_RE = re.compile(r"^\d+$")
 
 if TYPE_CHECKING:
     from gdlex_ocr.casefile_index import CaseFileIndexEntry
@@ -29,6 +32,7 @@ class DocumentType(Enum):
     MEMORIA = "memoria"
     ISTANZA = "istanza"
     ALLEGATO = "allegato"
+    MARKER_TECNICO = "marker_tecnico"
     SCONOSCIUTO = "sconosciuto"
 
 
@@ -70,6 +74,21 @@ class CaseFileIndex:
 
 
 @dataclass(frozen=True, slots=True)
+class CaseFileUnit:
+    unit_id: str
+    relative_dir: str
+    main_document_id: str | None
+    main_pdf_path: str | None
+    attachment_index_path: str | None
+    complete_marker_path: str | None
+    total_files: int
+    total_pdf_files: int
+    total_non_pdf_files: int
+    size_bytes: int
+    warnings: tuple[ExtractionWarning, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
 class CaseFileAnalysis:
     source_dir: str
     documents: tuple[CaseFileDocument, ...]
@@ -78,6 +97,7 @@ class CaseFileAnalysis:
     total_non_pdf_files: int
     warnings: tuple[ExtractionWarning, ...]
     indexes: tuple[CaseFileIndex, ...] = ()
+    units: tuple[CaseFileUnit, ...] = ()
 
 
 def scan_directory(folder: Path, *, recursive: bool = True) -> tuple[Path, ...]:
@@ -161,6 +181,7 @@ def normalize_casefile_documents(
             ),
         )
 
+    units = build_casefile_units(documents)
     analysis = CaseFileAnalysis(
         source_dir=str(root),
         documents=tuple(documents),
@@ -169,6 +190,7 @@ def normalize_casefile_documents(
         total_non_pdf_files=total_non_pdf_files,
         warnings=warnings,
         indexes=indexes,
+        units=units,
     )
     if not compute_hashes:
         return analysis
@@ -215,7 +237,7 @@ def hash_casefile_documents(
         first_path = first_path_by_hash.get(digest)
         if first_path is None:
             first_path_by_hash[digest] = document.relative_path
-        else:
+        elif document.document_type != DocumentType.MARKER_TECNICO:
             warning = ExtractionWarning(
                 code=DUPLICATE_FILE_WARNING,
                 message=f"Documento duplicato di {first_path}",
@@ -238,6 +260,67 @@ def hash_casefile_documents(
         documents=tuple(documents),
         warnings=tuple(warnings),
     )
+
+
+def build_casefile_units(
+    documents: Iterable[CaseFileDocument],
+) -> tuple[CaseFileUnit, ...]:
+    """Detect PDP/TIAP ministerial documentary units from scanned documents."""
+    dirs: dict[str, list[CaseFileDocument]] = {}
+    for doc in documents:
+        parts = doc.relative_path.split("/")
+        if len(parts) >= 2 and _NUMERIC_DIR_RE.match(parts[0]):
+            dirs.setdefault(parts[0], []).append(doc)
+
+    units: list[CaseFileUnit] = []
+    for dir_name, docs in dirs.items():
+        pdf_count = sum(1 for d in docs if d.extension == PDF_EXTENSION)
+        if pdf_count == 0:
+            continue
+        main_pdf_name = f"{dir_name}/{dir_name}.pdf"
+        main_doc = next(
+            (d for d in docs if d.relative_path == main_pdf_name), None
+        )
+        index_path = next(
+            (
+                d.relative_path
+                for d in docs
+                if d.filename == ATTACHMENT_INDEX_FILENAME
+            ),
+            None,
+        )
+        marker_path = next(
+            (
+                d.relative_path
+                for d in docs
+                if d.filename == COMPLETE_MARKER_FILENAME
+            ),
+            None,
+        )
+        non_pdf_count = len(docs) - pdf_count
+        total_size = sum(d.size_bytes for d in docs)
+        units.append(
+            CaseFileUnit(
+                unit_id=dir_name,
+                relative_dir=dir_name,
+                main_document_id=main_doc.id if main_doc else None,
+                main_pdf_path=main_doc.relative_path if main_doc else None,
+                attachment_index_path=index_path,
+                complete_marker_path=marker_path,
+                total_files=len(docs),
+                total_pdf_files=pdf_count,
+                total_non_pdf_files=non_pdf_count,
+                size_bytes=total_size,
+            )
+        )
+
+    def _sort_key(unit: CaseFileUnit) -> tuple[int, str]:
+        try:
+            return (0, str(int(unit.unit_id)).zfill(20))
+        except ValueError:
+            return (1, unit.unit_id)
+
+    return tuple(sorted(units, key=_sort_key))
 
 
 def _validate_folder(folder: Path) -> Path:

@@ -14,6 +14,8 @@ from gdlex_ocr.casefile import (
     CaseFileAnalysis,
     CaseFileDocument,
     CaseFileIndex,
+    CaseFileUnit,
+    DocumentType,
     ExtractionWarning,
 )
 from gdlex_ocr.casefile_index import CaseFileIndexEntry, CaseFileIndexMatch
@@ -64,6 +66,15 @@ def casefile_analysis_to_dict(analysis: CaseFileAnalysis) -> dict[str, object]:
         casefile_warning_to_dict(warning)
         for warning in analysis.warnings
     ]
+    units = [
+        casefile_unit_to_dict(unit)
+        for unit in analysis.units
+    ]
+    total_technical = sum(
+        1
+        for doc in analysis.documents
+        if doc.document_type == DocumentType.MARKER_TECNICO
+    )
 
     return {
         "source_dir": _safe_source_dir(analysis.source_dir),
@@ -81,10 +92,13 @@ def casefile_analysis_to_dict(analysis: CaseFileAnalysis) -> dict[str, object]:
                 for entry in index["entries"]
             ),
             "total_warnings": _count_warnings(analysis),
+            "total_units": len(units),
+            "total_technical_files": total_technical,
         },
         "documents": documents,
         "indexes": indexes,
         "warnings": warnings,
+        "units": units,
     }
 
 
@@ -170,6 +184,24 @@ def casefile_index_match_to_dict(match: CaseFileIndexMatch) -> dict[str, object]
         "warnings": [
             casefile_warning_to_dict(warning)
             for warning in match.warnings
+        ],
+    }
+
+
+def casefile_unit_to_dict(unit: CaseFileUnit) -> dict[str, object]:
+    return {
+        "unit_id": str(unit.unit_id),
+        "relative_dir": _safe_path(unit.relative_dir),
+        "main_pdf_path": _safe_optional_path(unit.main_pdf_path),
+        "attachment_index_path": _safe_optional_path(unit.attachment_index_path),
+        "complete_marker_path": _safe_optional_path(unit.complete_marker_path),
+        "total_files": int(unit.total_files),
+        "total_pdf_files": int(unit.total_pdf_files),
+        "total_non_pdf_files": int(unit.total_non_pdf_files),
+        "size_bytes": int(unit.size_bytes),
+        "warnings": [
+            casefile_warning_to_dict(warning)
+            for warning in unit.warnings
         ],
     }
 
@@ -306,11 +338,38 @@ def format_casefile_analysis_markdown(analysis: CaseFileAnalysis) -> str:
     lines.append(f"- File totali: {summary['total_files']}")
     lines.append(f"- PDF: {summary['total_pdf_files']}")
     lines.append(f"- Non PDF: {summary['total_non_pdf_files']}")
+    if summary["total_units"]:
+        lines.append(f"- Unità documentali: {summary['total_units']}")
+    if summary["total_technical_files"]:
+        lines.append(f"- File tecnici: {summary['total_technical_files']}")
     lines.append(f"- Indici rilevati: {summary['total_indexes']}")
     lines.append(f"- Voci indice: {summary['total_index_entries']}")
     lines.append(f"- Match indice-documenti: {summary['total_index_matches']}")
     lines.append(f"- Warning: {summary['total_warnings']}")
     lines.append("")
+
+    # -- Unità documentali PDP/TIAP --
+    units = payload["units"]
+    if units:
+        lines.append("## Unità documentali PDP/TIAP")
+        lines.append("")
+        lines.append(
+            "| # | ID | PDF principale | Dimensione"
+            " | Lista allegati | File | Warning |"
+        )
+        lines.append("|---|----|----------------|------------|----------------|------|---------|")
+        for i, unit in enumerate(units, 1):
+            uid = _md_escape(str(unit["unit_id"]))
+            main_pdf = _md_escape(str(unit["main_pdf_path"] or ""))
+            size = _format_size(unit["size_bytes"])
+            index_path = _md_escape(str(unit["attachment_index_path"] or ""))
+            total = unit["total_files"]
+            warn_count = len(unit["warnings"])
+            lines.append(
+                f"| {i} | {uid} | {main_pdf} | {size}"
+                f" | {index_path} | {total} | {warn_count} |"
+            )
+        lines.append("")
 
     # -- Documenti --
     lines.append("## Documenti")

@@ -20,7 +20,11 @@ _SEPARATORS_RE = re.compile(r"[^a-z0-9]+")
 
 def classify_by_filename(filename: str) -> tuple["DocumentType", str, str]:
     """Classify a document using only its filename or relative path."""
-    from gdlex_ocr.casefile import DocumentType
+    from gdlex_ocr.casefile import COMPLETE_MARKER_FILENAME, DocumentType
+
+    basename = PurePosixPath(filename.replace("\\", "/")).name
+    if basename == COMPLETE_MARKER_FILENAME:
+        return (DocumentType.MARKER_TECNICO, CONFIDENCE_HIGH, SOURCE_FILENAME)
 
     normalized = _normalize_filename(filename)
     tokens = set(normalized.split())

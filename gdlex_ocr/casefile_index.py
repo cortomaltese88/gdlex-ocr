@@ -16,7 +16,12 @@ from urllib.parse import unquote, urlsplit
 import defusedxml.ElementTree as ET
 from defusedxml.common import DefusedXmlException
 
-from gdlex_ocr.casefile import CaseFileDocument, CaseFileIndex, ExtractionWarning
+from gdlex_ocr.casefile import (
+    ATTACHMENT_INDEX_FILENAME,
+    CaseFileDocument,
+    CaseFileIndex,
+    ExtractionWarning,
+)
 from gdlex_ocr.casefile_classify import classify_by_filename
 
 MULTIPLE_CASEFILE_INDEXES_WARNING = "multiple_casefile_indexes"
@@ -332,6 +337,18 @@ def _detect_index(root: Path, path: Path) -> CaseFileIndex | None:
     extension = absolute_path.suffix.lower()
     if extension not in _INDEX_EXTENSIONS:
         return None
+
+    if absolute_path.name == ATTACHMENT_INDEX_FILENAME:
+        relative = _relative_path(root, absolute_path)
+        parent = absolute_path.parent.name
+        confidence = "high" if re.match(r"^\d+$", parent) else "medium"
+        return CaseFileIndex(
+            relative_path=relative,
+            extension=extension,
+            confidence=confidence,
+            source="filename",
+            detected_format=_detected_format(extension),
+        )
 
     filename = absolute_path.stem.casefold()
     confidence = _detect_confidence(filename, extension)
