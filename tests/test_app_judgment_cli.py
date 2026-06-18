@@ -152,6 +152,72 @@ class AppJudgmentCliTest(unittest.TestCase):
             self.assertNotEqual(0, status)
             self.assertIn("impossibile scrivere l'output Markdown", error.getvalue())
 
+    def test_output_same_as_input_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            input_path = Path(temp_dir) / "sentenza.md"
+            input_path.write_text(SYNTHETIC_CONDANNA, encoding="utf-8")
+            error = io.StringIO()
+
+            with redirect_stderr(error):
+                status = app.main(
+                    [
+                        "--analyze-judgment",
+                        str(input_path),
+                        "--output",
+                        str(input_path),
+                    ]
+                )
+
+            self.assertNotEqual(0, status)
+            self.assertIn("coincidere", error.getvalue())
+            self.assertEqual(
+                SYNTHETIC_CONDANNA,
+                input_path.read_text(encoding="utf-8"),
+            )
+
+    def test_path_with_spaces_and_accents(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            nested = Path(temp_dir) / "cartella con spazi"
+            nested.mkdir()
+            input_path = nested / "sentenza àè.md"
+            output_path = nested / "analisi àè.md"
+            input_path.write_text(SYNTHETIC_CONDANNA, encoding="utf-8")
+
+            status = app.main(
+                [
+                    "--analyze-judgment",
+                    str(input_path),
+                    "--output",
+                    str(output_path),
+                ]
+            )
+
+            self.assertEqual(0, status)
+            output = output_path.read_text(encoding="utf-8")
+            self.assertIn("# Scheda sentenza", output)
+            self.assertIn("- Dispositivo: condanna", output)
+
+    def test_non_utf8_input_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            input_path = Path(temp_dir) / "latin1.md"
+            output_path = Path(temp_dir) / "out.md"
+            input_path.write_bytes(b"Sentenza c\xe0sa \x80 testo")
+            error = io.StringIO()
+
+            with redirect_stderr(error):
+                status = app.main(
+                    [
+                        "--analyze-judgment",
+                        str(input_path),
+                        "--output",
+                        str(output_path),
+                    ]
+                )
+
+            self.assertNotEqual(0, status)
+            self.assertIn("UTF-8", error.getvalue())
+            self.assertFalse(output_path.exists())
+
     def test_help_version_and_doctor_do_not_run_analysis(self) -> None:
         output = io.StringIO()
 

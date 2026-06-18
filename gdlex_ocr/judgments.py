@@ -38,17 +38,25 @@ _DATE_RE = re.compile(
     r")\b",
     re.IGNORECASE,
 )
+_APOS = "'‘’"
+_AUTHORITY_CITY_CHARS = "[A-Za-zÀ-ÿ" + _APOS + " ]+"
+_D_APOS = "[" + _APOS + "]"
 _AUTHORITY_RE = re.compile(
     r"\b("
-    r"Tribunale\s+di\s+[A-Za-zÀ-ÿ'’ ]+|"
-    r"Giudice\s+di\s+Pace\s+di\s+[A-Za-zÀ-ÿ'’ ]+|"
-    r"Corte\s+di\s+Assise\s+di\s+[A-Za-zÀ-ÿ'’ ]+|"
-    r"Corte\s+d[’']Appello\s+di\s+[A-Za-zÀ-ÿ'’ ]+"
+    r"Corte\s+di\s+Assise\s+d" + _D_APOS + r"Appello\s+di\s+" + _AUTHORITY_CITY_CHARS + r"|"
+    r"Corte\s+di\s+Assise\s+di\s+Appello\s+di\s+" + _AUTHORITY_CITY_CHARS + r"|"
+    r"Corte\s+di\s+Assise\s+di\s+" + _AUTHORITY_CITY_CHARS + r"|"
+    r"Corte\s+d" + _D_APOS + r"Appello\s+di\s+" + _AUTHORITY_CITY_CHARS + r"|"
+    r"Giudice\s+di\s+Pace\s+di\s+" + _AUTHORITY_CITY_CHARS + r"|"
+    r"Tribunale\s+(?:ordinario\s+)?di\s+" + _AUTHORITY_CITY_CHARS + r""
     r")",
     re.IGNORECASE,
 )
 _AUTHORITY_TRAILING_RE = re.compile(
-    r"\s+(?:sezione|in\s+composizione|composizione|penale|civile)\b.*$",
+    r"\s+(?:"
+    r"sezione|in\s+composizione|composizione|penale|civile|"
+    r"ha\b|pronuncia\b|emette\b|in\s+persona\b|nella\s+persona\b"
+    r")\b.*$",
     re.IGNORECASE,
 )
 _SENTENCE_NUMBER_RE = re.compile(
@@ -74,11 +82,19 @@ _JUDGE_RE = re.compile(
     r"([A-ZÀ-Ý][A-Za-zÀ-ÿ'’.-]+(?:\s+[A-ZÀ-Ý][A-Za-zÀ-ÿ'’.-]+){0,3})",
     re.IGNORECASE,
 )
+_WORD_TO_DAYS: dict[str, str] = {
+    "trenta": "30",
+    "quarantacinque": "45",
+    "sessanta": "60",
+    "novanta": "90",
+}
+_DAYS_NUMBER = r"(?:[0-9]{1,3}|" + "|".join(_WORD_TO_DAYS) + r")"
 _DEADLINE_RE = re.compile(
     r"\b(?:"
-    r"(?:entro|in|nel\s+termine\s+di|termine\s+di)\s+"
-    r"([0-9]{1,3})\s+giorni|"
-    r"giorni\s+([0-9]{1,3})"
+    r"(?:entro|in|nel\s+termine\s+di|termine\s+di|termine\s+per\s+il\s+"
+    r"deposito\s+della\s+motivazione\s+di)\s+"
+    r"(" + _DAYS_NUMBER + r")\s+giorni|"
+    r"giorni\s+(" + _DAYS_NUMBER + r")"
     r")\b",
     re.IGNORECASE,
 )
@@ -90,15 +106,28 @@ _CONDANNA_RE = re.compile(
     r"\b(?:condanna|condannato|dichiara\s+.+?\bcolpevole)\b",
     re.IGNORECASE,
 )
+_E_ACCENT = "[eéè" + _APOS + "]+"
 _ASSOLUZIONE_RE = re.compile(
     r"\b(?:assolve|assolto|assoluzione|il\s+fatto\s+non\s+sussiste|"
-    r"perche['’]\s+il\s+fatto\s+non\s+sussiste|"
-    r"perche['’]\s+non\s+costituisce\s+reato)\b",
+    r"perch" + _E_ACCENT + r"\s+il\s+fatto\s+non\s+sussiste|"
+    r"perch" + _E_ACCENT + r"\s+non\s+costituisce\s+reato|"
+    r"per\s+non\s+aver\s+commesso\s+il\s+fatto|"
+    r"il\s+fatto\s+non\s+" + _E_ACCENT + r"\s+previsto\s+dalla\s+legge\s+come\s+reato)\b",
     re.IGNORECASE,
 )
 _PROSCIOGLIMENTO_RE = re.compile(
     r"\b(?:proscioglie|proscioglimento|non\s+doversi\s+procedere|"
-    r"estinzione\s+del\s+reato)\b",
+    r"estinzione\s+del\s+reato|estinto\s+il\s+reato|"
+    r"prescrizione|"
+    r"remissione\s+(?:della\s+)?querela|"
+    r"difetto\s+di\s+querela)\b",
+    re.IGNORECASE,
+)
+_PATTEGGIAMENTO_RE = re.compile(
+    r"\b(?:patteggiamento|"
+    r"pena\s+(?:concordata|su\s+richiesta)|"
+    r"applica\s+la\s+pena\s+(?:concordata|su\s+richiesta)|"
+    r"art\.?\s*444\s*c\.?\s*p\.?\s*p\.?)\b",
     re.IGNORECASE,
 )
 
@@ -522,7 +551,8 @@ def _extract_motivation(
             continue
         deadline_match = _DEADLINE_RE.search(line.text)
         if deadline_match and motivation_deadline is None:
-            value = deadline_match.group(1) or deadline_match.group(2)
+            raw = deadline_match.group(1) or deadline_match.group(2)
+            value = _WORD_TO_DAYS.get(raw.casefold(), raw)
             motivation_deadline = ExtractedField(
                 f"{value} giorni",
                 CONFIDENCE_HIGH,
@@ -574,6 +604,7 @@ def _extract_outcome(
             _PROSCIOGLIMENTO_RE,
             text,
         ),
+        "patteggiamento": _keywords(_PATTEGGIAMENTO_RE, text),
     }
     present = [name for name, values in matches.items() if values]
     keywords = _dedupe(
@@ -821,10 +852,28 @@ def _manifest_keyword(value: str) -> str | None:
         return "fatto non sussiste"
     if "non costituisce reato" in text:
         return "non costituisce reato"
+    if "non aver commesso il fatto" in text:
+        return "non aver commesso il fatto"
+    if "non" in text and "previsto" in text and "legge" in text:
+        return "fatto non previsto dalla legge come reato"
     if "prosciogl" in text:
         return "proscioglimento"
     if "non doversi procedere" in text:
         return "non doversi procedere"
     if "estinzione" in text and "reato" in text:
         return "estinzione reato"
+    if "estinto" in text and "reato" in text:
+        return "estinzione reato"
+    if "prescrizione" in text:
+        return "prescrizione"
+    if "remissione" in text and "querela" in text:
+        return "remissione querela"
+    if "difetto" in text and "querela" in text:
+        return "difetto di querela"
+    if "patteggiamento" in text:
+        return "patteggiamento"
+    if "pena concordata" in text or "pena su richiesta" in text:
+        return "patteggiamento"
+    if "art" in text and "444" in text:
+        return "patteggiamento"
     return _manifest_short_text(text, 40)

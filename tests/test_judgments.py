@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import unittest
 
 from gdlex_ocr.judgments import (
@@ -74,6 +75,111 @@ Condanna l'imputato alla pena indicata in dispositivo.
 Motivazione riservata in 60 giorni.
 """
 
+TRIBUNALE_ORDINARIO_PADOVA = """\
+TRIBUNALE ORDINARIO DI PADOVA
+Sezione penale
+Sentenza n. 201/2026
+R.G. n. 300/2025
+
+All'udienza del 10 giugno 2026
+P.Q.M.
+Condanna l'imputato alla pena di mesi tre.
+Motivazione riservata in giorni novanta.
+Depositata il 12 giugno 2026.
+"""
+
+CORTE_ASSISE_APPELLO_CONDANNA = """\
+CORTE DI ASSISE D'APPELLO DI MILANO
+Sentenza n. 7/2026
+R.G. n. 15/2025
+
+All'udienza del 5 marzo 2026
+P.Q.M.
+Condanna l'imputato.
+Motivazione riservata nel termine di 90 giorni.
+"""
+
+CORTE_ASSISE_APPELLO_DI_FORM = """\
+CORTE DI ASSISE DI APPELLO DI MILANO
+Sentenza n. 7/2026
+
+All'udienza del 5 marzo 2026
+P.Q.M.
+Condanna l'imputato.
+"""
+
+PRESCRIZIONE_OUTCOME = """\
+TRIBUNALE DI PADOVA
+Sentenza n. 88/2026
+
+All'udienza del 5 maggio 2026
+P.Q.M.
+Dichiara estinto il reato per intervenuta prescrizione.
+"""
+
+ASSOLUZIONE_NON_AVER_COMMESSO = """\
+TRIBUNALE DI PADOVA
+Sentenza n. 70/2026
+
+All'udienza del 5 maggio 2026
+P.Q.M.
+Assolve l'imputato per non aver commesso il fatto.
+"""
+
+FATTO_NON_PREVISTO = """\
+TRIBUNALE DI PADOVA
+Sentenza n. 71/2026
+
+All'udienza del 5 maggio 2026
+P.Q.M.
+Assolve l'imputato perche' il fatto non e' previsto dalla legge come reato.
+"""
+
+OVERCAPTURE_AUTHORITY = """\
+Il Tribunale di Padova ha emesso la seguente sentenza.
+Sentenza n. 50/2026
+All'udienza del 1 giugno 2026
+P.Q.M.
+Condanna l'imputato.
+"""
+
+PATTEGGIAMENTO_FIXTURE = """\
+TRIBUNALE DI PADOVA
+Sentenza n. 99/2026
+
+All'udienza del 5 maggio 2026
+P.Q.M.
+Applica la pena concordata di mesi quattro ex art. 444 c.p.p.
+"""
+
+REMISSIONE_QUERELA_FIXTURE = """\
+TRIBUNALE DI PADOVA
+Sentenza n. 33/2026
+
+All'udienza del 5 maggio 2026
+P.Q.M.
+Dichiara non doversi procedere per intervenuta remissione della querela.
+"""
+
+DEADLINE_SPELLED_OUT = """\
+TRIBUNALE DI PADOVA
+Sentenza n. 40/2026
+
+All'udienza del 1 giugno 2026
+P.Q.M.
+Condanna l'imputato.
+Motivazione riservata in giorni novanta.
+"""
+
+ESTINTO_IL_REATO_FIXTURE = """\
+TRIBUNALE DI PADOVA
+Sentenza n. 89/2026
+
+All'udienza del 5 maggio 2026
+P.Q.M.
+Dichiara estinto il reato.
+"""
+
 NOT_A_JUDGMENT = """\
 # Appunti riunione
 
@@ -140,6 +246,109 @@ class JudgmentExtractionTest(unittest.TestCase):
         self.assertFalse(analysis.detected)
         self.assertIsNone(analysis.authority)
         self.assertIsNone(analysis.outcome)
+
+    def test_tribunale_ordinario_authority(self) -> None:
+        analysis = extract_judgment_metadata(TRIBUNALE_ORDINARIO_PADOVA)
+
+        self.assertTrue(analysis.detected)
+        self.assertIsNotNone(analysis.authority)
+        self.assertIn("PADOVA", analysis.authority.value.upper())
+        self.assertEqual("high", analysis.authority.confidence)
+        self.assertEqual("condanna", analysis.outcome.value)
+
+    def test_corte_assise_appello_authority(self) -> None:
+        analysis = extract_judgment_metadata(CORTE_ASSISE_APPELLO_CONDANNA)
+
+        self.assertTrue(analysis.detected)
+        self.assertIsNotNone(analysis.authority)
+        self.assertIn("APPELLO", analysis.authority.value.upper())
+        self.assertIn("ASSISE", analysis.authority.value.upper())
+        self.assertEqual("condanna", analysis.outcome.value)
+
+    def test_corte_assise_appello_di_form(self) -> None:
+        analysis = extract_judgment_metadata(CORTE_ASSISE_APPELLO_DI_FORM)
+
+        self.assertTrue(analysis.detected)
+        self.assertIsNotNone(analysis.authority)
+        self.assertIn("APPELLO", analysis.authority.value.upper())
+
+    def test_prescrizione_outcome(self) -> None:
+        analysis = extract_judgment_metadata(PRESCRIZIONE_OUTCOME)
+
+        self.assertTrue(analysis.detected)
+        self.assertEqual(
+            "proscioglimento / non doversi procedere",
+            analysis.outcome.value,
+        )
+        self.assertTrue(
+            any("prescrizione" in kw for kw in analysis.dispositive_keywords)
+        )
+
+    def test_estinto_il_reato_outcome(self) -> None:
+        analysis = extract_judgment_metadata(ESTINTO_IL_REATO_FIXTURE)
+
+        self.assertTrue(analysis.detected)
+        self.assertEqual(
+            "proscioglimento / non doversi procedere",
+            analysis.outcome.value,
+        )
+
+    def test_assoluzione_per_non_aver_commesso_il_fatto(self) -> None:
+        analysis = extract_judgment_metadata(ASSOLUZIONE_NON_AVER_COMMESSO)
+
+        self.assertTrue(analysis.detected)
+        self.assertEqual("assoluzione", analysis.outcome.value)
+        self.assertTrue(
+            any("non aver commesso" in kw for kw in analysis.dispositive_keywords)
+            or "assolve" in analysis.dispositive_keywords
+        )
+
+    def test_fatto_non_previsto_dalla_legge_come_reato(self) -> None:
+        analysis = extract_judgment_metadata(FATTO_NON_PREVISTO)
+
+        self.assertTrue(analysis.detected)
+        self.assertEqual("assoluzione", analysis.outcome.value)
+
+    def test_authority_overcapture_on_sentence_line(self) -> None:
+        analysis = extract_judgment_metadata(OVERCAPTURE_AUTHORITY)
+
+        self.assertTrue(analysis.detected)
+        self.assertIsNotNone(analysis.authority)
+        self.assertIn("Padova", analysis.authority.value)
+        self.assertNotIn("emesso", analysis.authority.value)
+        self.assertNotIn("seguente", analysis.authority.value)
+        self.assertNotIn("sentenza", analysis.authority.value.lower())
+
+    def test_patteggiamento_keyword_or_outcome(self) -> None:
+        analysis = extract_judgment_metadata(PATTEGGIAMENTO_FIXTURE)
+
+        self.assertTrue(analysis.detected)
+        self.assertEqual("patteggiamento", analysis.outcome.value)
+
+    def test_remissione_querela_outcome(self) -> None:
+        analysis = extract_judgment_metadata(REMISSIONE_QUERELA_FIXTURE)
+
+        self.assertTrue(analysis.detected)
+        self.assertEqual(
+            "proscioglimento / non doversi procedere",
+            analysis.outcome.value,
+        )
+        self.assertTrue(
+            any("remissione" in kw for kw in analysis.dispositive_keywords)
+        )
+
+    def test_deadline_spelled_out_number(self) -> None:
+        analysis = extract_judgment_metadata(DEADLINE_SPELLED_OUT)
+
+        self.assertTrue(analysis.detected)
+        self.assertIsNotNone(analysis.motivation_deadline)
+        self.assertEqual("90 giorni", analysis.motivation_deadline.value)
+        self.assertEqual("riservata", analysis.motivation_type.value)
+
+    def test_tribunale_ordinario_deadline_novanta(self) -> None:
+        analysis = extract_judgment_metadata(TRIBUNALE_ORDINARIO_PADOVA)
+
+        self.assertEqual("90 giorni", analysis.motivation_deadline.value)
 
 
 class JudgmentSummaryTest(unittest.TestCase):
@@ -222,6 +431,43 @@ class JudgmentManifestTest(unittest.TestCase):
         self.assertEqual("low", manifest["fields"]["authority"]["confidence"])
         self.assertEqual([], manifest["dispositive_keywords"])
         self.assertIn("Testo non riconosciuto", " ".join(manifest["warnings"]))
+
+    def test_manifest_no_source_prefixes_in_json(self) -> None:
+        analysis = extract_judgment_metadata(TRIBUNALE_PADOVA_CONDANNA)
+
+        manifest = judgment_analysis_to_manifest_dict(
+            analysis,
+            "sentenza_analysis.md",
+        )
+        serialized = json.dumps(manifest, ensure_ascii=False)
+
+        self.assertNotIn("riga ", serialized)
+        self.assertNotIn("pagina ", serialized)
+        self.assertNotIn("Dichiara l'imputato colpevole", serialized)
+        self.assertNotIn("alla pena di mesi sei", serialized)
+        self.assertNotIn("ha pronunciato la seguente", serialized)
+
+    def test_manifest_patteggiamento_keywords_normalized(self) -> None:
+        analysis = extract_judgment_metadata(PATTEGGIAMENTO_FIXTURE)
+
+        manifest = judgment_analysis_to_manifest_dict(
+            analysis,
+            "sentenza_analysis.md",
+        )
+
+        self.assertIn("patteggiamento", manifest["dispositive_keywords"])
+        serialized = json.dumps(manifest, ensure_ascii=False)
+        self.assertNotIn("Applica la pena concordata", serialized)
+
+    def test_manifest_prescrizione_keywords_normalized(self) -> None:
+        analysis = extract_judgment_metadata(PRESCRIZIONE_OUTCOME)
+
+        manifest = judgment_analysis_to_manifest_dict(
+            analysis,
+            "sentenza_analysis.md",
+        )
+
+        self.assertIn("prescrizione", manifest["dispositive_keywords"])
 
 
 if __name__ == "__main__":

@@ -53,6 +53,7 @@ class _Signal:
 class _FakeWorker:
     markdown_text = SYNTHETIC_CONDANNA
     should_fail = False
+    corrupt_manifest = False
     run_count = 0
 
     def __init__(
@@ -91,19 +92,22 @@ class _FakeWorker:
             return
         markdown_path = self.output_dir / f"{self.pdf_path.stem}_ocr.md"
         markdown_path.write_text(self.markdown_text, encoding="utf-8")
-        manifest_path.write_text(
-            json.dumps(
-                {
-                    "job": {"status": "success"},
-                    "outputs": {
-                        "markdown": str(markdown_path),
-                        "manifest": str(manifest_path),
+        if self.corrupt_manifest:
+            manifest_path.write_text("{bad json", encoding="utf-8")
+        else:
+            manifest_path.write_text(
+                json.dumps(
+                    {
+                        "job": {"status": "success"},
+                        "outputs": {
+                            "markdown": str(markdown_path),
+                            "manifest": str(manifest_path),
+                        },
                     },
-                },
-                indent=2,
-            ),
-            encoding="utf-8",
-        )
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
         self.completed.emit(str(markdown_path), str(self.output_dir), "0s", "1.0 pag/min")
 
 
@@ -111,6 +115,7 @@ class AppJudgmentPdfFlowTest(unittest.TestCase):
     def setUp(self) -> None:
         _FakeWorker.markdown_text = SYNTHETIC_CONDANNA
         _FakeWorker.should_fail = False
+        _FakeWorker.corrupt_manifest = False
         _FakeWorker.run_count = 0
 
     def test_pdf_flow_with_judgment_analysis_writes_separate_summary(self) -> None:
@@ -261,6 +266,37 @@ class AppJudgmentPdfFlowTest(unittest.TestCase):
             self.assertFalse(judgment["detected"])
             self.assertEqual(app.JUDGMENT_ANALYSIS_FILENAME, judgment["output_file"])
             self.assertIn("il testo non sembra una sentenza", output.getvalue())
+
+    def test_manifest_corrupt_json_in_pdf_flow(self) -> None:
+        _FakeWorker.corrupt_manifest = True
+        with tempfile.TemporaryDirectory() as temp_dir, patch(
+            "app.OcrWorker", _FakeWorker
+        ), patch(
+            "app.QApplication",
+            side_effect=AssertionError("GUI should not start for PDF CLI"),
+        ):
+            root = Path(temp_dir)
+            pdf_path = root / "sentenza.pdf"
+            output_dir = root / "output"
+            pdf_path.write_bytes(b"%PDF synthetic")
+            output = io.StringIO()
+
+            with redirect_stdout(output):
+                status = app.main(
+                    [
+                        str(pdf_path),
+                        "--output",
+                        str(output_dir),
+                        "--analyze-judgment-after-conversion",
+                    ]
+                )
+
+            self.assertEqual(0, status)
+            summary = output_dir / app.JUDGMENT_ANALYSIS_FILENAME
+            self.assertTrue(summary.is_file())
+            text = summary.read_text(encoding="utf-8")
+            self.assertIn("# Scheda sentenza", text)
+            self.assertIn("manifest non aggiornato", output.getvalue())
 
     def test_offline_judgment_cli_still_works(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir, patch(
