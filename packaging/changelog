@@ -1,3 +1,11 @@
+gdlex-ocr (0.5.1) unstable; urgency=medium
+
+  * Warn when optimized casefile PDFs are not smaller than originals.
+  * Harden casefile PDF merge edge cases and tests.
+  * Improve documentation for Ghostscript and the post-release roadmap.
+
+ -- Studio GD LEX <cortomaltese88@users.noreply.github.com>  Fri, 19 Jun 2026 19:00:00 +0200
+
 gdlex-ocr (0.5.0) unstable; urgency=medium
 
   * Add PDP/TIAP casefile analysis and document-unit exports.

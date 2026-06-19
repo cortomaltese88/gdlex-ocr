@@ -2,7 +2,7 @@
 
 Tutte le modifiche rilevanti del progetto saranno documentate in questo file.
 
-## [Unreleased]
+## [0.5.1] - 2026-06-19
 
 ### Correzioni e test
 

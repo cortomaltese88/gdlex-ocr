@@ -1,12 +1,12 @@
-# Checklist release v0.5.0
+# Checklist release v0.5.1
 
-La release `v0.5.0` è in preparazione. Gli item aperti rimangono promemoria
+La release `v0.5.1` è in preparazione. Gli item aperti rimangono promemoria
 operativi per audit manuale o pubblicazione; non vanno barrati senza una nuova
 verifica effettiva.
 
-## Pre-release v0.5.0
+## Pre-release v0.5.1
 
-- [x] Verificare che `gdlex_ocr/version.py` riporti `0.5.0`.
+- [x] Verificare che `gdlex_ocr/version.py` riporti `0.5.1`.
 - [x] Verificare coerenza tra README, changelog, manpage e comportamento della GUI.
 - [ ] Verificare nuovamente launcher, icone e installazione/rimozione desktop
   per utente prima della prossima release.
@@ -60,7 +60,7 @@ git status -sb
 - [ ] Controllare manualmente screenshot e metadati delle immagini prima della
   prossima pubblicazione.
 
-## Perimetro test v0.5.0
+## Perimetro test v0.5.1
 
 - [x] Non eseguire OCR reale durante la preparazione della release.
 - [x] Usare esclusivamente smoke test e fixture sintetiche.
@@ -79,7 +79,7 @@ git status -sb
   merge plan automatico e revisionato, revisione GUI con drag & drop e
   shortcut, PDF unico/light, segnalibri, report, handoff OCR, benchmark
   sintetico e stress test subprocess tramite la suite offline.
-- [x] Suite offline a 627 test sintetici o più.
+- [x] Suite offline a 634 test sintetici.
 - [x] Eseguire smoke test senza documenti reali.
 - [ ] Controllare visivamente il PDF unico/light con una fixture non sensibile.
 
@@ -108,8 +108,9 @@ git diff
 ## Packaging
 
 - [x] Applicare la scelta descritta in `PACKAGING.md`.
-- [x] Non incorporare la `.venv` nel pacchetto v0.5.0.
-- [x] Se viene creato un nuovo `.deb`, verificarne contenuto, dipendenze e
+- [x] Non incorporare la `.venv` nel pacchetto v0.5.1.
+- [x] Costruire il pacchetto `.deb` v0.5.1 con il metodo del progetto.
+- [x] Verificare contenuto, dipendenze e
   copyright in ambiente pulito.
 - [x] Verificare il `.deb` con `dpkg-deb`, estrazione temporanea e `lintian`.
 - [x] Non includere modelli Docling/ONNX senza inventario e verifica delle licenze.
@@ -122,15 +123,15 @@ git diff
 
 ```bash
 bash scripts/build-deb.sh
-dpkg-deb -f dist/gdlex-ocr_0.5.0_all.deb Package Version Architecture Depends Suggests
-dpkg-deb --contents dist/gdlex-ocr_0.5.0_all.deb | \
+dpkg-deb -f dist/gdlex-ocr_0.5.1_all.deb Package Version Architecture Depends Suggests
+dpkg-deb --contents dist/gdlex-ocr_0.5.1_all.deb | \
   grep -E 'casefile|casefile_pdf_merge|judgments|folder-matrix|icon-64|gdlex-ocr.desktop|gdlex-ocr.1'
-dpkg-deb --contents dist/gdlex-ocr_0.5.0_all.deb | \
+dpkg-deb --contents dist/gdlex-ocr_0.5.1_all.deb | \
   grep -E '(\.venv|__pycache__|\.git|run\.log|manifest\.json|Downloads|Documenti)' || true
-sha256sum dist/gdlex-ocr_0.5.0_all.deb
-sudo apt install ./dist/gdlex-ocr_0.5.0_all.deb
+sha256sum dist/gdlex-ocr_0.5.1_all.deb
+sudo apt install ./dist/gdlex-ocr_0.5.1_all.deb
 /usr/bin/gdlex-ocr --version
-/usr/bin/gdlex-ocr --help
+/usr/bin/gdlex-ocr --help | grep -E "analyze-casefile|merge-casefile-pdf|pdf-optimize"
 /usr/bin/gdlex-ocr --doctor
 ```
 

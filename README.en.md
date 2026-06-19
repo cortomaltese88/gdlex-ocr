@@ -12,10 +12,11 @@ for each job. The 0.2.x line adds a local **Judgments / Appeals** module that
 creates an heuristic judgment card from Markdown or after PDF conversion.
 The 0.3.x line adds local **PDP/TIAP casefile** folder analysis without OCR,
 available from both CLI and GUI, with document unit recognition, local index
-parsing and index-document matching. Version 0.5.0 completes the local
+parsing and index-document matching. The 0.5 line completes the local
 casefile flow with a reviewable merge plan, a bookmarked merged PDF and
 reports, optional Ghostscript light copy, and explicit manual handoff to the
-OCR tab.
+OCR tab. Version 0.5.1 consolidates that flow with bug fixes, edge-case tests,
+and clearer warnings, without adding features.
 
 ## What It Does
 
@@ -183,8 +184,10 @@ No casefile document is uploaded and no OCR runs automatically during analysis,
 review, merge, or handoff.
 
 The size estimate is approximate, Ghostscript does not guarantee a reduction
-for every PDF and optimization may affect rendering. Visually compare the
-merged PDF, bookmarks and any light copy with the source documents before use.
+for every PDF and optimization may affect rendering. If the light PDF is larger
+than or equal to the original, the JSON/Markdown reports, CLI, and GUI show a
+warning without deleting either file. Visually compare the merged PDF,
+bookmarks and any light copy with the source documents before use.
 
 For a repeatable local-first synthetic benchmark, without real documents:
 
