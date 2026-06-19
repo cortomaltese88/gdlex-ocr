@@ -248,6 +248,32 @@ Il CSV `fascicolo_unita.csv` contiene una riga per ogni unità documentale
 PDP/TIAP, con ID unità, PDF principale, dimensione, indice allegati,
 marker COMPLETE, conteggi file e SHA-256.
 
+Dal merge plan generato e revisionabile si può creare il PDF unico:
+
+```bash
+gdlex-ocr --merge-casefile-pdf cartella_fascicolo/ --output output/
+```
+
+Il comando stampa prima una stima basata sulla somma delle dimensioni dei PDF
+inclusi. La dimensione finale può differire per l'overhead del merge. Per creare
+anche una copia locale alleggerita, senza sovrascrivere l'originale:
+
+```bash
+gdlex-ocr --merge-casefile-pdf cartella_fascicolo/ --output output/ --pdf-optimize balanced
+```
+
+I profili disponibili sono `none` (default), `balanced` (prudente e consigliato
+per atti legali), `small` e `screen`. I profili diversi da `none` richiedono
+Ghostscript (`gs`) installato localmente e generano
+`fascicolo_unico_light.pdf`. Se Ghostscript non è disponibile il PDF originale
+continua a essere utilizzabile, ma la copia ottimizzata non viene creata.
+
+Il comando usa prima `fascicolo_merge_plan_revised.json`, se presente, e
+altrimenti `fascicolo_merge_plan.json`. Genera `fascicolo_unico.pdf` con un
+segnalibro per ogni documento incluso, oltre ai report privacy-safe
+`fascicolo_unico_report.json` e `fascicolo_unico_report.md`. Il merge usa
+`pypdf`, non esegue OCR e non estrae testo dai PDF.
+
 La stessa analisi fascicolo è disponibile anche dalla GUI tramite la sezione
 **Fascicolo**. Si selezionano la cartella del fascicolo e la cartella di output,
 quindi si avvia l'analisi con il pulsante **Analizza fascicolo**. L'elaborazione
@@ -257,6 +283,9 @@ salvato nelle impostazioni (`QSettings`). Al termine, i pulsanti **Apri
 cartella output** e **Apri report Markdown** consentono di accedere
 direttamente agli output prodotti. Il log mostra percorsi di input, output e
 conteggi dettagliati.
+Nella revisione del merge plan, **Genera PDF unico** avvia il merge in
+background e **Apri PDF unico** apre il risultato con l'applicazione locale
+predefinita.
 
 Se dopo l'installazione APT parte una vecchia copia di sviluppo, verificare il
 `PATH`: un wrapper `~/.local/bin/gdlex-ocr` può avere precedenza su

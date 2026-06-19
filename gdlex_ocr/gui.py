@@ -78,6 +78,14 @@ from gdlex_ocr.casefile_merge_plan_export import (
     write_casefile_merge_plan_json,
     write_casefile_merge_plan_markdown,
 )
+from gdlex_ocr.casefile_pdf_merge import (
+    CaseFilePdfMergeJob,
+    CaseFilePdfMergeResult,
+    build_casefile_pdf_merge_job,
+    estimate_casefile_pdf_merge_size,
+    format_bytes,
+    merge_casefile_pdfs,
+)
 from gdlex_ocr.icons import tray_icon
 from gdlex_ocr.manifest import (
     format_manifest_verification,
@@ -314,6 +322,42 @@ class CasefileWorker(QThread):
             self.failed.emit(str(exc))
 
 
+def run_casefile_pdf_merge(
+    casefile_root: Path, output_dir: Path, optimization_profile: str = "none"
+) -> CaseFilePdfMergeResult:
+    """Build and execute a case-file PDF merge job for GUI and tests."""
+    return merge_casefile_pdfs(
+        build_casefile_pdf_merge_job(casefile_root, output_dir),
+        optimization_profile,
+    )
+
+
+class CasefilePdfMergeWorker(QThread):
+    """Generate the merged PDF without blocking the GUI event loop."""
+
+    completed = Signal(object)
+    failed = Signal(str)
+
+    def __init__(
+        self, casefile_root: Path, output_dir: Path,
+        optimization_profile: str = "none", parent=None,
+    ) -> None:
+        super().__init__(parent)
+        self.casefile_root = casefile_root
+        self.output_dir = output_dir
+        self.optimization_profile = optimization_profile
+
+    def run(self) -> None:
+        try:
+            self.completed.emit(
+                run_casefile_pdf_merge(
+                    self.casefile_root, self.output_dir, self.optimization_profile
+                )
+            )
+        except Exception as exc:
+            self.failed.emit(str(exc))
+
+
 class AboutDialog(QDialog):
     """Application credits and local-processing information."""
 
@@ -395,6 +439,9 @@ class MainWindow(QMainWindow):
         self._casefile_merge_plan: CaseFileMergePlan | None = None
         self._casefile_merge_plan_path: Path | None = None
         self._casefile_root: Path | None = None
+        self._casefile_pdf_merge_worker: CasefilePdfMergeWorker | None = None
+        self._casefile_merged_pdf_path: str | None = None
+        self._casefile_optimized_pdf_path: str | None = None
 
         self.setWindowTitle(f"{APP_NAME} {APP_VERSION_LABEL}")
         app = QApplication.instance()
@@ -905,13 +952,13 @@ class MainWindow(QMainWindow):
         casefile_layout.addWidget(self.casefile_start_button, 2, 2)
         casefile_tab_layout.addWidget(casefile_group)
 
-        # --- Reviewable merge plan (does not open or merge PDFs) ---
+        # --- Reviewable merge plan and explicit PDF generation ---
         merge_review_group = QGroupBox("Revisione PDF unico")
         merge_review_layout = QVBoxLayout(merge_review_group)
         merge_review_layout.setContentsMargins(12, 12, 12, 10)
         merge_review_hint = QLabel(
             "Rivedi ordine, inclusione e segnalibri del piano. "
-            "Questa funzione non genera né modifica PDF."
+            "Salva le revisioni prima di generare il PDF unico."
         )
         merge_review_hint.setObjectName("sectionHint")
         merge_review_hint.setWordWrap(True)
@@ -979,7 +1026,31 @@ class MainWindow(QMainWindow):
             self._save_casefile_merge_plan
         )
         merge_buttons.addWidget(self.casefile_merge_save_button)
+        merge_buttons.addWidget(QLabel("Profilo PDF:"))
+        self.casefile_pdf_profile_combo = QComboBox()
+        self.casefile_pdf_profile_combo.setObjectName("casefilePdfProfileCombo")
+        for label, profile in (
+            ("Nessuna", "none"),
+            ("Bilanciata", "balanced"),
+            ("Leggera", "small"),
+            ("Massima compressione", "screen"),
+        ):
+            self.casefile_pdf_profile_combo.addItem(label, profile)
+        self.casefile_pdf_profile_combo.setCurrentIndex(0)
+        merge_buttons.addWidget(self.casefile_pdf_profile_combo)
+        self.casefile_merge_generate_button = QPushButton("Genera PDF unico")
+        self.casefile_merge_generate_button.setObjectName(
+            "casefileMergeGenerateButton"
+        )
+        self.casefile_merge_generate_button.setEnabled(False)
+        self.casefile_merge_generate_button.clicked.connect(
+            self._generate_casefile_pdf
+        )
+        merge_buttons.addWidget(self.casefile_merge_generate_button)
         merge_review_layout.addLayout(merge_buttons)
+        self.casefile_pdf_estimate_label = QLabel("Stima PDF unico: non disponibile")
+        self.casefile_pdf_estimate_label.setObjectName("casefilePdfEstimateLabel")
+        merge_review_layout.addWidget(self.casefile_pdf_estimate_label)
         self.casefile_merge_up_shortcut = QShortcut(
             QKeySequence("Alt+Up"), self.casefile_merge_table
         )
@@ -1031,6 +1102,24 @@ class MainWindow(QMainWindow):
             self._open_casefile_report
         )
         casefile_buttons_row.addWidget(self.casefile_open_report_button)
+        self.casefile_open_merged_pdf_button = QPushButton("Apri PDF unico")
+        self.casefile_open_merged_pdf_button.setObjectName(
+            "casefileOpenMergedPdfButton"
+        )
+        self.casefile_open_merged_pdf_button.setEnabled(False)
+        self.casefile_open_merged_pdf_button.clicked.connect(
+            self._open_casefile_merged_pdf
+        )
+        casefile_buttons_row.addWidget(self.casefile_open_merged_pdf_button)
+        self.casefile_open_optimized_pdf_button = QPushButton("Apri PDF leggero")
+        self.casefile_open_optimized_pdf_button.setObjectName(
+            "casefileOpenOptimizedPdfButton"
+        )
+        self.casefile_open_optimized_pdf_button.setEnabled(False)
+        self.casefile_open_optimized_pdf_button.clicked.connect(
+            self._open_casefile_optimized_pdf
+        )
+        casefile_buttons_row.addWidget(self.casefile_open_optimized_pdf_button)
         casefile_buttons_row.addStretch(1)
         casefile_tab_layout.addLayout(casefile_buttons_row)
 
@@ -1637,6 +1726,8 @@ class MainWindow(QMainWindow):
         self.casefile_merge_up_button.setEnabled(False)
         self.casefile_merge_down_button.setEnabled(False)
         self.casefile_merge_save_button.setEnabled(False)
+        self.casefile_merge_generate_button.setEnabled(False)
+        self.casefile_pdf_estimate_label.setText("Stima PDF unico: non disponibile")
 
     def _load_casefile_merge_plan(self, path: Path) -> bool:
         """Load a generated plan into the review table without blocking the GUI."""
@@ -1659,7 +1750,35 @@ class MainWindow(QMainWindow):
         self._append_casefile_log(f"Merge plan caricato: {plan.total_items} item")
         self._append_casefile_log(f"  Inclusi: {plan.total_included}")
         self._append_casefile_log(f"  Esclusi: {plan.total_excluded}")
+        self._update_casefile_pdf_estimate()
         return True
+
+    def _update_casefile_pdf_estimate(self) -> None:
+        plan = self._casefile_merge_plan
+        plan_path = self._casefile_merge_plan_path
+        root = self._casefile_root
+        if root is None:
+            input_text = self.casefile_input_edit.text().strip()
+            if input_text:
+                root = Path(os.path.expanduser(os.path.expandvars(input_text)))
+        if plan is None or plan_path is None or root is None or not root.is_dir():
+            self.casefile_pdf_estimate_label.setText(
+                "Stima PDF unico: non disponibile"
+            )
+            return
+        try:
+            estimate = estimate_casefile_pdf_merge_size(
+                CaseFilePdfMergeJob(root.resolve(), plan_path.parent, plan_path, plan)
+            )
+        except (OSError, ValueError) as exc:
+            self.casefile_pdf_estimate_label.setText(
+                "Stima PDF unico: non disponibile"
+            )
+            self._append_casefile_log(f"Stima PDF unico non disponibile: {exc}")
+            return
+        human = format_bytes(estimate.estimated_output_size_bytes)
+        self.casefile_pdf_estimate_label.setText(f"Stima PDF unico: circa {human}")
+        self._append_casefile_log(f"Stima PDF unico: circa {human}")
 
     def _populate_casefile_merge_table(self, selected_row: int | None = None) -> None:
         plan = self._casefile_merge_plan
@@ -1712,6 +1831,7 @@ class MainWindow(QMainWindow):
         self.casefile_merge_up_button.setEnabled(enabled)
         self.casefile_merge_down_button.setEnabled(enabled)
         self.casefile_merge_save_button.setEnabled(plan is not None)
+        self.casefile_merge_generate_button.setEnabled(plan is not None)
         if selected_row is not None and plan and plan.total_items:
             row = min(max(selected_row, 0), plan.total_items - 1)
             self.casefile_merge_table.selectRow(row)
@@ -1738,6 +1858,7 @@ class MainWindow(QMainWindow):
             items=renumber_merge_plan_items(items)
         )
         self._populate_casefile_merge_table(row)
+        self._update_casefile_pdf_estimate()
 
     def _move_casefile_merge_row(self, offset: int) -> None:
         plan = self._casefile_merge_plan
@@ -1814,6 +1935,96 @@ class MainWindow(QMainWindow):
         self._append_casefile_log(f"  CSV revisionato: {csv_path}")
         if markdown_path is not None:
             self._append_casefile_log(f"  Markdown revisionato: {markdown_path}")
+
+    def _generate_casefile_pdf(self) -> None:
+        input_text = self.casefile_input_edit.text().strip()
+        output_text = self.casefile_output_edit.text().strip()
+        if not input_text or not output_text:
+            QMessageBox.warning(
+                self, "Dati mancanti",
+                "Selezionare cartella fascicolo e cartella output.",
+            )
+            return
+        root = Path(os.path.expanduser(os.path.expandvars(input_text)))
+        output = Path(os.path.expanduser(os.path.expandvars(output_text)))
+        if not root.is_dir():
+            QMessageBox.warning(
+                self, "Cartella non trovata", "La cartella del fascicolo non esiste."
+            )
+            return
+        self.casefile_merge_generate_button.setEnabled(False)
+        self.casefile_open_merged_pdf_button.setEnabled(False)
+        self._append_casefile_log("Generazione PDF unico…")
+        profile = str(self.casefile_pdf_profile_combo.currentData())
+        self._append_casefile_log(
+            f"  Profilo ottimizzazione: {profile}"
+        )
+        self._casefile_pdf_merge_worker = CasefilePdfMergeWorker(
+            root, output, profile, self
+        )
+        self._casefile_pdf_merge_worker.completed.connect(
+            self._casefile_pdf_merge_completed
+        )
+        self._casefile_pdf_merge_worker.failed.connect(
+            self._casefile_pdf_merge_failed
+        )
+        self._casefile_pdf_merge_worker.finished.connect(
+            self._casefile_pdf_merge_finished
+        )
+        self._casefile_pdf_merge_worker.start()
+
+    def _casefile_pdf_merge_completed(
+        self, result: CaseFilePdfMergeResult
+    ) -> None:
+        self._casefile_merged_pdf_path = str(result.pdf_path)
+        self._casefile_optimized_pdf_path = (
+            str(result.optimized_pdf_path) if result.optimized_pdf_path else None
+        )
+        self._append_casefile_log(f"Piano usato: {result.source_plan.name}")
+        self._append_casefile_log(f"  Atti inclusi: {result.included_items}")
+        self._append_casefile_log(f"  Atti esclusi: {result.excluded_items}")
+        self._append_casefile_log(f"  Pagine totali: {result.total_pages}")
+        self._append_casefile_log(
+            f"  Dimensione stimata: {format_bytes(result.estimated_output_size_bytes)}"
+        )
+        self._append_casefile_log(f"PDF generato: {result.pdf_path}")
+        self._append_casefile_log(
+            f"  Dimensione finale: {format_bytes(result.actual_output_size_bytes)}"
+        )
+        if result.optimized_pdf_path is not None:
+            self._append_casefile_log(
+                f"PDF ottimizzato: {result.optimized_pdf_path}"
+            )
+            self._append_casefile_log(
+                "  Dimensione ottimizzata: "
+                f"{format_bytes(result.optimized_output_size_bytes)}"
+            )
+            self._append_casefile_log(
+                f"  Riduzione: {result.size_reduction_percent}%"
+            )
+        self._append_casefile_log(f"  Report JSON: {result.report_json_path}")
+        self._append_casefile_log(
+            f"  Report Markdown: {result.report_markdown_path}"
+        )
+        self.casefile_open_merged_pdf_button.setEnabled(True)
+        self.casefile_open_optimized_pdf_button.setEnabled(
+            result.optimized_pdf_path is not None
+        )
+
+    def _casefile_pdf_merge_failed(self, message: str) -> None:
+        self._append_casefile_log(f"PDF unico non generato: {message}")
+        QMessageBox.critical(
+            self, "Errore PDF unico", f"Impossibile generare il PDF unico:\n{message}"
+        )
+
+    def _casefile_pdf_merge_finished(self) -> None:
+        worker = self._casefile_pdf_merge_worker
+        self._casefile_pdf_merge_worker = None
+        self.casefile_merge_generate_button.setEnabled(
+            self._casefile_merge_plan is not None
+        )
+        if worker is not None:
+            worker.deleteLater()
 
     def _casefile_completed(self, result: CasefileGuiResult) -> None:
         self._append_casefile_log(
@@ -1927,6 +2138,30 @@ class MainWindow(QMainWindow):
             Path(path),
             "Impossibile aprire il file",
             "Errore durante l'apertura del report.",
+        )
+
+    def _open_casefile_merged_pdf(self) -> None:
+        path = self._casefile_merged_pdf_path
+        if not path or not Path(path).is_file():
+            QMessageBox.warning(
+                self, "File non trovato", "Il PDF unico non esiste o non è accessibile."
+            )
+            return
+        self._open_local_path(
+            Path(path), "Impossibile aprire il PDF", "Errore durante l'apertura del PDF."
+        )
+
+    def _open_casefile_optimized_pdf(self) -> None:
+        path = self._casefile_optimized_pdf_path
+        if not path or not Path(path).is_file():
+            QMessageBox.warning(
+                self, "File non trovato",
+                "Il PDF leggero non esiste o non è accessibile.",
+            )
+            return
+        self._open_local_path(
+            Path(path), "Impossibile aprire il PDF",
+            "Errore durante l'apertura del PDF leggero.",
         )
 
     def _set_casefile_running(self, running: bool) -> None:

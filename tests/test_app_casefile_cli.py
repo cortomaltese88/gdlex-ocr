@@ -11,6 +11,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import app
+from pypdf import PdfReader, PdfWriter
 
 
 def _make_synthetic_casefile(root: Path) -> None:
@@ -29,6 +30,107 @@ def _make_synthetic_casefile(root: Path) -> None:
 
 
 class AppCasefileCliTest(unittest.TestCase):
+    def test_merge_casefile_pdf_generates_pdf_and_reports_from_revised_plan(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            case_dir = Path(temp_dir) / "fascicolo"
+            out_dir = Path(temp_dir) / "output"
+            case_dir.mkdir()
+            out_dir.mkdir()
+            writer = PdfWriter()
+            writer.add_blank_page(width=100, height=100)
+            with (case_dir / "atto.pdf").open("wb") as stream:
+                writer.write(stream)
+            item = {
+                "final_order": 1, "unit_id": "1", "source_pdf": "atto.pdf",
+                "include_in_merged_pdf": True, "exclude_reason": None,
+                "merge_candidate": True, "bookmark_title": "Atto",
+                "bookmark_label": "001 - Atto", "act_title": None,
+                "act_number": None, "act_category": None,
+                "suggested_order": 1, "sort_group": None,
+                "sort_priority": None, "faldone_number": None,
+                "index_date": None, "pg_progressive": None,
+                "total_pages": 1, "warnings": [],
+            }
+            (out_dir / "fascicolo_merge_plan.json").write_text(
+                json.dumps({"items": [{**item, "bookmark_label": "Originale"}]}),
+                encoding="utf-8",
+            )
+            (out_dir / "fascicolo_merge_plan_revised.json").write_text(
+                json.dumps({"items": [item]}), encoding="utf-8"
+            )
+            stdout = io.StringIO()
+            with redirect_stdout(stdout), patch(
+                "app.QApplication", side_effect=AssertionError("GUI should not start")
+            ):
+                status = app.main([
+                    "--merge-casefile-pdf", str(case_dir),
+                    "--output", str(out_dir),
+                ])
+            self.assertEqual(0, status)
+            self.assertEqual(1, len(PdfReader(out_dir / "fascicolo_unico.pdf").pages))
+            report = json.loads((out_dir / "fascicolo_unico_report.json").read_text())
+            self.assertEqual("fascicolo_merge_plan_revised.json", report["source_plan"])
+            self.assertIn("fascicolo_unico.pdf", stdout.getvalue())
+            self.assertTrue((out_dir / "fascicolo_unico_report.md").is_file())
+            self.assertFalse((out_dir / "fascicolo_unico_light.pdf").exists())
+
+    def test_merge_casefile_pdf_forwards_optimization_profile(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            case_dir = Path(temp_dir) / "fascicolo"
+            out_dir = Path(temp_dir) / "output"
+            case_dir.mkdir()
+            out_dir.mkdir()
+            writer = PdfWriter()
+            writer.add_blank_page(width=100, height=100)
+            with (case_dir / "atto.pdf").open("wb") as stream:
+                writer.write(stream)
+            item = {
+                "final_order": 1, "unit_id": "1", "source_pdf": "atto.pdf",
+                "include_in_merged_pdf": True, "exclude_reason": None,
+                "merge_candidate": True, "bookmark_title": "Atto",
+                "bookmark_label": "001 - Atto", "act_title": None,
+                "act_number": None, "act_category": None,
+                "suggested_order": 1, "sort_group": None,
+                "sort_priority": None, "faldone_number": None,
+                "index_date": None, "pg_progressive": None,
+                "total_pages": 1, "warnings": [],
+            }
+            (out_dir / "fascicolo_merge_plan.json").write_text(
+                json.dumps({"items": [item]}), encoding="utf-8"
+            )
+
+            def fake_optimize(source, output, profile):
+                self.assertEqual("balanced", profile)
+                output.write_bytes(source.read_bytes())
+                return output
+
+            with patch(
+                "gdlex_ocr.casefile_pdf_merge.optimize_casefile_pdf",
+                side_effect=fake_optimize,
+            ) as optimize:
+                status = app.main([
+                    "--merge-casefile-pdf", str(case_dir),
+                    "--output", str(out_dir), "--pdf-optimize", "balanced",
+                ])
+            self.assertEqual(0, status)
+            optimize.assert_called_once()
+            self.assertTrue((out_dir / "fascicolo_unico_light.pdf").is_file())
+
+    def test_merge_casefile_pdf_reports_missing_plan(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            case_dir = Path(temp_dir) / "fascicolo"
+            out_dir = Path(temp_dir) / "output"
+            case_dir.mkdir()
+            out_dir.mkdir()
+            error = io.StringIO()
+            with redirect_stderr(error):
+                status = app.main([
+                    "--merge-casefile-pdf", str(case_dir),
+                    "--output", str(out_dir),
+                ])
+            self.assertEqual(1, status)
+            self.assertIn("Merge plan non trovato", error.getvalue())
+
     def test_analyze_casefile_writes_json_and_markdown(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             case_dir = Path(temp_dir) / "fascicolo"
@@ -200,6 +302,14 @@ class AppCasefileCliTest(unittest.TestCase):
 
         self.assertEqual(0, ctx.exception.code)
         self.assertIn("--analyze-casefile", output.getvalue())
+        self.assertIn("--merge-casefile-pdf", output.getvalue())
+        self.assertIn("--pdf-optimize", output.getvalue())
+
+    def test_pdf_optimize_defaults_to_none_and_rejects_invalid_profile(self) -> None:
+        self.assertEqual("none", app.parse_args([]).pdf_optimize)
+        with redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as ctx:
+            app.parse_args(["--pdf-optimize", "invalid"])
+        self.assertEqual(2, ctx.exception.code)
 
 
 if __name__ == "__main__":

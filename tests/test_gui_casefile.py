@@ -14,6 +14,7 @@ from PySide6.QtCore import QSettings, Qt
 from PySide6.QtGui import QKeySequence
 from PySide6.QtWidgets import QApplication, QScrollArea, QTabWidget, QTableWidget
 
+from gdlex_ocr.casefile_pdf_merge import CaseFilePdfMergeResult
 from gdlex_ocr.gui import CasefileGuiResult, MainWindow, run_casefile_analysis
 from gdlex_ocr.theme import apply_theme
 
@@ -73,6 +74,28 @@ class CasefileGuiControlsTest(unittest.TestCase):
             self.window.casefile_merge_save_button.text(),
         )
         self.assertFalse(self.window.casefile_merge_save_button.isEnabled())
+        self.assertEqual(
+            "Genera PDF unico", self.window.casefile_merge_generate_button.text()
+        )
+        self.assertFalse(self.window.casefile_merge_generate_button.isEnabled())
+        self.assertEqual(
+            "Apri PDF unico", self.window.casefile_open_merged_pdf_button.text()
+        )
+        self.assertFalse(self.window.casefile_open_merged_pdf_button.isEnabled())
+        self.assertEqual("Nessuna", self.window.casefile_pdf_profile_combo.currentText())
+        self.assertEqual("none", self.window.casefile_pdf_profile_combo.currentData())
+        self.assertEqual(
+            "casefilePdfProfileCombo",
+            self.window.casefile_pdf_profile_combo.objectName(),
+        )
+        self.assertIn(
+            "Stima PDF unico", self.window.casefile_pdf_estimate_label.text()
+        )
+        self.assertEqual(
+            "Apri PDF leggero",
+            self.window.casefile_open_optimized_pdf_button.text(),
+        )
+        self.assertFalse(self.window.casefile_open_optimized_pdf_button.isEnabled())
         self.assertTrue(self.window.casefile_merge_table.dragEnabled())
         self.assertTrue(self.window.casefile_merge_table.acceptDrops())
         self.assertTrue(self.window.casefile_merge_table.showDropIndicator())
@@ -227,6 +250,52 @@ class CasefileGuiControlsTest(unittest.TestCase):
             self.assertEqual(input_dir, call_args.args[0])
             self.assertEqual(output_dir, call_args.args[1])
             worker.start.assert_called_once()
+
+    def test_generate_pdf_invokes_merge_worker_with_selected_folders(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir) / "input"
+            output = Path(tmpdir) / "output"
+            root.mkdir()
+            self.window.casefile_input_edit.setText(str(root))
+            self.window.casefile_output_edit.setText(str(output))
+            worker = MagicMock()
+            with patch(
+                "gdlex_ocr.gui.CasefilePdfMergeWorker", return_value=worker
+            ) as worker_cls:
+                self.window._generate_casefile_pdf()
+            worker_cls.assert_called_once_with(root, output, "none", self.window)
+            worker.start.assert_called_once()
+
+    def test_pdf_merge_completion_logs_summary_and_enables_open(self) -> None:
+        base = Path("/tmp/synthetic-output")
+        result = CaseFilePdfMergeResult(
+            pdf_path=base / "fascicolo_unico.pdf",
+            report_json_path=base / "fascicolo_unico_report.json",
+            report_markdown_path=base / "fascicolo_unico_report.md",
+            source_plan=base / "fascicolo_merge_plan_revised.json",
+            total_items=3,
+            included_items=2,
+            excluded_items=1,
+            total_pages=7,
+            estimated_output_size_bytes=1024,
+            actual_output_size_bytes=900,
+            optimization_profile="balanced",
+            optimized_pdf_path=base / "fascicolo_unico_light.pdf",
+            optimized_output_size_bytes=600,
+            size_reduction_percent=33.3,
+        )
+        self.window._casefile_pdf_merge_completed(result)
+        log = self.window.casefile_log_view.toPlainText()
+        for text in (
+            "Piano usato: fascicolo_merge_plan_revised.json",
+            "Atti inclusi: 2", "Atti esclusi: 1", "Pagine totali: 7",
+            "PDF generato:",
+            "Dimensione stimata: 1.0 KB", "Dimensione finale: 900 B",
+            "PDF ottimizzato:", "Riduzione: 33.3%",
+        ):
+            self.assertIn(text, log)
+        self.assertTrue(self.window.casefile_open_merged_pdf_button.isEnabled())
+        self.assertTrue(self.window.casefile_open_optimized_pdf_button.isEnabled())
 
     def test_casefile_gui_rejects_missing_input(self) -> None:
         self.window.casefile_input_edit.setText("")

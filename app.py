@@ -29,6 +29,14 @@ from gdlex_ocr.casefile_merge_plan_export import (
     write_casefile_merge_plan_json,
     write_casefile_merge_plan_markdown,
 )
+from gdlex_ocr.casefile_pdf_merge import (
+    PDF_OPTIMIZATION_PROFILES,
+    CaseFilePdfMergeError,
+    build_casefile_pdf_merge_job,
+    estimate_casefile_pdf_merge_size,
+    format_bytes,
+    merge_casefile_pdfs,
+)
 from gdlex_ocr.gui import MainWindow
 from gdlex_ocr.icons import application_icon
 from gdlex_ocr.judgments import (
@@ -83,11 +91,25 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="analizza una cartella fascicolo e genera indice JSON e Markdown",
     )
     parser.add_argument(
+        "--merge-casefile-pdf",
+        metavar="CARTELLA",
+        help="genera il PDF unico dal merge plan del fascicolo",
+    )
+    parser.add_argument(
+        "--pdf-optimize",
+        choices=PDF_OPTIMIZATION_PROFILES,
+        default="none",
+        help=(
+            "profilo per la copia PDF alleggerita: none (default), balanced "
+            "(prudente), small o screen"
+        ),
+    )
+    parser.add_argument(
         "--output",
         metavar="OUTPUT",
         help=(
             "file Markdown di output per --analyze-judgment, directory output "
-            "per --analyze-casefile oppure per la conversione PDF"
+            "per --analyze-casefile, --merge-casefile-pdf o la conversione PDF"
         ),
     )
     parser.add_argument(
@@ -127,26 +149,32 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     args = parser.parse_args(argv)
     skip = args.version or args.doctor
-    if args.analyze_casefile and not skip:
+    if args.analyze_casefile and args.merge_casefile_pdf and not skip:
+        parser.error(
+            "--analyze-casefile non puo' essere usato insieme a "
+            "--merge-casefile-pdf"
+        )
+    casefile_mode = args.analyze_casefile or args.merge_casefile_pdf
+    if casefile_mode and not skip:
         if not args.output:
-            parser.error("--output e' obbligatorio con --analyze-casefile")
+            parser.error("--output e' obbligatorio con le funzioni fascicolo")
         if args.input_pdf:
             parser.error(
-                "--analyze-casefile non puo' essere usato insieme a input_pdf"
+                "Le funzioni fascicolo non possono essere usate insieme a input_pdf"
             )
         if args.analyze_judgment:
             parser.error(
-                "--analyze-casefile non puo' essere usato insieme a "
+                "Le funzioni fascicolo non possono essere usate insieme a "
                 "--analyze-judgment"
             )
         if args.analyze_judgment_after_conversion:
             parser.error(
-                "--analyze-casefile non puo' essere usato insieme a "
+                "Le funzioni fascicolo non possono essere usate insieme a "
                 "--analyze-judgment-after-conversion"
             )
         if args.prepend:
             parser.error(
-                "--analyze-casefile non puo' essere usato insieme a --prepend"
+                "Le funzioni fascicolo non possono essere usate insieme a --prepend"
             )
     if args.analyze_judgment and not skip and not args.output:
         parser.error("--output e' obbligatorio con --analyze-judgment")
@@ -278,6 +306,37 @@ def analyze_casefile_cli(input_name: str, output_name: str) -> int:
     return 0
 
 
+def merge_casefile_pdf_cli(
+    input_name: str, output_name: str, optimization_profile: str = "none"
+) -> int:
+    """Generate the single case-file PDF without OCR or text extraction."""
+    try:
+        job = build_casefile_pdf_merge_job(
+            Path(input_name).expanduser(), Path(output_name).expanduser()
+        )
+        estimate = estimate_casefile_pdf_merge_size(job)
+        print(f"Piano usato: {job.source_plan.name}")
+        print(f"Atti inclusi: {estimate.included_pdf_count}")
+        pages = estimate.estimated_page_count
+        print(f"Pagine stimate: {pages if pages is not None else 'non disponibili'}")
+        print(f"Dimensione stimata: {format_bytes(estimate.estimated_output_size_bytes)}")
+        result = merge_casefile_pdfs(job, optimization_profile)
+    except (CaseFilePdfMergeError, OSError) as exc:
+        print(f"Errore: {exc}", file=sys.stderr)
+        return 1
+    print(f"PDF generato: {result.pdf_path}")
+    print(f"Dimensione finale: {format_bytes(result.actual_output_size_bytes)}")
+    if result.optimized_pdf_path is not None:
+        print(f"PDF ottimizzato: {result.optimized_pdf_path}")
+        print(f"Dimensione ottimizzata: {format_bytes(result.optimized_output_size_bytes)}")
+        print(f"Riduzione: {result.size_reduction_percent}%")
+    else:
+        print("PDF ottimizzato: non richiesto")
+    print(f"Report JSON: {result.report_json_path}")
+    print(f"Report Markdown: {result.report_markdown_path}")
+    return 0
+
+
 def convert_pdf_to_markdown_cli(
     input_pdf: str,
     output_dir: str,
@@ -378,6 +437,11 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.analyze_casefile:
         return analyze_casefile_cli(args.analyze_casefile, args.output)
+
+    if args.merge_casefile_pdf:
+        return merge_casefile_pdf_cli(
+            args.merge_casefile_pdf, args.output, args.pdf_optimize
+        )
 
     if args.analyze_judgment:
         return analyze_judgment_markdown(
