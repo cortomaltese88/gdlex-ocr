@@ -15,6 +15,8 @@ from PySide6.QtGui import (
     QFontDatabase,
     QIcon,
     QIntValidator,
+    QKeySequence,
+    QShortcut,
 )
 from PySide6.QtWidgets import (
     QApplication,
@@ -27,6 +29,7 @@ from PySide6.QtWidgets import (
     QFrame,
     QGridLayout,
     QGroupBox,
+    QHeaderView,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -39,6 +42,8 @@ from PySide6.QtWidgets import (
     QSpinBox,
     QSystemTrayIcon,
     QTabWidget,
+    QTableWidget,
+    QTableWidgetItem,
     QTextEdit,
     QVBoxLayout,
     QWidget,
@@ -57,10 +62,18 @@ from gdlex_ocr.casefile_export import (
     write_casefile_units_csv,
 )
 from gdlex_ocr.casefile_merge_plan_export import (
+    CaseFileMergePlan,
     build_casefile_merge_plan,
     default_casefile_merge_plan_csv_path,
     default_casefile_merge_plan_json_path,
     default_casefile_merge_plan_markdown_path,
+    load_casefile_merge_plan,
+    move_merge_plan_item,
+    renumber_merge_plan_items,
+    resolve_merge_plan_source_pdf,
+    save_revised_merge_plan,
+    set_item_bookmark_title,
+    set_item_included,
     write_casefile_merge_plan_csv,
     write_casefile_merge_plan_json,
     write_casefile_merge_plan_markdown,
@@ -107,6 +120,23 @@ _OCR_BACKENDS = [
     ("OCRmyPDF", "ocrmypdf"),
     ("Comando esterno", "external"),
 ]
+
+
+class MergePlanTableWidget(QTableWidget):
+    """Table that delegates an internal row drop to the merge-plan model."""
+
+    rowMoveRequested = Signal(int, int)
+
+    def dropEvent(self, event) -> None:  # type: ignore[no-untyped-def]
+        source_row = self.currentRow()
+        target_row = self.indexAt(event.position().toPoint()).row()
+        if target_row < 0:
+            target_row = self.rowCount() - 1
+        if source_row >= 0 and target_row >= 0 and source_row != target_row:
+            self.rowMoveRequested.emit(source_row, target_row)
+            event.acceptProposedAction()
+            return
+        event.ignore()
 _SETTINGS_ORGANIZATION = "GD LEX"
 _ASSETS_DIR = Path(__file__).resolve().parent.parent / "assets"
 _FOLDER_ICON_PATH = _ASSETS_DIR / "folder-matrix.svg"
@@ -362,6 +392,9 @@ class MainWindow(QMainWindow):
         self._create_searchable_requested = False
         self._output_path_customized = False
         self._theme_actions: dict[str, QAction] = {}
+        self._casefile_merge_plan: CaseFileMergePlan | None = None
+        self._casefile_merge_plan_path: Path | None = None
+        self._casefile_root: Path | None = None
 
         self.setWindowTitle(f"{APP_NAME} {APP_VERSION_LABEL}")
         app = QApplication.instance()
@@ -872,6 +905,95 @@ class MainWindow(QMainWindow):
         casefile_layout.addWidget(self.casefile_start_button, 2, 2)
         casefile_tab_layout.addWidget(casefile_group)
 
+        # --- Reviewable merge plan (does not open or merge PDFs) ---
+        merge_review_group = QGroupBox("Revisione PDF unico")
+        merge_review_layout = QVBoxLayout(merge_review_group)
+        merge_review_layout.setContentsMargins(12, 12, 12, 10)
+        merge_review_hint = QLabel(
+            "Rivedi ordine, inclusione e segnalibri del piano. "
+            "Questa funzione non genera né modifica PDF."
+        )
+        merge_review_hint.setObjectName("sectionHint")
+        merge_review_hint.setWordWrap(True)
+        merge_review_layout.addWidget(merge_review_hint)
+
+        self.casefile_merge_table = MergePlanTableWidget(0, 9)
+        self.casefile_merge_table.setObjectName("casefileMergePlanTable")
+        self.casefile_merge_table.setHorizontalHeaderLabels((
+            "Ordine finale", "Includi", "Motivo esclusione", "Segnalibro",
+            "Categoria", "PDF sorgente", "Unità", "Pagine", "Warning",
+        ))
+        self.casefile_merge_table.setMinimumHeight(260)
+        self.casefile_merge_table.setSelectionBehavior(
+            QTableWidget.SelectionBehavior.SelectRows
+        )
+        self.casefile_merge_table.setSelectionMode(
+            QTableWidget.SelectionMode.SingleSelection
+        )
+        self.casefile_merge_table.setDragEnabled(True)
+        self.casefile_merge_table.setAcceptDrops(True)
+        self.casefile_merge_table.setDropIndicatorShown(True)
+        self.casefile_merge_table.setDragDropMode(
+            QTableWidget.DragDropMode.InternalMove
+        )
+        self.casefile_merge_table.setDefaultDropAction(Qt.DropAction.MoveAction)
+        header = self.casefile_merge_table.horizontalHeader()
+        header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(5, QHeaderView.ResizeMode.Stretch)
+        self.casefile_merge_table.itemChanged.connect(
+            self._casefile_merge_item_changed
+        )
+        self.casefile_merge_table.rowMoveRequested.connect(
+            self._move_casefile_merge_row_to
+        )
+        self.casefile_merge_table.cellDoubleClicked.connect(
+            self._open_casefile_merge_source_pdf
+        )
+        merge_review_layout.addWidget(self.casefile_merge_table)
+
+        merge_buttons = QHBoxLayout()
+        self.casefile_merge_up_button = QPushButton("Sposta su")
+        self.casefile_merge_up_button.setObjectName("casefileMergeMoveUpButton")
+        self.casefile_merge_up_button.setEnabled(False)
+        self.casefile_merge_up_button.clicked.connect(
+            lambda: self._move_casefile_merge_row(-1)
+        )
+        merge_buttons.addWidget(self.casefile_merge_up_button)
+        self.casefile_merge_down_button = QPushButton("Sposta giù")
+        self.casefile_merge_down_button.setObjectName(
+            "casefileMergeMoveDownButton"
+        )
+        self.casefile_merge_down_button.setEnabled(False)
+        self.casefile_merge_down_button.clicked.connect(
+            lambda: self._move_casefile_merge_row(1)
+        )
+        merge_buttons.addWidget(self.casefile_merge_down_button)
+        merge_buttons.addStretch(1)
+        self.casefile_merge_save_button = QPushButton("Salva piano revisionato")
+        self.casefile_merge_save_button.setObjectName(
+            "casefileMergeSaveButton"
+        )
+        self.casefile_merge_save_button.setEnabled(False)
+        self.casefile_merge_save_button.clicked.connect(
+            self._save_casefile_merge_plan
+        )
+        merge_buttons.addWidget(self.casefile_merge_save_button)
+        merge_review_layout.addLayout(merge_buttons)
+        self.casefile_merge_up_shortcut = QShortcut(
+            QKeySequence("Alt+Up"), self.casefile_merge_table
+        )
+        self.casefile_merge_up_shortcut.activated.connect(
+            lambda: self._move_casefile_merge_row(-1)
+        )
+        self.casefile_merge_down_shortcut = QShortcut(
+            QKeySequence("Alt+Down"), self.casefile_merge_table
+        )
+        self.casefile_merge_down_shortcut.activated.connect(
+            lambda: self._move_casefile_merge_row(1)
+        )
+        casefile_tab_layout.addWidget(merge_review_group, 1)
+
         # --- Casefile log ---
         casefile_log_group = QGroupBox("Log fascicolo")
         casefile_log_layout = QVBoxLayout(casefile_log_group)
@@ -885,7 +1007,7 @@ class MainWindow(QMainWindow):
         self.casefile_log_view.document().setMaximumBlockCount(2000)
         self.casefile_log_view.setFont(monospace_font)
         casefile_log_layout.addWidget(self.casefile_log_view)
-        casefile_tab_layout.addWidget(casefile_log_group, 1)
+        casefile_tab_layout.addWidget(casefile_log_group)
 
         # --- Casefile output buttons ---
         casefile_buttons_row = QHBoxLayout()
@@ -1491,7 +1613,9 @@ class MainWindow(QMainWindow):
             return
 
         self._set_casefile_running(True)
+        self._casefile_root = input_dir.resolve(strict=False)
         self.casefile_log_view.clear()
+        self._clear_casefile_merge_plan()
         self.casefile_open_folder_button.setEnabled(False)
         self.casefile_open_report_button.setEnabled(False)
         self._append_casefile_log("Avvio analisi fascicolo…")
@@ -1505,6 +1629,191 @@ class MainWindow(QMainWindow):
         self._casefile_worker.failed.connect(self._casefile_failed)
         self._casefile_worker.finished.connect(self._casefile_worker_finished)
         self._casefile_worker.start()
+
+    def _clear_casefile_merge_plan(self) -> None:
+        self._casefile_merge_plan = None
+        self._casefile_merge_plan_path = None
+        self.casefile_merge_table.setRowCount(0)
+        self.casefile_merge_up_button.setEnabled(False)
+        self.casefile_merge_down_button.setEnabled(False)
+        self.casefile_merge_save_button.setEnabled(False)
+
+    def _load_casefile_merge_plan(self, path: Path) -> bool:
+        """Load a generated plan into the review table without blocking the GUI."""
+        merge_path = Path(path)
+        if not merge_path.is_file():
+            self._clear_casefile_merge_plan()
+            self._append_casefile_log(
+                f"Merge plan non disponibile: {merge_path.name}"
+            )
+            return False
+        try:
+            plan = load_casefile_merge_plan(merge_path)
+        except (OSError, ValueError, TypeError) as exc:
+            self._clear_casefile_merge_plan()
+            self._append_casefile_log(f"Merge plan non caricato: {exc}")
+            return False
+        self._casefile_merge_plan = plan
+        self._casefile_merge_plan_path = merge_path
+        self._populate_casefile_merge_table()
+        self._append_casefile_log(f"Merge plan caricato: {plan.total_items} item")
+        self._append_casefile_log(f"  Inclusi: {plan.total_included}")
+        self._append_casefile_log(f"  Esclusi: {plan.total_excluded}")
+        return True
+
+    def _populate_casefile_merge_table(self, selected_row: int | None = None) -> None:
+        plan = self._casefile_merge_plan
+        self.casefile_merge_table.blockSignals(True)
+        try:
+            self.casefile_merge_table.setRowCount(0 if plan is None else plan.total_items)
+            if plan is None:
+                return
+            for row, merge_item in enumerate(plan.items):
+                order_item = QTableWidgetItem(str(merge_item.final_order or ""))
+                order_item.setFlags(order_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                self.casefile_merge_table.setItem(row, 0, order_item)
+
+                include_item = QTableWidgetItem()
+                include_item.setFlags(
+                    (include_item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+                    & ~Qt.ItemFlag.ItemIsEditable
+                )
+                include_item.setCheckState(
+                    Qt.CheckState.Checked if merge_item.include_in_merged_pdf
+                    else Qt.CheckState.Unchecked
+                )
+                self.casefile_merge_table.setItem(row, 1, include_item)
+
+                reason_item = QTableWidgetItem(merge_item.exclude_reason or "")
+                if merge_item.include_in_merged_pdf:
+                    reason_item.setFlags(
+                        reason_item.flags() & ~Qt.ItemFlag.ItemIsEditable
+                    )
+                self.casefile_merge_table.setItem(row, 2, reason_item)
+                self.casefile_merge_table.setItem(
+                    row, 3, QTableWidgetItem(merge_item.bookmark_label)
+                )
+                values = (
+                    merge_item.act_category or "",
+                    merge_item.source_pdf,
+                    merge_item.unit_id,
+                    str(merge_item.total_pages or ""),
+                    " | ".join(warning.message for warning in merge_item.warnings),
+                )
+                for column, value in enumerate(values, 4):
+                    table_item = QTableWidgetItem(value)
+                    table_item.setFlags(
+                        table_item.flags() & ~Qt.ItemFlag.ItemIsEditable
+                    )
+                    self.casefile_merge_table.setItem(row, column, table_item)
+        finally:
+            self.casefile_merge_table.blockSignals(False)
+        enabled = bool(plan and plan.total_items)
+        self.casefile_merge_up_button.setEnabled(enabled)
+        self.casefile_merge_down_button.setEnabled(enabled)
+        self.casefile_merge_save_button.setEnabled(plan is not None)
+        if selected_row is not None and plan and plan.total_items:
+            row = min(max(selected_row, 0), plan.total_items - 1)
+            self.casefile_merge_table.selectRow(row)
+
+    def _casefile_merge_item_changed(self, table_item: QTableWidgetItem) -> None:
+        plan = self._casefile_merge_plan
+        row = table_item.row()
+        if plan is None or not 0 <= row < plan.total_items:
+            return
+        items = list(plan.items)
+        merge_item = items[row]
+        if table_item.column() == 1:
+            reason_cell = self.casefile_merge_table.item(row, 2)
+            included = table_item.checkState() == Qt.CheckState.Checked
+            reason = reason_cell.text() if reason_cell is not None else None
+            items[row] = set_item_included(merge_item, included, reason)
+        elif table_item.column() == 2 and not merge_item.include_in_merged_pdf:
+            items[row] = set_item_included(merge_item, False, table_item.text())
+        elif table_item.column() == 3:
+            items[row] = set_item_bookmark_title(merge_item, table_item.text())
+        else:
+            return
+        self._casefile_merge_plan = CaseFileMergePlan(
+            items=renumber_merge_plan_items(items)
+        )
+        self._populate_casefile_merge_table(row)
+
+    def _move_casefile_merge_row(self, offset: int) -> None:
+        plan = self._casefile_merge_plan
+        row = self.casefile_merge_table.currentRow()
+        target = row + offset
+        if plan is None or row < 0 or not 0 <= target < plan.total_items:
+            return
+        self._casefile_merge_plan = CaseFileMergePlan(
+            items=move_merge_plan_item(plan.items, row, target)
+        )
+        self._populate_casefile_merge_table(target)
+
+    def _move_casefile_merge_row_to(self, source_row: int, target_row: int) -> None:
+        plan = self._casefile_merge_plan
+        if plan is None or not 0 <= source_row < plan.total_items:
+            return
+        target_row = min(max(target_row, 0), plan.total_items - 1)
+        if source_row == target_row:
+            return
+        self._casefile_merge_plan = CaseFileMergePlan(
+            items=move_merge_plan_item(plan.items, source_row, target_row)
+        )
+        self._populate_casefile_merge_table(target_row)
+
+    def _open_casefile_merge_source_pdf(self, row: int, _column: int) -> None:
+        plan = self._casefile_merge_plan
+        if plan is None or not 0 <= row < plan.total_items:
+            return
+        root = self._casefile_root
+        if root is None:
+            input_text = self.casefile_input_edit.text().strip()
+            if input_text:
+                root = Path(os.path.expanduser(os.path.expandvars(input_text)))
+        if root is None or not root.is_dir():
+            self._append_casefile_log("PDF non aperto: cartella fascicolo non disponibile.")
+            return
+        try:
+            path = resolve_merge_plan_source_pdf(root, plan.items[row].source_pdf)
+        except ValueError as exc:
+            self._append_casefile_log(f"PDF non aperto: {exc}")
+            return
+        if not path.is_file():
+            self._append_casefile_log(f"PDF non trovato: {plan.items[row].source_pdf}")
+            return
+        try:
+            opened = QDesktopServices.openUrl(QUrl.fromLocalFile(str(path)))
+        except Exception as exc:
+            self._append_casefile_log(f"PDF non aperto: {exc}")
+            return
+        if opened:
+            self._append_casefile_log(f"PDF aperto: {plan.items[row].source_pdf}")
+        else:
+            self._append_casefile_log(
+                f"PDF non aperto dall'applicazione predefinita: {plan.items[row].source_pdf}"
+            )
+
+    def _save_casefile_merge_plan(self) -> None:
+        plan = self._casefile_merge_plan
+        source_path = self._casefile_merge_plan_path
+        if plan is None or source_path is None:
+            self._append_casefile_log("Nessun merge plan da salvare.")
+            return
+        try:
+            json_path, csv_path, markdown_path = save_revised_merge_plan(
+                plan, source_path.parent
+            )
+        except OSError as exc:
+            self._append_casefile_log(f"Piano revisionato non salvato: {exc}")
+            QMessageBox.critical(
+                self, "Errore salvataggio", f"Impossibile salvare il piano:\n{exc}"
+            )
+            return
+        self._append_casefile_log(f"Piano revisionato salvato: {json_path}")
+        self._append_casefile_log(f"  CSV revisionato: {csv_path}")
+        if markdown_path is not None:
+            self._append_casefile_log(f"  Markdown revisionato: {markdown_path}")
 
     def _casefile_completed(self, result: CasefileGuiResult) -> None:
         self._append_casefile_log(
@@ -1549,6 +1858,7 @@ class MainWindow(QMainWindow):
         self._append_casefile_log(
             f"  Merge plan Markdown: {result.merge_plan_markdown_path}"
         )
+        self._load_casefile_merge_plan(result.merge_plan_json_path)
 
         self._casefile_output_dir = str(result.json_path.parent)
         self._casefile_report_path = str(result.markdown_path)

@@ -10,8 +10,9 @@ from unittest.mock import MagicMock, patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtCore import QSettings
-from PySide6.QtWidgets import QApplication, QScrollArea, QTabWidget
+from PySide6.QtCore import QSettings, Qt
+from PySide6.QtGui import QKeySequence
+from PySide6.QtWidgets import QApplication, QScrollArea, QTabWidget, QTableWidget
 
 from gdlex_ocr.gui import CasefileGuiResult, MainWindow, run_casefile_analysis
 from gdlex_ocr.theme import apply_theme
@@ -55,6 +56,135 @@ class CasefileGuiControlsTest(unittest.TestCase):
         self.assertEqual(
             "casefileOpenReportButton",
             self.window.casefile_open_report_button.objectName(),
+        )
+
+    def test_merge_plan_review_controls_exist(self) -> None:
+        self.assertIsInstance(self.window.casefile_merge_table, QTableWidget)
+        self.assertEqual(
+            "casefileMergePlanTable",
+            self.window.casefile_merge_table.objectName(),
+        )
+        self.assertEqual("Sposta su", self.window.casefile_merge_up_button.text())
+        self.assertEqual(
+            "Sposta giù", self.window.casefile_merge_down_button.text()
+        )
+        self.assertEqual(
+            "Salva piano revisionato",
+            self.window.casefile_merge_save_button.text(),
+        )
+        self.assertFalse(self.window.casefile_merge_save_button.isEnabled())
+        self.assertTrue(self.window.casefile_merge_table.dragEnabled())
+        self.assertTrue(self.window.casefile_merge_table.acceptDrops())
+        self.assertTrue(self.window.casefile_merge_table.showDropIndicator())
+        self.assertEqual(
+            QTableWidget.DragDropMode.InternalMove,
+            self.window.casefile_merge_table.dragDropMode(),
+        )
+        self.assertEqual(
+            QKeySequence("Alt+Up"), self.window.casefile_merge_up_shortcut.key()
+        )
+        self.assertEqual(
+            QKeySequence("Alt+Down"), self.window.casefile_merge_down_shortcut.key()
+        )
+
+    def test_gui_can_load_move_edit_and_save_merge_plan(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            input_dir = Path(tmpdir) / "input"
+            input_dir.mkdir()
+            for unit_id in ("100", "200"):
+                unit_dir = input_dir / unit_id
+                unit_dir.mkdir()
+                (unit_dir / f"{unit_id}.pdf").write_bytes(
+                    b"%PDF-synthetic-" + unit_id.encode()
+                )
+                (unit_dir / "COMPLETE").write_bytes(b"")
+            output_dir = Path(tmpdir) / "output"
+            result = run_casefile_analysis(input_dir, output_dir)
+
+            self.assertTrue(
+                self.window._load_casefile_merge_plan(result.merge_plan_json_path)
+            )
+            self.assertEqual(2, self.window.casefile_merge_table.rowCount())
+            self.assertIn(
+                "Merge plan caricato: 2 item",
+                self.window.casefile_log_view.toPlainText(),
+            )
+
+            original_second = self.window.casefile_merge_table.item(1, 6).text()
+            self.window.casefile_merge_table.selectRow(1)
+            self.window._move_casefile_merge_row(-1)
+            self.assertEqual(
+                original_second,
+                self.window.casefile_merge_table.item(0, 6).text(),
+            )
+            self.assertTrue(
+                self.window.casefile_merge_table.item(0, 3).text().startswith(
+                    "001 - "
+                )
+            )
+
+            self.window.casefile_merge_table.item(0, 1).setCheckState(
+                Qt.CheckState.Unchecked
+            )
+            self.assertEqual(
+                "escluso_manualmente",
+                self.window.casefile_merge_table.item(0, 2).text(),
+            )
+            self.assertEqual("", self.window.casefile_merge_table.item(0, 0).text())
+            self.window.casefile_merge_table.item(0, 1).setCheckState(
+                Qt.CheckState.Checked
+            )
+            self.window.casefile_merge_table.item(0, 3).setText(
+                "001 - Titolo GUI"
+            )
+            self.assertEqual(
+                "001 - Titolo GUI",
+                self.window.casefile_merge_table.item(0, 3).text(),
+            )
+
+            self.window._save_casefile_merge_plan()
+            self.assertTrue(
+                (output_dir / "fascicolo_merge_plan_revised.json").is_file()
+            )
+            self.assertTrue(
+                (output_dir / "fascicolo_merge_plan_revised.csv").is_file()
+            )
+            self.assertIn(
+                "Piano revisionato salvato:",
+                self.window.casefile_log_view.toPlainText(),
+            )
+
+    def test_double_click_opens_safe_source_pdf_without_changing_plan(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            input_dir = Path(tmpdir) / "input"
+            unit_dir = input_dir / "100"
+            unit_dir.mkdir(parents=True)
+            (unit_dir / "100.pdf").write_bytes(b"%PDF-synthetic")
+            (unit_dir / "COMPLETE").write_bytes(b"")
+            result = run_casefile_analysis(input_dir, Path(tmpdir) / "output")
+            self.window.casefile_input_edit.setText(str(input_dir))
+            self.assertTrue(
+                self.window._load_casefile_merge_plan(result.merge_plan_json_path)
+            )
+            before = self.window._casefile_merge_plan
+
+            with patch(
+                "gdlex_ocr.gui.QDesktopServices.openUrl", return_value=True
+            ) as open_url:
+                self.window._open_casefile_merge_source_pdf(0, 5)
+
+            open_url.assert_called_once()
+            opened_url = open_url.call_args.args[0]
+            self.assertEqual((unit_dir / "100.pdf").resolve(), Path(opened_url.toLocalFile()))
+            self.assertIs(before, self.window._casefile_merge_plan)
+            self.assertIn("PDF aperto: 100/100.pdf", self.window.casefile_log_view.toPlainText())
+
+    def test_missing_merge_plan_is_non_blocking(self) -> None:
+        missing = Path("/tmp/gdlex-merge-plan-does-not-exist.json")
+        self.assertFalse(self.window._load_casefile_merge_plan(missing))
+        self.assertIn(
+            "Merge plan non disponibile",
+            self.window.casefile_log_view.toPlainText(),
         )
 
     def test_casefile_gui_does_not_store_sensitive_input_path(self) -> None:

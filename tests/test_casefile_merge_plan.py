@@ -21,7 +21,15 @@ from gdlex_ocr.casefile_merge_plan_export import (
     default_casefile_merge_plan_markdown_path,
     format_casefile_merge_plan_csv,
     format_casefile_merge_plan_markdown,
+    load_casefile_merge_plan,
     merge_plan_to_dict,
+    move_merge_plan_item,
+    renumber_merge_plan_items,
+    resolve_merge_plan_source_pdf,
+    save_revised_merge_plan,
+    set_item_bookmark_title,
+    set_item_included,
+    write_casefile_merge_plan_json,
 )
 
 
@@ -48,6 +56,107 @@ def _create_enriched_fixture(root: Path) -> None:
 
 
 class CaseFileMergePlanTest(unittest.TestCase):
+    def test_load_valid_merge_plan_json(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "fixture"
+            root.mkdir()
+            _create_enriched_fixture(root)
+            original = build_casefile_merge_plan(analyze_case_folder(root))
+            path = Path(tmp) / "fascicolo_merge_plan.json"
+            write_casefile_merge_plan_json(original, path)
+
+            loaded = load_casefile_merge_plan(path)
+
+            self.assertEqual(original.total_items, loaded.total_items)
+            self.assertEqual(original.items[0].source_pdf, loaded.items[0].source_pdf)
+
+    def test_move_renumbers_order_and_bookmark_labels(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _create_enriched_fixture(root)
+            plan = build_casefile_merge_plan(analyze_case_folder(root))
+            first_unit = plan.items[0].unit_id
+
+            moved = move_merge_plan_item(plan.items, 0, 2)
+
+            self.assertEqual(first_unit, moved[2].unit_id)
+            self.assertEqual([1, 2, 3], [item.final_order for item in moved])
+            self.assertEqual(
+                ["001", "002", "003"],
+                [item.bookmark_label[:3] for item in moved],
+            )
+
+    def test_manual_exclusion_and_reinclusion_are_coherent(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _create_enriched_fixture(root)
+            item = build_casefile_merge_plan(analyze_case_folder(root)).items[0]
+
+            excluded = set_item_included(item, False)
+            self.assertFalse(excluded.include_in_merged_pdf)
+            self.assertEqual("escluso_manualmente", excluded.exclude_reason)
+
+            renumbered = renumber_merge_plan_items((excluded, item))
+            self.assertIsNone(renumbered[0].final_order)
+            self.assertEqual(1, renumbered[1].final_order)
+            self.assertTrue(renumbered[1].bookmark_label.startswith("001 - "))
+
+            reincluded = set_item_included(excluded, True, "duplicato")
+            self.assertTrue(reincluded.include_in_merged_pdf)
+            self.assertIsNone(reincluded.exclude_reason)
+
+    def test_bookmark_title_edit_recalculates_label(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _create_enriched_fixture(root)
+            item = build_casefile_merge_plan(analyze_case_folder(root)).items[0]
+
+            edited = set_item_bookmark_title(item, "Titolo rivisto")
+
+            self.assertEqual("Titolo rivisto", edited.bookmark_title)
+            self.assertEqual("001 - Titolo rivisto", edited.bookmark_label)
+
+    def test_save_revised_plan_writes_privacy_safe_json_and_csv(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "private" / "Desktop" / "fixture"
+            root.mkdir(parents=True)
+            _create_enriched_fixture(root)
+            plan = build_casefile_merge_plan(analyze_case_folder(root))
+            output = Path(tmp) / "output"
+
+            json_path, csv_path, markdown_path = save_revised_merge_plan(
+                plan, output
+            )
+
+            self.assertEqual("fascicolo_merge_plan_revised.json", json_path.name)
+            self.assertEqual("fascicolo_merge_plan_revised.csv", csv_path.name)
+            self.assertTrue(json_path.is_file())
+            self.assertTrue(csv_path.is_file())
+            self.assertIsNotNone(markdown_path)
+            exported = (
+                json_path.read_text(encoding="utf-8")
+                + csv_path.read_text(encoding="utf-8-sig")
+                + markdown_path.read_text(encoding="utf-8")
+            )
+            self.assertNotIn(str(root), exported)
+            self.assertNotIn("Desktop", exported)
+
+    def test_resolve_source_pdf_accepts_only_paths_inside_casefile(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "fascicolo"
+            expected = root / "100" / "atto.pdf"
+
+            self.assertEqual(
+                expected.resolve(),
+                resolve_merge_plan_source_pdf(root, "100/atto.pdf"),
+            )
+            with self.assertRaises(ValueError):
+                resolve_merge_plan_source_pdf(root, "/tmp/atto.pdf")
+            with self.assertRaises(ValueError):
+                resolve_merge_plan_source_pdf(root, "../atto.pdf")
+            with self.assertRaises(ValueError):
+                resolve_merge_plan_source_pdf(root, "100/../../atto.pdf")
+
     def test_reviewable_plan_default_output_paths(self) -> None:
         output_dir = Path("output")
 

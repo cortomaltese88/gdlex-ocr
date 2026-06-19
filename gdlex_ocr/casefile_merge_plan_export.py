@@ -6,7 +6,7 @@ import csv
 import io
 import json
 import re
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from pathlib import Path, PurePosixPath
 
 from gdlex_ocr.casefile import CaseFileAnalysis, ExtractionWarning
@@ -15,6 +15,9 @@ from gdlex_ocr.casefile_export import casefile_warning_to_dict
 MERGE_PLAN_JSON_FILENAME = "fascicolo_merge_plan.json"
 MERGE_PLAN_CSV_FILENAME = "fascicolo_merge_plan.csv"
 MERGE_PLAN_MARKDOWN_FILENAME = "fascicolo_merge_plan.md"
+REVISED_MERGE_PLAN_JSON_FILENAME = "fascicolo_merge_plan_revised.json"
+REVISED_MERGE_PLAN_CSV_FILENAME = "fascicolo_merge_plan_revised.csv"
+REVISED_MERGE_PLAN_MARKDOWN_FILENAME = "fascicolo_merge_plan_revised.md"
 
 EXCLUDE_REASONS = (
     "duplicato",
@@ -131,6 +134,18 @@ def default_casefile_merge_plan_markdown_path(output_dir: Path) -> Path:
     return Path(output_dir) / MERGE_PLAN_MARKDOWN_FILENAME
 
 
+def default_revised_merge_plan_json_path(output_dir: Path) -> Path:
+    return Path(output_dir) / REVISED_MERGE_PLAN_JSON_FILENAME
+
+
+def default_revised_merge_plan_csv_path(output_dir: Path) -> Path:
+    return Path(output_dir) / REVISED_MERGE_PLAN_CSV_FILENAME
+
+
+def default_revised_merge_plan_markdown_path(output_dir: Path) -> Path:
+    return Path(output_dir) / REVISED_MERGE_PLAN_MARKDOWN_FILENAME
+
+
 # Compatibility aliases for the names used during the initial development pass.
 default_merge_plan_json_path = default_casefile_merge_plan_json_path
 default_merge_plan_csv_path = default_casefile_merge_plan_csv_path
@@ -155,6 +170,152 @@ def merge_plan_to_dict(plan: CaseFileMergePlan) -> dict[str, object]:
         "exclude_reason_values": list(EXCLUDE_REASONS),
         "items": items,
     }
+
+
+def load_casefile_merge_plan(path: Path) -> CaseFileMergePlan:
+    """Load an exported plan without resolving or opening its source PDFs."""
+    payload = json.loads(Path(path).read_text(encoding="utf-8"))
+    raw_items = payload.get("items") if isinstance(payload, dict) else None
+    if not isinstance(raw_items, list):
+        raise ValueError("Il merge plan JSON non contiene una lista 'items'.")
+
+    items: list[CaseFileMergePlanItem] = []
+    for raw in raw_items:
+        if not isinstance(raw, dict):
+            raise ValueError("Il merge plan contiene un item non valido.")
+        warnings = tuple(
+            ExtractionWarning(
+                code=str(warning.get("code", "warning")),
+                message=str(warning.get("message", "")),
+                path=_safe_optional_path(warning.get("path")),
+            )
+            for warning in raw.get("warnings", [])
+            if isinstance(warning, dict)
+        )
+        try:
+            items.append(CaseFileMergePlanItem(
+                final_order=_optional_int(raw.get("final_order")),
+                unit_id=str(raw["unit_id"]),
+                source_pdf=_validated_relative_path(str(raw["source_pdf"])),
+                include_in_merged_pdf=bool(raw.get("include_in_merged_pdf", True)),
+                exclude_reason=_optional_text(raw.get("exclude_reason")),
+                merge_candidate=bool(raw.get("merge_candidate", True)),
+                bookmark_title=str(raw.get("bookmark_title", "")).strip(),
+                bookmark_label=str(raw.get("bookmark_label", "")).strip(),
+                act_title=_optional_text(raw.get("act_title")),
+                act_number=_optional_text(raw.get("act_number")),
+                act_category=_optional_text(raw.get("act_category")),
+                suggested_order=_optional_int(raw.get("suggested_order")),
+                sort_group=_optional_text(raw.get("sort_group")),
+                sort_priority=_optional_int(raw.get("sort_priority")),
+                faldone_number=_optional_int(raw.get("faldone_number")),
+                index_date=_optional_text(raw.get("index_date")),
+                pg_progressive=_optional_int(raw.get("pg_progressive")),
+                total_pages=_optional_int(raw.get("total_pages")),
+                warnings=warnings,
+            ))
+        except KeyError as exc:
+            raise ValueError(f"Campo obbligatorio mancante: {exc.args[0]}") from exc
+    return CaseFileMergePlan(items=renumber_merge_plan_items(items))
+
+
+def renumber_merge_plan_items(
+    items: tuple[CaseFileMergePlanItem, ...] | list[CaseFileMergePlanItem],
+) -> tuple[CaseFileMergePlanItem, ...]:
+    """Assign contiguous navigation numbers to included items only."""
+    result: list[CaseFileMergePlanItem] = []
+    included_order = 0
+    for item in items:
+        title = _bookmark_title(item.bookmark_title, item.unit_id)
+        if item.include_in_merged_pdf:
+            included_order += 1
+            result.append(replace(
+                item,
+                final_order=included_order,
+                bookmark_title=title,
+                bookmark_label=f"{included_order:03d} - {title}",
+            ))
+        else:
+            result.append(replace(
+                item,
+                final_order=None,
+                bookmark_title=title,
+                bookmark_label=title,
+            ))
+    return tuple(result)
+
+
+def set_item_included(
+    item: CaseFileMergePlanItem,
+    included: bool,
+    reason: str | None = None,
+) -> CaseFileMergePlanItem:
+    """Return an item with a coherent manual inclusion/exclusion state."""
+    if included:
+        return replace(item, include_in_merged_pdf=True, exclude_reason=None)
+    return replace(
+        item,
+        include_in_merged_pdf=False,
+        exclude_reason=_optional_text(reason) or "escluso_manualmente",
+    )
+
+
+def set_item_bookmark_title(
+    item: CaseFileMergePlanItem, title: str
+) -> CaseFileMergePlanItem:
+    """Update the editable bookmark title while preserving its order prefix."""
+    clean_title = _bookmark_title(title, item.unit_id)
+    label = f"{item.final_order:03d} - {clean_title}" if item.final_order else clean_title
+    return replace(
+        item,
+        bookmark_title=clean_title,
+        bookmark_label=label,
+    )
+
+
+def move_merge_plan_item(
+    items: tuple[CaseFileMergePlanItem, ...] | list[CaseFileMergePlanItem],
+    from_index: int,
+    to_index: int,
+) -> tuple[CaseFileMergePlanItem, ...]:
+    """Move one item and recalculate all final orders and bookmark labels."""
+    moved = list(items)
+    if not 0 <= from_index < len(moved) or not 0 <= to_index < len(moved):
+        raise IndexError("Indice merge plan fuori intervallo.")
+    item = moved.pop(from_index)
+    moved.insert(to_index, item)
+    return renumber_merge_plan_items(moved)
+
+
+def save_revised_merge_plan(
+    plan: CaseFileMergePlan, output_dir: Path, *, write_markdown: bool = True
+) -> tuple[Path, Path, Path | None]:
+    """Write separate privacy-safe revised exports, leaving originals intact."""
+    safe_plan = CaseFileMergePlan(items=renumber_merge_plan_items(plan.items))
+    json_path = write_casefile_merge_plan_json(
+        safe_plan, default_revised_merge_plan_json_path(output_dir)
+    )
+    csv_path = write_casefile_merge_plan_csv(
+        safe_plan, default_revised_merge_plan_csv_path(output_dir)
+    )
+    markdown_path = None
+    if write_markdown:
+        markdown_path = write_casefile_merge_plan_markdown(
+            safe_plan, default_revised_merge_plan_markdown_path(output_dir)
+        )
+    return json_path, csv_path, markdown_path
+
+
+def resolve_merge_plan_source_pdf(casefile_root: Path, source_pdf: str) -> Path:
+    """Resolve a plan PDF below the selected casefile root without filesystem I/O."""
+    relative = _validated_relative_path(source_pdf)
+    root = Path(casefile_root).resolve(strict=False)
+    candidate = (root / Path(*PurePosixPath(relative).parts)).resolve(strict=False)
+    try:
+        candidate.relative_to(root)
+    except ValueError as exc:
+        raise ValueError("Il PDF sorgente è fuori dalla cartella del fascicolo.") from exc
+    return candidate
 
 
 def write_casefile_merge_plan_json(
@@ -264,8 +425,34 @@ def _safe_relative_path(value: str) -> str:
     return str(path).removeprefix("./")
 
 
+def _validated_relative_path(value: str) -> str:
+    normalized = str(value).strip().replace("\\", "/")
+    path = PurePosixPath(normalized)
+    if (
+        not normalized
+        or path.is_absolute()
+        or ".." in path.parts
+        or re.match(r"^[A-Za-z]:/", normalized)
+    ):
+        raise ValueError("Il PDF sorgente deve avere un path relativo sicuro.")
+    return str(path).removeprefix("./")
+
+
 def _clean_text(value: str) -> str:
     return _WHITESPACE_RE.sub(" ", str(value)).strip()
+
+
+def _optional_text(value: object) -> str | None:
+    if value is None:
+        return None
+    text = _clean_text(str(value))
+    return text or None
+
+
+def _optional_int(value: object) -> int | None:
+    if value is None or value == "":
+        return None
+    return int(value)
 
 
 def _warning_text(warning: ExtractionWarning) -> str:
