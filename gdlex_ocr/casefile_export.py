@@ -205,6 +205,9 @@ def casefile_unit_to_dict(unit: CaseFileUnit) -> dict[str, object]:
         "act_number": unit.act_number,
         "description": unit.description,
         "index_date": unit.index_date,
+        "act_category": unit.act_category,
+        "act_category_confidence": unit.act_category_confidence,
+        "act_category_reason": unit.act_category_reason,
         "warnings": [
             casefile_warning_to_dict(warning)
             for warning in unit.warnings
@@ -360,25 +363,49 @@ def format_casefile_analysis_markdown(analysis: CaseFileAnalysis) -> str:
         lines.append("## Unità documentali PDP/TIAP")
         lines.append("")
         lines.append(
-            "| # | ID | Atto/Titolo | PDF principale | Dimensione"
+            "| # | ID | Atto/Titolo | Categoria"
+            " | PDF principale | Dimensione"
             " | Lista allegati | Warning |"
         )
         lines.append(
-            "|---|----|-------------|----------------|------------|"
+            "|---|----|-------------|-----------|"
+            "----------------|------------|"
             "----------------|---------|"
         )
         for i, unit in enumerate(units, 1):
             uid = _md_escape(str(unit["unit_id"]))
             act_label = _md_escape(_unit_act_label(unit))
+            category = _md_escape(
+                _unit_category_label(unit.get("act_category"))
+            )
             main_pdf = _md_escape(str(unit["main_pdf_path"] or ""))
             size = _format_size(unit["size_bytes"])
             index_path = _md_escape(str(unit["attachment_index_path"] or ""))
             warn_count = len(unit["warnings"])
             lines.append(
-                f"| {i} | {uid} | {act_label} | {main_pdf} | {size}"
+                f"| {i} | {uid} | {act_label} | {category}"
+                f" | {main_pdf} | {size}"
                 f" | {index_path} | {warn_count} |"
             )
         lines.append("")
+
+        # -- Categorie atti --
+        category_counts: dict[str, int] = {}
+        for unit in units:
+            cat = unit.get("act_category") or "altro"
+            category_counts[cat] = category_counts.get(cat, 0) + 1
+        if category_counts:
+            lines.append("## Categorie atti")
+            lines.append("")
+            lines.append("| Categoria | Unità |")
+            lines.append("|---|---:|")
+            for cat, count in sorted(
+                category_counts.items(), key=lambda x: (-x[1], x[0]),
+            ):
+                lines.append(
+                    f"| {_md_escape(_unit_category_label(cat))} | {count} |"
+                )
+            lines.append("")
 
     # -- Documenti --
     lines.append("## Documenti")
@@ -479,6 +506,13 @@ def format_casefile_analysis_markdown(analysis: CaseFileAnalysis) -> str:
     lines.append(f"- Warning totali: {summary['total_warnings']}")
     if summary["total_units"]:
         lines.append(f"- Unità documentali: {summary['total_units']}")
+        classified = sum(
+            1 for u in units
+            if u.get("act_category") and u["act_category"] != "altro"
+        )
+        lines.append(
+            f"- Unità classificate: {classified}/{summary['total_units']}"
+        )
     lines.append("")
 
     return "\n".join(lines)
@@ -496,6 +530,12 @@ def write_casefile_analysis_markdown(
     content = format_casefile_analysis_markdown(analysis)
     path.write_text(content, encoding="utf-8")
     return output_path
+
+
+def _unit_category_label(category: object) -> str:
+    from gdlex_ocr.casefile_unit_classify import CATEGORY_LABELS
+    cat = str(category) if category else "altro"
+    return CATEGORY_LABELS.get(cat, cat)
 
 
 def _unit_act_label(unit: dict[str, object]) -> str:
@@ -579,6 +619,8 @@ _UNITS_CSV_COLUMNS = [
     "#",
     "ID unità",
     "Atto",
+    "Categoria",
+    "Confidenza categoria",
     "Descrizione",
     "Data indice",
     "PDF principale",
@@ -615,6 +657,8 @@ def format_casefile_units_csv(analysis: CaseFileAnalysis) -> str:
             i,
             str(unit["unit_id"]),
             _unit_act_label(unit),
+            _unit_category_label(unit.get("act_category")),
+            str(unit.get("act_category_confidence") or ""),
             str(unit.get("description") or ""),
             str(unit.get("index_date") or ""),
             str(unit["main_pdf_path"] or ""),

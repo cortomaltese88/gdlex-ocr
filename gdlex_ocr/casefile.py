@@ -90,6 +90,9 @@ class CaseFileUnit:
     act_number: str | None = None
     description: str | None = None
     index_date: str | None = None
+    act_category: str | None = None
+    act_category_confidence: str | None = None
+    act_category_reason: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -191,6 +194,7 @@ def normalize_casefile_documents(
 
     units = build_casefile_units(documents)
     units = enrich_units_from_indexes(root, units)
+    units = classify_casefile_units(units)
     analysis = CaseFileAnalysis(
         source_dir=str(root),
         documents=tuple(documents),
@@ -365,6 +369,24 @@ def enrich_units_from_indexes(
             index_date=meta.index_date,
         ))
     return tuple(enriched)
+
+
+def classify_casefile_units(
+    units: tuple[CaseFileUnit, ...],
+) -> tuple[CaseFileUnit, ...]:
+    """Apply deterministic act-type classification to enriched units."""
+    from gdlex_ocr.casefile_unit_classify import classify_act_metadata
+
+    classified: list[CaseFileUnit] = []
+    for unit in units:
+        result = classify_act_metadata(unit.act_title, unit.description)
+        classified.append(replace(
+            unit,
+            act_category=result.category,
+            act_category_confidence=result.confidence,
+            act_category_reason=result.reason,
+        ))
+    return tuple(classified)
 
 
 def _is_local_unit_index(index: CaseFileIndex) -> bool:
