@@ -93,6 +93,11 @@ class CaseFileUnit:
     act_category: str | None = None
     act_category_confidence: str | None = None
     act_category_reason: str | None = None
+    bookmark_title: str | None = None
+    sort_group: str | None = None
+    sort_priority: int | None = None
+    suggested_order: int | None = None
+    merge_candidate: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -195,6 +200,7 @@ def normalize_casefile_documents(
     units = build_casefile_units(documents)
     units = enrich_units_from_indexes(root, units)
     units = classify_casefile_units(units)
+    units = plan_casefile_units(units)
     analysis = CaseFileAnalysis(
         source_dir=str(root),
         documents=tuple(documents),
@@ -387,6 +393,15 @@ def classify_casefile_units(
             act_category_reason=result.reason,
         ))
     return tuple(classified)
+
+
+def plan_casefile_units(
+    units: tuple[CaseFileUnit, ...],
+) -> tuple[CaseFileUnit, ...]:
+    """Compute merge-planning metadata for documentary units."""
+    from gdlex_ocr.casefile_merge_plan import plan_merge_metadata
+
+    return plan_merge_metadata(units)
 
 
 def _is_local_unit_index(index: CaseFileIndex) -> bool:

@@ -56,6 +56,8 @@ def write_casefile_analysis_json(
 
 def casefile_analysis_to_dict(analysis: CaseFileAnalysis) -> dict[str, object]:
     """Return a JSON-safe, privacy-safe mapping for a case-file analysis."""
+    from gdlex_ocr.casefile_profile import detect_casefile_profile
+
     documents = [
         casefile_document_to_dict(document)
         for document in analysis.documents
@@ -77,9 +79,13 @@ def casefile_analysis_to_dict(analysis: CaseFileAnalysis) -> dict[str, object]:
         for doc in analysis.documents
         if doc.document_type == DocumentType.MARKER_TECNICO
     )
+    profile = detect_casefile_profile(analysis)
 
     return {
         "source_dir": _safe_source_dir(analysis.source_dir),
+        "casefile_profile": profile.profile,
+        "casefile_profile_confidence": profile.confidence,
+        "casefile_profile_reason": profile.reason,
         "summary": {
             "total_files": int(analysis.total_files),
             "total_pdf_files": int(analysis.total_pdf_files),
@@ -208,6 +214,11 @@ def casefile_unit_to_dict(unit: CaseFileUnit) -> dict[str, object]:
         "act_category": unit.act_category,
         "act_category_confidence": unit.act_category_confidence,
         "act_category_reason": unit.act_category_reason,
+        "bookmark_title": unit.bookmark_title,
+        "sort_group": unit.sort_group,
+        "sort_priority": unit.sort_priority,
+        "suggested_order": unit.suggested_order,
+        "merge_candidate": unit.merge_candidate,
         "warnings": [
             casefile_warning_to_dict(warning)
             for warning in unit.warnings
@@ -341,6 +352,32 @@ def format_casefile_analysis_markdown(analysis: CaseFileAnalysis) -> str:
     )
     lines.append("")
 
+    # -- Profilo fascicolo --
+    from gdlex_ocr.casefile_profile import PROFILE_LABELS
+
+    profile_label = PROFILE_LABELS.get(
+        str(payload.get("casefile_profile", "")), str(payload.get("casefile_profile", ""))
+    )
+    lines.append("## Profilo fascicolo")
+    lines.append("")
+    lines.append(f"- Profilo rilevato: {_md_escape(profile_label)}")
+    lines.append(
+        f"- Confidenza: {_md_escape(str(payload.get('casefile_profile_confidence', '')))}"
+    )
+    lines.append(
+        f"- Motivo: {_md_escape(str(payload.get('casefile_profile_reason', '')))}"
+    )
+    _profile = str(payload.get("casefile_profile", ""))
+    if _profile == "ministeriale_tiap":
+        lines.append("- Strategia suggerita: ordinamento da metadati TIAP")
+    elif _profile == "immagini_scansioni":
+        lines.append("- Strategia suggerita: conversione immagini e ordinamento per nome file")
+    elif _profile == "pdf_sciolti":
+        lines.append("- Strategia suggerita: ordinamento per nome file")
+    else:
+        lines.append("- Strategia suggerita: verifica manuale consigliata")
+    lines.append("")
+
     # -- Riepilogo --
     lines.append("## Riepilogo")
     lines.append("")
@@ -363,29 +400,25 @@ def format_casefile_analysis_markdown(analysis: CaseFileAnalysis) -> str:
         lines.append("## Unità documentali PDP/TIAP")
         lines.append("")
         lines.append(
-            "| # | ID | Atto/Titolo | Categoria"
-            " | PDF principale | Dimensione"
-            " | Lista allegati | Warning |"
+            "| # | Ordine | Atto/Titolo | Categoria"
+            " | Segnalibro | PDF principale | Warning |"
         )
         lines.append(
-            "|---|----|-------------|-----------|"
-            "----------------|------------|"
-            "----------------|---------|"
+            "|---|--------|-------------|-----------|"
+            "------------|----------------|---------|"
         )
         for i, unit in enumerate(units, 1):
-            uid = _md_escape(str(unit["unit_id"]))
+            order = unit.get("suggested_order", "")
             act_label = _md_escape(_unit_act_label(unit))
             category = _md_escape(
                 _unit_category_label(unit.get("act_category"))
             )
+            bookmark = _md_escape(str(unit.get("bookmark_title") or ""))
             main_pdf = _md_escape(str(unit["main_pdf_path"] or ""))
-            size = _format_size(unit["size_bytes"])
-            index_path = _md_escape(str(unit["attachment_index_path"] or ""))
             warn_count = len(unit["warnings"])
             lines.append(
-                f"| {i} | {uid} | {act_label} | {category}"
-                f" | {main_pdf} | {size}"
-                f" | {index_path} | {warn_count} |"
+                f"| {i} | {order} | {act_label} | {category}"
+                f" | {bookmark} | {main_pdf} | {warn_count} |"
             )
         lines.append("")
 
@@ -513,6 +546,12 @@ def format_casefile_analysis_markdown(analysis: CaseFileAnalysis) -> str:
         lines.append(
             f"- Unità classificate: {classified}/{summary['total_units']}"
         )
+        merge_candidates = sum(
+            1 for u in units if u.get("merge_candidate")
+        )
+        lines.append(
+            f"- Unità candidate PDF unico: {merge_candidates}/{summary['total_units']}"
+        )
     lines.append("")
 
     return "\n".join(lines)
@@ -633,6 +672,11 @@ _UNITS_CSV_COLUMNS = [
     "Non PDF",
     "Warning",
     "SHA-256",
+    "Ordine suggerito",
+    "Segnalibro",
+    "Gruppo ordinamento",
+    "Priorità ordinamento",
+    "Includi in PDF unico",
 ]
 
 
@@ -653,6 +697,10 @@ def format_casefile_units_csv(analysis: CaseFileAnalysis) -> str:
     for i, unit in enumerate(payload["units"], 1):
         main_doc_id = _unit_main_document_id(analysis, str(unit["unit_id"]))
         sha256 = doc_sha_by_id.get(main_doc_id, "") if main_doc_id else ""
+        from gdlex_ocr.casefile_merge_plan import SORT_GROUP_LABELS
+
+        sort_group = str(unit.get("sort_group") or "")
+        sort_group_label = SORT_GROUP_LABELS.get(sort_group, sort_group)
         writer.writerow([
             i,
             str(unit["unit_id"]),
@@ -671,6 +719,11 @@ def format_casefile_units_csv(analysis: CaseFileAnalysis) -> str:
             int(unit["total_non_pdf_files"]),
             len(unit["warnings"]),
             sha256,
+            unit.get("suggested_order", ""),
+            str(unit.get("bookmark_title") or ""),
+            sort_group_label,
+            unit.get("sort_priority", ""),
+            "sì" if unit.get("merge_candidate") else "",
         ])
     return buf.getvalue()
 

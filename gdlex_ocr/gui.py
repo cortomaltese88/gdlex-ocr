@@ -192,6 +192,9 @@ class CasefileGuiResult:
     total_warnings: int
     total_units_with_title: int = 0
     total_units_classified: int = 0
+    casefile_profile: str = ""
+    casefile_profile_confidence: str = ""
+    total_merge_candidates: int = 0
 
 
 def run_casefile_analysis(input_dir: Path, output_dir: Path) -> CasefileGuiResult:
@@ -214,6 +217,11 @@ def run_casefile_analysis(input_dir: Path, output_dir: Path) -> CasefileGuiResul
         1 for u in analysis.units
         if u.act_category and u.act_category != "altro"
     )
+    merge_candidates = sum(
+        1 for u in analysis.units if u.merge_candidate
+    )
+    profile_name = str(payload.get("casefile_profile", ""))
+    profile_confidence = str(payload.get("casefile_profile_confidence", ""))
     return CasefileGuiResult(
         json_path=json_path,
         markdown_path=md_path,
@@ -227,6 +235,9 @@ def run_casefile_analysis(input_dir: Path, output_dir: Path) -> CasefileGuiResul
         total_warnings=summary["total_warnings"],
         total_units_with_title=units_with_title,
         total_units_classified=units_classified,
+        casefile_profile=profile_name,
+        casefile_profile_confidence=profile_confidence,
+        total_merge_candidates=merge_candidates,
     )
 
 
@@ -1480,6 +1491,11 @@ class MainWindow(QMainWindow):
             f"{result.total_units} unità, "
             f"{result.total_warnings} warning"
         )
+        if result.casefile_profile:
+            self._append_casefile_log(
+                f"Profilo fascicolo: {result.casefile_profile} "
+                f"({result.casefile_profile_confidence})"
+            )
         if result.total_units:
             self._append_casefile_log(
                 f"  Unità con titolo atto: "
@@ -1488,6 +1504,10 @@ class MainWindow(QMainWindow):
             self._append_casefile_log(
                 f"  Unità classificate: "
                 f"{result.total_units_classified}/{result.total_units}"
+            )
+            self._append_casefile_log(
+                f"  Unità candidate PDF unico: "
+                f"{result.total_merge_candidates}/{result.total_units}"
             )
         self._append_casefile_log(f"  JSON:       {result.json_path}")
         self._append_casefile_log(f"  Markdown:   {result.markdown_path}")

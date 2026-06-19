@@ -46,7 +46,17 @@ class CaseFileExportTest(unittest.TestCase):
 
             self.assertEqual(output_path, returned_path)
             self.assertEqual(
-                {"source_dir", "summary", "documents", "indexes", "warnings", "units"},
+                {
+                    "source_dir",
+                    "casefile_profile",
+                    "casefile_profile_confidence",
+                    "casefile_profile_reason",
+                    "summary",
+                    "documents",
+                    "indexes",
+                    "warnings",
+                    "units",
+                },
                 set(payload),
             )
             self.assertEqual(2, payload["summary"]["total_files"])
