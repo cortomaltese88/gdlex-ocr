@@ -359,9 +359,11 @@ class CasefileAnalysisHelperTest(unittest.TestCase):
             self.assertTrue(result.json_path.is_file())
             self.assertTrue(result.markdown_path.is_file())
             self.assertTrue(result.csv_path.is_file())
+            self.assertTrue(result.units_csv_path.is_file())
             self.assertEqual("fascicolo_index.json", result.json_path.name)
             self.assertEqual("fascicolo_index.md", result.markdown_path.name)
             self.assertEqual("fascicolo_index.csv", result.csv_path.name)
+            self.assertEqual("fascicolo_unita.csv", result.units_csv_path.name)
 
     def test_casefile_gui_success_creates_output_dir(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

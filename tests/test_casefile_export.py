@@ -21,11 +21,14 @@ from gdlex_ocr.casefile_export import (
     default_casefile_csv_path,
     default_casefile_json_path,
     default_casefile_markdown_path,
+    default_casefile_units_csv_path,
     format_casefile_analysis_csv,
     format_casefile_analysis_markdown,
+    format_casefile_units_csv,
     write_casefile_analysis_csv,
     write_casefile_analysis_json,
     write_casefile_analysis_markdown,
+    write_casefile_units_csv,
 )
 from gdlex_ocr.casefile_index import CaseFileIndexEntry, CaseFileIndexMatch
 from gdlex_ocr.manifest import file_sha256
@@ -603,6 +606,128 @@ class CaseFileExportTest(unittest.TestCase):
             csv_text = format_casefile_analysis_csv(analysis)
 
             self.assertNotIn(str(root), csv_text)
+
+    # -- Units CSV export tests --
+
+    def test_default_casefile_units_csv_path(self) -> None:
+        self.assertEqual(
+            Path("out") / "fascicolo_unita.csv",
+            default_casefile_units_csv_path(Path("out")),
+        )
+
+    def test_format_casefile_units_csv_header_and_rows(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._create_units_fixture(root)
+
+            analysis = analyze_case_folder(root)
+            csv_text = format_casefile_units_csv(analysis)
+            lines = csv_text.strip().splitlines()
+
+            self.assertEqual(3, len(lines))
+            self.assertIn("ID unità", lines[0])
+            self.assertIn("PDF principale", lines[0])
+            self.assertIn("SHA-256", lines[0])
+
+    def test_format_casefile_units_csv_contains_unit_data(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._create_units_fixture(root)
+
+            analysis = analyze_case_folder(root)
+            csv_text = format_casefile_units_csv(analysis)
+
+            self.assertIn("100", csv_text)
+            self.assertIn("200", csv_text)
+            self.assertIn("100/100.pdf", csv_text)
+            self.assertIn("ListaAllegati.html", csv_text)
+
+    def test_format_casefile_units_csv_includes_sha256(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._create_units_fixture(root)
+
+            analysis = analyze_case_folder(root)
+            csv_text = format_casefile_units_csv(analysis)
+
+            main_pdf = root / "100" / "100.pdf"
+            self.assertIn(file_sha256(main_pdf), csv_text)
+
+    def test_format_casefile_units_csv_complete_marker(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._create_units_fixture(root)
+
+            analysis = analyze_case_folder(root)
+            csv_text = format_casefile_units_csv(analysis)
+
+            self.assertIn("sì", csv_text)
+
+    def test_format_casefile_units_csv_empty_when_no_units(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "sentenza.pdf").write_bytes(b"%PDF-1.4")
+
+            analysis = analyze_case_folder(root)
+            csv_text = format_casefile_units_csv(analysis)
+            lines = csv_text.strip().splitlines()
+
+            self.assertEqual(1, len(lines))
+
+    def test_write_casefile_units_csv_writes_file(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._create_units_fixture(root)
+            analysis = analyze_case_folder(root)
+            output_path = root / "out" / "fascicolo_unita.csv"
+
+            returned_path = write_casefile_units_csv(analysis, output_path)
+
+            self.assertEqual(output_path, returned_path)
+            self.assertTrue(output_path.is_file())
+            content = output_path.read_text(encoding="utf-8")
+            self.assertIn("100", content)
+
+    def test_write_casefile_units_csv_creates_parent_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._create_units_fixture(root)
+            analysis = analyze_case_folder(root)
+            output_path = root / "missing" / "nested" / "fascicolo_unita.csv"
+
+            write_casefile_units_csv(analysis, output_path)
+
+            self.assertTrue(output_path.is_file())
+
+    def test_write_casefile_units_csv_rejects_directory_output(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._create_units_fixture(root)
+            analysis = analyze_case_folder(root)
+
+            with self.assertRaisesRegex(IsADirectoryError, "cartella"):
+                write_casefile_units_csv(analysis, root)
+
+    def test_units_csv_does_not_leak_absolute_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._create_units_fixture(root)
+
+            analysis = analyze_case_folder(root)
+            csv_text = format_casefile_units_csv(analysis)
+
+            self.assertNotIn(str(root), csv_text)
+
+    def _create_units_fixture(self, root: Path) -> None:
+        for uid in ("100", "200"):
+            d = root / uid
+            d.mkdir()
+            (d / f"{uid}.pdf").write_bytes(b"%PDF-synthetic-" + uid.encode())
+            (d / "COMPLETE").write_bytes(b"")
+            (d / "ListaAllegati.html").write_text(
+                '<html><body><a href="doc.pdf">Doc</a></body></html>',
+                encoding="utf-8",
+            )
 
     def _matched_analysis(self, root: Path) -> CaseFileAnalysis:
         (root / "atti").mkdir()

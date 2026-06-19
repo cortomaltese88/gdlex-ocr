@@ -553,3 +553,81 @@ def write_casefile_analysis_csv(
     content = format_casefile_analysis_csv(analysis)
     path.write_text(content, encoding="utf-8")
     return output_path
+
+
+# ---------------------------------------------------------------------------
+# CSV export – documentary units
+# ---------------------------------------------------------------------------
+
+_UNITS_CSV_COLUMNS = [
+    "#",
+    "ID unità",
+    "PDF principale",
+    "Dimensione (byte)",
+    "Dimensione",
+    "ListaAllegati",
+    "COMPLETE",
+    "File totali",
+    "PDF",
+    "Non PDF",
+    "Warning",
+    "SHA-256",
+]
+
+
+def default_casefile_units_csv_path(output_dir: Path) -> Path:
+    return Path(output_dir) / "fascicolo_unita.csv"
+
+
+def format_casefile_units_csv(analysis: CaseFileAnalysis) -> str:
+    payload = casefile_analysis_to_dict(analysis)
+    doc_sha_by_id: dict[str, str] = {}
+    for doc in payload["documents"]:
+        if doc["sha256"]:
+            doc_sha_by_id[str(doc["id"])] = str(doc["sha256"])
+
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(_UNITS_CSV_COLUMNS)
+    for i, unit in enumerate(payload["units"], 1):
+        main_doc_id = _unit_main_document_id(analysis, str(unit["unit_id"]))
+        sha256 = doc_sha_by_id.get(main_doc_id, "") if main_doc_id else ""
+        writer.writerow([
+            i,
+            str(unit["unit_id"]),
+            str(unit["main_pdf_path"] or ""),
+            int(unit["size_bytes"]),
+            _format_size(unit["size_bytes"]),
+            str(unit["attachment_index_path"] or ""),
+            "sì" if unit["complete_marker_path"] else "",
+            int(unit["total_files"]),
+            int(unit["total_pdf_files"]),
+            int(unit["total_non_pdf_files"]),
+            len(unit["warnings"]),
+            sha256,
+        ])
+    return buf.getvalue()
+
+
+def write_casefile_units_csv(
+    analysis: CaseFileAnalysis,
+    output_path: Path,
+) -> Path:
+    path = Path(output_path)
+    if path.is_dir():
+        raise IsADirectoryError(f"Il percorso di output è una cartella: {path}")
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    content = format_casefile_units_csv(analysis)
+    path.write_text(content, encoding="utf-8")
+    return output_path
+
+
+def _unit_main_document_id(
+    analysis: CaseFileAnalysis,
+    unit_id: str,
+) -> str | None:
+    for unit in analysis.units:
+        if unit.unit_id == unit_id:
+            return unit.main_document_id
+    return None

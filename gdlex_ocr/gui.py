@@ -50,9 +50,11 @@ from gdlex_ocr.casefile_export import (
     default_casefile_csv_path,
     default_casefile_json_path,
     default_casefile_markdown_path,
+    default_casefile_units_csv_path,
     write_casefile_analysis_csv,
     write_casefile_analysis_json,
     write_casefile_analysis_markdown,
+    write_casefile_units_csv,
 )
 from gdlex_ocr.icons import tray_icon
 from gdlex_ocr.manifest import (
@@ -181,6 +183,7 @@ class CasefileGuiResult:
     json_path: Path
     markdown_path: Path
     csv_path: Path
+    units_csv_path: Path
     total_files: int
     total_pdf_files: int
     total_indexes: int
@@ -195,15 +198,18 @@ def run_casefile_analysis(input_dir: Path, output_dir: Path) -> CasefileGuiResul
     json_path = default_casefile_json_path(output_dir)
     md_path = default_casefile_markdown_path(output_dir)
     csv_path = default_casefile_csv_path(output_dir)
+    units_csv_path = default_casefile_units_csv_path(output_dir)
     write_casefile_analysis_json(analysis, json_path)
     write_casefile_analysis_markdown(analysis, md_path)
     write_casefile_analysis_csv(analysis, csv_path)
+    write_casefile_units_csv(analysis, units_csv_path)
     payload = casefile_analysis_to_dict(analysis)
     summary = payload["summary"]
     return CasefileGuiResult(
         json_path=json_path,
         markdown_path=md_path,
         csv_path=csv_path,
+        units_csv_path=units_csv_path,
         total_files=summary["total_files"],
         total_pdf_files=summary["total_pdf_files"],
         total_indexes=summary["total_indexes"],
@@ -1463,9 +1469,10 @@ class MainWindow(QMainWindow):
             f"{result.total_units} unità, "
             f"{result.total_warnings} warning"
         )
-        self._append_casefile_log(f"  JSON:     {result.json_path}")
-        self._append_casefile_log(f"  Markdown: {result.markdown_path}")
-        self._append_casefile_log(f"  CSV:      {result.csv_path}")
+        self._append_casefile_log(f"  JSON:       {result.json_path}")
+        self._append_casefile_log(f"  Markdown:   {result.markdown_path}")
+        self._append_casefile_log(f"  CSV:        {result.csv_path}")
+        self._append_casefile_log(f"  CSV unità:  {result.units_csv_path}")
 
         self._casefile_output_dir = str(result.json_path.parent)
         self._casefile_report_path = str(result.markdown_path)
@@ -1484,7 +1491,8 @@ class MainWindow(QMainWindow):
             f"Warning: {result.total_warnings}\n\n"
             f"JSON: {result.json_path}\n"
             f"Markdown: {result.markdown_path}\n"
-            f"CSV: {result.csv_path}",
+            f"CSV: {result.csv_path}\n"
+            f"CSV unità: {result.units_csv_path}",
         )
 
     def _casefile_failed(self, message: str) -> None:
