@@ -2,16 +2,15 @@
 
 [English README](README.en.md)
 
-## Versione 0.4.0
+## Versione 0.5.0
 
 GD LEX OCR è un'applicazione desktop locale in Python e PySide6 per
 convertire fascicoli e documenti PDF in Markdown tramite Docling. È pensata
 per workflow legali in cui servono elaborazione locale, output verificabile e
 tracciabilità tecnica del risultato, senza modificare il PDF originale. La
-linea 0.4.x espande il modulo locale **Fascicoli PDP/TIAP** con export CSV
-(`fascicolo_index.csv`, `fascicolo_unita.csv`), riepilogo operativo,
-sezione "File più grandi" e pulsanti GUI per aprire cartella output e report
-Markdown.
+versione 0.5.0 completa il flusso locale **Fascicoli PDP/TIAP**: analisi e
+unità documentali, merge plan revisionabile, PDF unico navigabile con
+segnalibri e report, copia light opzionale e passaggio manuale alla scheda OCR.
 
 ## Prerequisiti minimi
 
@@ -145,7 +144,7 @@ bash scripts/uninstall-desktop.sh
 
 ## Pacchetto Debian leggero
 
-Il pacchetto `.deb` v0.4.0 installa sorgenti, asset, launcher e documentazione,
+Il pacchetto `.deb` v0.5.0 installa sorgenti, asset, launcher e documentazione,
 ma non incorpora `.venv`, dipendenze Python, modelli OCR o documenti elaborati.
 Per costruirlo:
 
@@ -247,6 +246,10 @@ fascicolo, copertura indice, warning e conteggio unità documentali.
 Il CSV `fascicolo_unita.csv` contiene una riga per ogni unità documentale
 PDP/TIAP, con ID unità, PDF principale, dimensione, indice allegati,
 marker COMPLETE, conteggi file e SHA-256.
+
+L'analisi produce anche il merge plan automatico
+`fascicolo_merge_plan.json`, `fascicolo_merge_plan.csv` e
+`fascicolo_merge_plan.md`.
 
 Dal merge plan generato e revisionabile si può creare il PDF unico:
 

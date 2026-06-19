@@ -1,12 +1,12 @@
-# Checklist release v0.4.0
+# Checklist release v0.5.0
 
-La release `v0.4.0` è in preparazione. Gli item aperti rimangono promemoria
+La release `v0.5.0` è in preparazione. Gli item aperti rimangono promemoria
 operativi per audit manuale o pubblicazione; non vanno barrati senza una nuova
 verifica effettiva.
 
-## Pre-release v0.4.0
+## Pre-release v0.5.0
 
-- [x] Verificare che `gdlex_ocr/version.py` riporti `0.4.0`.
+- [x] Verificare che `gdlex_ocr/version.py` riporti `0.5.0`.
 - [x] Verificare coerenza tra README, changelog, manpage e comportamento della GUI.
 - [ ] Verificare nuovamente launcher, icone e installazione/rimozione desktop
   per utente prima della prossima release.
@@ -49,13 +49,18 @@ git status -sb
   `QSettings`.
 - [x] Documentare che la GUI offre pulsanti "Apri cartella output" e "Apri
   report Markdown" dopo il completamento dell'analisi fascicolo.
+- [x] Documentare merge plan automatico e revisionato, PDF unico con
+  segnalibri e report, stima dimensione e PDF light opzionale.
+- [x] Confermare che il passaggio del PDF unico alla scheda OCR non avvii
+  automaticamente l'OCR.
+- [x] Verificare che nessun output fascicolo o PDF reale sia tracciato.
 - [x] Usare solo fixture sintetiche o non sensibili nei test e negli esempi.
 - [x] Non includere PDF originali, output OCR, Markdown generati o `run.log`.
 - [x] Verificare che directory temporanee `.gdlex_ocr_*` non siano incluse.
 - [ ] Controllare manualmente screenshot e metadati delle immagini prima della
   prossima pubblicazione.
 
-## Perimetro test v0.4.0
+## Perimetro test v0.5.0
 
 - [x] Non eseguire OCR reale durante la preparazione della release.
 - [x] Usare esclusivamente smoke test e fixture sintetiche.
@@ -71,10 +76,12 @@ git status -sb
   `multiple_casefile_indexes`, pulsanti GUI "Apri cartella output" e "Apri
   report Markdown", log fascicolo con percorsi e conteggi, sezione "File più
   grandi", riepilogo operativo, CSV unità documentali, payload Debian,
-  benchmark sintetico e stress test subprocess tramite la suite offline.
-- [x] Test reale su fascicolo ministeriale: 237 file, 79 PDF, 79 indici,
-  79 match, 79 unità, 0 warning, CSV unità 80 righe totali.
-- [x] Suite offline a 474 test sintetici.
+  merge plan automatico e revisionato, revisione GUI con drag & drop e
+  shortcut, PDF unico/light, segnalibri, report, handoff OCR, benchmark
+  sintetico e stress test subprocess tramite la suite offline.
+- [x] Suite offline a 627 test sintetici o più.
+- [x] Eseguire smoke test senza documenti reali.
+- [ ] Controllare visivamente il PDF unico/light con una fixture non sensibile.
 
 ## File sensibili e contenuto release
 
@@ -101,25 +108,29 @@ git diff
 ## Packaging
 
 - [x] Applicare la scelta descritta in `PACKAGING.md`.
-- [x] Non incorporare la `.venv` nel pacchetto v0.4.0.
-- [ ] Se viene creato un nuovo `.deb`, verificarne contenuto, dipendenze e
+- [x] Non incorporare la `.venv` nel pacchetto v0.5.0.
+- [x] Se viene creato un nuovo `.deb`, verificarne contenuto, dipendenze e
   copyright in ambiente pulito.
 - [x] Verificare il `.deb` con `dpkg-deb`, estrazione temporanea e `lintian`.
 - [x] Non includere modelli Docling/ONNX senza inventario e verifica delle licenze.
 - [x] Confermare che OCRmyPDF e Tesseract restino dipendenze opzionali di sistema.
+- [x] Confermare che Ghostscript resti opzionale e sia richiesto solo per
+  `--pdf-optimize` diverso da `none`.
 - [ ] Installare manualmente il pacchetto pubblicato con `sudo apt install`.
 - [ ] Eseguire `/usr/bin/gdlex-ocr --doctor` sul pacchetto installato,
   controllando che non venga usato un wrapper `~/.local/bin/gdlex-ocr`.
 
 ```bash
 bash scripts/build-deb.sh
-dpkg-deb -f dist/gdlex-ocr_0.4.0_all.deb Package Version Architecture Depends Suggests
-dpkg-deb --contents dist/gdlex-ocr_0.4.0_all.deb | \
-  grep -E 'casefile|casefile_index|casefile_export|casefile_classify|judgments|folder-matrix|icon-64|gdlex-ocr.desktop|gdlex-ocr.1'
-dpkg-deb --contents dist/gdlex-ocr_0.4.0_all.deb | \
+dpkg-deb -f dist/gdlex-ocr_0.5.0_all.deb Package Version Architecture Depends Suggests
+dpkg-deb --contents dist/gdlex-ocr_0.5.0_all.deb | \
+  grep -E 'casefile|casefile_pdf_merge|judgments|folder-matrix|icon-64|gdlex-ocr.desktop|gdlex-ocr.1'
+dpkg-deb --contents dist/gdlex-ocr_0.5.0_all.deb | \
   grep -E '(\.venv|__pycache__|\.git|run\.log|manifest\.json|Downloads|Documenti)' || true
-sha256sum dist/gdlex-ocr_0.4.0_all.deb
-sudo apt install ./dist/gdlex-ocr_0.4.0_all.deb
+sha256sum dist/gdlex-ocr_0.5.0_all.deb
+sudo apt install ./dist/gdlex-ocr_0.5.0_all.deb
+/usr/bin/gdlex-ocr --version
+/usr/bin/gdlex-ocr --help
 /usr/bin/gdlex-ocr --doctor
 ```
 

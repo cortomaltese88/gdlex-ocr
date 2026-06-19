@@ -63,6 +63,15 @@ class ApplicationIconTest(unittest.TestCase):
 
 
 class DesktopFileTest(unittest.TestCase):
+    def test_development_installer_is_portable_and_preserves_arguments(self) -> None:
+        installer = (PROJECT_ROOT / "scripts/install-desktop.sh").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertNotIn("/home/", installer)
+        self.assertIn('${BASH_SOURCE[0]}', installer)
+        self.assertIn('app.py "$@"', installer)
+
     def test_application_uses_launcher_desktop_file_name(self) -> None:
         entry_point = (PROJECT_ROOT / "app.py").read_text(encoding="utf-8")
 

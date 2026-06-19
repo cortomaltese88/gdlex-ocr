@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-PROJECT_DIR="/home/marco/progetti/gdlex-tools/gdlex-ocr"
+PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ICON_ROOT="${HOME}/.local/share/icons/hicolor"
 APPLICATIONS_DIR="${HOME}/.local/share/applications"
 BIN_DIR="${HOME}/.local/bin"
@@ -26,12 +26,17 @@ install -m 0644 \
     "${PROJECT_DIR}/packaging/gdlex-ocr.desktop" \
     "${APPLICATIONS_DIR}/gdlex-ocr.desktop"
 
-cat > "${BIN_DIR}/gdlex-ocr" <<'EOF'
+{
+    cat <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
-cd /home/marco/progetti/gdlex-tools/gdlex-ocr
-exec /home/marco/progetti/gdlex-tools/gdlex-ocr/.venv/bin/python app.py
 EOF
+    printf 'PROJECT_DIR=%q\n' "${PROJECT_DIR}"
+    cat <<'EOF'
+cd "${PROJECT_DIR}"
+exec "${PROJECT_DIR}/.venv/bin/python" app.py "$@"
+EOF
+} > "${BIN_DIR}/gdlex-ocr"
 chmod 0755 "${BIN_DIR}/gdlex-ocr"
 
 if command -v kbuildsycoca6 >/dev/null 2>&1; then

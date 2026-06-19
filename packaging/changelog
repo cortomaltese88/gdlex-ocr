@@ -1,3 +1,14 @@
+gdlex-ocr (0.5.0) unstable; urgency=medium
+
+  * Add PDP/TIAP casefile analysis and document-unit exports.
+  * Add reviewable merge plans for casefile PDF generation.
+  * Add GUI merge-plan review with reorder, exclusion and source PDF opening.
+  * Add merged casefile PDF generation with bookmarks and reports.
+  * Add PDF size estimation and optional Ghostscript optimization.
+  * Add GUI handoff from merged casefile PDF to OCR input.
+
+ -- Studio GD LEX <cortomaltese88@users.noreply.github.com>  Fri, 19 Jun 2026 18:00:00 +0200
+
 gdlex-ocr (0.4.0) unstable; urgency=medium
 
   * Add fascicolo_index.csv with document inventory from casefile analysis.

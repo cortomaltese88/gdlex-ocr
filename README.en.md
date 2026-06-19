@@ -12,10 +12,10 @@ for each job. The 0.2.x line adds a local **Judgments / Appeals** module that
 creates an heuristic judgment card from Markdown or after PDF conversion.
 The 0.3.x line adds local **PDP/TIAP casefile** folder analysis without OCR,
 available from both CLI and GUI, with document unit recognition, local index
-parsing and index-document matching. The 0.4.x line expands casefile analysis
-with CSV exports (`fascicolo_index.csv`, `fascicolo_unita.csv`), an
-operational summary, a "largest files" section and GUI buttons to open the
-output folder and Markdown report.
+parsing and index-document matching. Version 0.5.0 completes the local
+casefile flow with a reviewable merge plan, a bookmarked merged PDF and
+reports, optional Ghostscript light copy, and explicit manual handoff to the
+OCR tab.
 
 ## What It Does
 
@@ -28,6 +28,8 @@ output folder and Markdown report.
 - Can analyze a local casefile folder from CLI or GUI, generating
   `fascicolo_index.json`, `fascicolo_index.md`, `fascicolo_index.csv`
   and `fascicolo_unita.csv` without OCR.
+- Can review a casefile merge plan and generate `fascicolo_unico.pdf`, an
+  optional light copy and privacy-safe merge reports.
 - Offers a PySide6 desktop GUI with local diagnostics.
 
 ## Why Local-First

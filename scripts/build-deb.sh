@@ -85,7 +85,7 @@ Priority: optional
 Architecture: all
 Maintainer: Studio GD LEX <cortomaltese88@users.noreply.github.com>
 Depends: python3 (>= 3.12), python3-venv
-Suggests: ocrmypdf, tesseract-ocr, tesseract-ocr-ita
+Suggests: ocrmypdf, tesseract-ocr, tesseract-ocr-ita, ghostscript
 Installed-Size: ${INSTALLED_SIZE}
 Homepage: https://github.com/cortomaltese88/gdlex-ocr
 Description: OCR locale da PDF a Markdown

@@ -2,19 +2,24 @@
 
 Tutte le modifiche rilevanti del progetto saranno documentate in questo file.
 
-## [Unreleased]
+## [0.5.0] - 2026-06-19
 
 ### Fascicoli PDP/TIAP
 
-- Aggiunti metadati TIAP, classificazione atti, profilo fascicolo e ordinamento
-  suggerito con merge plan JSON, CSV e Markdown.
-- Aggiunta revisione GUI di inclusione, motivo esclusione, segnalibro e ordine,
-  con drag & drop, scorciatoie, apertura PDF sorgente ed export `_revised`.
+- Estesa l'analisi fascicoli PDP/TIAP con rilevamento delle unità documentali,
+  parsing dei metadati `ListaAllegati.html`, classificazione degli atti ed
+  export JSON, Markdown e CSV, incluso `fascicolo_unita.csv`.
+- Aggiunto il merge plan automatico in JSON, CSV e Markdown.
+- Aggiunta la revisione GUI del PDF unico: inclusione/esclusione con motivo,
+  modifica dei segnalibri e riordino con pulsanti, drag & drop o
+  `Alt+Up` / `Alt+Down`.
+- Aggiunta l'apertura del PDF sorgente con doppio click e il salvataggio del
+  piano revisionato nei tre formati con suffisso `_revised`.
 - Aggiunta generazione locale di `fascicolo_unico.pdf` con segnalibri e report,
-  preferendo il piano revisionato quando presente.
+  JSON/Markdown, preferendo il piano revisionato quando presente.
 - Aggiunte stima dimensione e copia opzionale `fascicolo_unico_light.pdf` con
   profili Ghostscript `balanced`, `small` e `screen`.
-- Aggiunto handoff esplicito del PDF unico alla scheda OCR, con preferenza per
+- Aggiunto l'invio esplicito del PDF unico alla scheda OCR, con preferenza per
   la copia light e senza avvio automatico dell'OCR.
 
 ### Test e privacy

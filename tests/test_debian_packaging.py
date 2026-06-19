@@ -70,6 +70,7 @@ class DebianPackagingTest(unittest.TestCase):
             "/usr/bin/gdlex-ocr",
             "/usr/lib/gdlex-ocr/app.py",
             "/usr/lib/gdlex-ocr/gdlex_ocr/gui.py",
+            "/usr/lib/gdlex-ocr/gdlex_ocr/casefile_pdf_merge.py",
             "/usr/lib/gdlex-ocr/gdlex_ocr/manifest.py",
             "/usr/lib/gdlex-ocr/gdlex_ocr/output_layout.py",
             "/usr/lib/gdlex-ocr/gdlex_ocr/splash.py",
@@ -152,6 +153,9 @@ class DebianPackagingTest(unittest.TestCase):
         self.assertIn("--setup-venv", wrapper)
         self.assertIn("--doctor", wrapper)
         self.assertIn("--help", wrapper)
+        self.assertIn("--analyze-casefile", wrapper)
+        self.assertIn("--merge-casefile-pdf", wrapper)
+        self.assertIn("--pdf-optimize", wrapper)
         self.assertNotIn("Preparare una venv utente", wrapper)
         self.assertNotIn("sudo", wrapper)
         self.assertIn('APP_DIR="/usr/lib/gdlex-ocr"', wrapper)

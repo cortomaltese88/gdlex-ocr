@@ -30,6 +30,7 @@ metadata dei pacchetti effettivamente distribuiti.
 | OCRmyPDF 15.2.0+dfsg1-1 | Creazione opzionale di un PDF ricercabile con layer OCR | MPL-2.0 per i file principali del pacchetto; il copyright Debian elenca licenze ulteriori per file specifici | Dipendenza di sistema esterna; non inclusa nel repository | Pacchetto Ubuntu installato separatamente. È invocato solo per il PDF ricercabile. In caso di redistribuzione del pacchetto, usare il relativo file `debian/copyright` completo e considerare anche le sue dipendenze. |
 | Tesseract OCR 5.3.4-1build5 | Motore OCR usato da OCRmyPDF | Apache-2.0 (copyright del pacchetto Debian/Ubuntu) | Dipendenza di sistema esterna; non inclusa nel repository | Installato e aggiornato tramite il gestore pacchetti di sistema. |
 | Tesseract dati italiani 4.1.0-2 | Modello linguistico italiano per Tesseract | Apache-2.0 (copyright del pacchetto Debian/Ubuntu) | Dipendenza di sistema esterna; non inclusa nel repository | Pacchetto `tesseract-ocr-ita`, installato separatamente. |
+| Ghostscript 10.02.1 | Ottimizzazione locale opzionale del PDF unico fascicolo | AGPL-3+ per i file principali del pacchetto Debian/Ubuntu; il copyright elenca licenze ulteriori per file specifici | Strumento di sistema esterno; non incluso nel pacchetto GD LEX OCR | Invocato tramite `gs` solo con un profilo di ottimizzazione PDF. Verificare il `debian/copyright` della versione effettivamente distribuita. |
 
 Eventuali backend esterni configurati dall'utente, inclusi prodotti
 proprietari, non sono distribuiti né licenziati da GD LEX OCR. L'utente deve
@@ -68,8 +69,8 @@ Sono stati inoltre letti i campi `License`, `License-Expression`,
 Per gli strumenti opzionali:
 
 ```bash
-apt-cache show ocrmypdf tesseract-ocr tesseract-ocr-ita
-dpkg-query -W ocrmypdf tesseract-ocr tesseract-ocr-ita
+apt-cache show ocrmypdf tesseract-ocr tesseract-ocr-ita ghostscript
+dpkg-query -W ocrmypdf tesseract-ocr tesseract-ocr-ita ghostscript
 ```
 
 Le licenze sono state verificate nei file locali:
@@ -78,6 +79,7 @@ Le licenze sono state verificate nei file locali:
 /usr/share/doc/ocrmypdf/copyright
 /usr/share/doc/tesseract-ocr/copyright
 /usr/share/doc/tesseract-ocr-ita/copyright
+/usr/share/doc/ghostscript/copyright
 ```
 
 ## Limiti dell'inventario

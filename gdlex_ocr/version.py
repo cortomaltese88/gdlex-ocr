@@ -2,5 +2,5 @@
 
 APP_NAME = "GD LEX OCR"
 APP_SUBTITLE = "OCR locale per fascicoli e documenti"
-APP_VERSION = "0.4.0"
+APP_VERSION = "0.5.0"
 APP_VERSION_LABEL = f"v{APP_VERSION}"
