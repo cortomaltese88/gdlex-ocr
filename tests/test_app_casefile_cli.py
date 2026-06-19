@@ -104,7 +104,8 @@ class AppCasefileCliTest(unittest.TestCase):
                 output.write_bytes(source.read_bytes())
                 return output
 
-            with patch(
+            stdout = io.StringIO()
+            with redirect_stdout(stdout), patch(
                 "gdlex_ocr.casefile_pdf_merge.optimize_casefile_pdf",
                 side_effect=fake_optimize,
             ) as optimize:
@@ -115,6 +116,7 @@ class AppCasefileCliTest(unittest.TestCase):
             self.assertEqual(0, status)
             optimize.assert_called_once()
             self.assertTrue((out_dir / "fascicolo_unico_light.pdf").is_file())
+            self.assertIn("PDF ottimizzato è più grande", stdout.getvalue())
 
     def test_merge_casefile_pdf_reports_missing_plan(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

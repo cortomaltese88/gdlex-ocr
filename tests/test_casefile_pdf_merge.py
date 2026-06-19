@@ -220,6 +220,119 @@ class CaseFilePdfMergeTest(unittest.TestCase):
             self.assertIn("## Atti esclusi", combined)
             self.assertIn("## Dimensione PDF", combined)
 
+    def test_optimization_not_smaller_warns_without_failing_or_deleting_original(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root, output = Path(tmp) / "root", Path(tmp) / "output"
+            _pdf(root / "atto.pdf", 1)
+            _plan(output / "fascicolo_merge_plan.json", [{
+                "final_order": 1, "unit_id": "1", "source_pdf": "atto.pdf",
+                "include_in_merged_pdf": True, "bookmark_label": "Atto",
+            }])
+
+            def fake_optimize(source: Path, destination: Path, _profile: str) -> Path:
+                destination.write_bytes(source.read_bytes() + b"synthetic-padding")
+                return destination
+
+            with patch(
+                "gdlex_ocr.casefile_pdf_merge.optimize_casefile_pdf",
+                side_effect=fake_optimize,
+            ):
+                result = merge_casefile_pdfs(
+                    build_casefile_pdf_merge_job(root, output), "balanced"
+                )
+
+            warning = "PDF ottimizzato è più grande dell’originale"
+            report = json.loads(result.report_json_path.read_text(encoding="utf-8"))
+            markdown = result.report_markdown_path.read_text(encoding="utf-8")
+            self.assertTrue(result.pdf_path.is_file())
+            self.assertTrue(result.optimized_pdf_path.is_file())
+            self.assertTrue(any(warning in item for item in result.warnings))
+            self.assertTrue(any(warning in item for item in report["warnings"]))
+            self.assertIn(warning, markdown)
+
+    def test_encrypted_pdf_fails_with_clear_error(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root, output = Path(tmp) / "root", Path(tmp) / "output"
+            root.mkdir()
+            writer = PdfWriter()
+            writer.add_blank_page(width=100, height=100)
+            writer.encrypt("synthetic-password")
+            with (root / "protetto.pdf").open("wb") as stream:
+                writer.write(stream)
+            _plan(output / "fascicolo_merge_plan.json", [{
+                "final_order": 1, "unit_id": "1", "source_pdf": "protetto.pdf",
+                "include_in_merged_pdf": True, "bookmark_label": "Protetto",
+            }])
+
+            with self.assertRaisesRegex(
+                CaseFilePdfMergeError, "PDF non leggibile o protetto da password"
+            ):
+                merge_casefile_pdfs(build_casefile_pdf_merge_job(root, output))
+            self.assertFalse((output / "fascicolo_unico.pdf").exists())
+
+    def test_unwritable_output_fails_clearly_without_partial_pdf(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root, output = Path(tmp) / "root", Path(tmp) / "output"
+            _pdf(root / "atto.pdf", 1)
+            _plan(output / "fascicolo_merge_plan.json", [{
+                "final_order": 1, "unit_id": "1", "source_pdf": "atto.pdf",
+                "include_in_merged_pdf": True, "bookmark_label": "Atto",
+            }])
+            with patch(
+                "gdlex_ocr.casefile_pdf_merge.os.replace",
+                side_effect=PermissionError("directory non scrivibile"),
+            ), self.assertRaisesRegex(
+                CaseFilePdfMergeError, "Creazione del PDF unico non riuscita"
+            ):
+                merge_casefile_pdfs(build_casefile_pdf_merge_job(root, output))
+            self.assertFalse((output / "fascicolo_unico.pdf").exists())
+            self.assertFalse((output / "fascicolo_unico.pdf.tmp").exists())
+
+    def test_merge_plan_without_included_items_fails_clearly(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root, output = Path(tmp) / "root", Path(tmp) / "output"
+            _pdf(root / "escluso.pdf", 1)
+            _plan(output / "fascicolo_merge_plan.json", [{
+                "final_order": None, "unit_id": "1", "source_pdf": "escluso.pdf",
+                "include_in_merged_pdf": False, "bookmark_label": "Escluso",
+            }])
+            with self.assertRaisesRegex(
+                CaseFilePdfMergeError, "Il merge plan non contiene PDF inclusi"
+            ):
+                merge_casefile_pdfs(build_casefile_pdf_merge_job(root, output))
+
+    def test_unicode_and_spaced_paths_merge_privacy_safely(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            root, output = base / "radice privata", base / "output"
+            names = ("file con spazi.pdf", "àccèntàti.pdf", "日本語.pdf")
+            for name in names:
+                _pdf(root / name, 1)
+            _plan(output / "fascicolo_merge_plan.json", [
+                {
+                    "final_order": index, "unit_id": str(index),
+                    "source_pdf": name, "include_in_merged_pdf": True,
+                    "bookmark_label": f"Segnalibro {name}",
+                }
+                for index, name in enumerate(names, start=1)
+            ])
+
+            result = merge_casefile_pdfs(build_casefile_pdf_merge_job(root, output))
+            reader = PdfReader(result.pdf_path)
+            report_text = (
+                result.report_json_path.read_text(encoding="utf-8")
+                + result.report_markdown_path.read_text(encoding="utf-8")
+            )
+            self.assertEqual(3, len(reader.pages))
+            self.assertEqual(
+                [f"Segnalibro {name}" for name in names],
+                [item.title for item in reader.outline],
+            )
+            for name in names:
+                self.assertEqual((root / name).resolve(), resolve_safe_source_pdf(root, name))
+                self.assertIn(name, report_text)
+            self.assertNotIn(str(base), report_text)
+
     def test_preflight_failure_leaves_no_temporary_or_final_pdf(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root, output = Path(tmp) / "root", Path(tmp) / "output"

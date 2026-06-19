@@ -261,6 +261,25 @@ class UnitEnrichmentTest(unittest.TestCase):
             self.assertEqual("29/05/2025", unit.insertion_date)
             self.assertIsNotNone(unit.pg_protocol)
 
+    def test_unit_enrichment_reads_latin1_lista_allegati(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            unit_dir = root / "101"
+            unit_dir.mkdir()
+            (unit_dir / "101.pdf").write_bytes(b"%PDF-synthetic")
+            html = (
+                "<html><head><title>Documento : 101 - RELAZIONE DI SERVIZIO"
+                "</title></head><body>"
+                "<li><strong>ALTRO</strong> : attività d'indagine</li>"
+                "</body></html>"
+            )
+            (unit_dir / "ListaAllegati.html").write_bytes(html.encode("latin-1"))
+
+            unit = analyze_case_folder(root).units[0]
+
+            self.assertEqual("RELAZIONE DI SERVIZIO", unit.act_title)
+            self.assertEqual("attività d'indagine", unit.description)
+
     def test_unit_without_lista_allegati_has_no_title(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

@@ -335,6 +335,8 @@ def merge_casefile_pdf_cli(
         print(f"Riduzione: {result.size_reduction_percent}%")
     else:
         print("PDF ottimizzato: non richiesto")
+    for warning in result.warnings:
+        print(f"Warning: {warning}")
     print(f"Report JSON: {result.report_json_path}")
     print(f"Report Markdown: {result.report_markdown_path}")
     return 0

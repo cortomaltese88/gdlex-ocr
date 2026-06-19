@@ -2080,6 +2080,8 @@ class MainWindow(QMainWindow):
             self._append_casefile_log(
                 f"  Riduzione: {result.size_reduction_percent}%"
             )
+        for warning in result.warnings:
+            self._append_casefile_log(f"Warning: {warning}")
         self._append_casefile_log(f"  Report JSON: {result.report_json_path}")
         self._append_casefile_log(
             f"  Report Markdown: {result.report_markdown_path}"

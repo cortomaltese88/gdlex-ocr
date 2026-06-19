@@ -269,7 +269,9 @@ I profili disponibili sono `none` (default), `balanced` (prudente e consigliato
 per atti legali), `small` e `screen`. I profili diversi da `none` richiedono
 Ghostscript (`gs`) installato localmente e generano
 `fascicolo_unico_light.pdf`. Se Ghostscript non è disponibile il PDF originale
-continua a essere utilizzabile, ma la copia ottimizzata non viene creata.
+continua a essere utilizzabile, la copia ottimizzata non viene creata e CLI o
+GUI mostrano un errore esplicito. Ghostscript è un componente locale opzionale:
+il merge e l'ottimizzazione non caricano alcun documento online.
 
 Il comando usa prima `fascicolo_merge_plan_revised.json`, se presente, e
 altrimenti `fascicolo_merge_plan.json`. Genera `fascicolo_unico.pdf` con un

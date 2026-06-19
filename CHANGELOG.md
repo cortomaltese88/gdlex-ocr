@@ -2,6 +2,18 @@
 
 Tutte le modifiche rilevanti del progetto saranno documentate in questo file.
 
+## [Unreleased]
+
+### Correzioni e test
+
+- Aggiunto un warning quando il PDF light non è più piccolo dell'originale,
+  propagato nei report, nella CLI e nel log GUI senza interrompere il merge.
+- Reso più chiaro l'errore per PDF cifrati o protetti da password.
+- Aggiunti test sintetici per PDF protetti, output non scrivibile, merge plan
+  senza inclusi, nomi Unicode/spazi e `ListaAllegati.html` Latin-1.
+- Estesa la suite offline sintetica a 634 test.
+- Allineate roadmap, attività residue e documentazione Ghostscript.
+
 ## [0.5.0] - 2026-06-19
 
 ### Fascicoli PDP/TIAP
@@ -24,7 +36,7 @@ Tutte le modifiche rilevanti del progetto saranno documentate in questo file.
 
 ### Test e privacy
 
-- Estesa la suite offline sintetica a 627 test per CLI, GUI, merge, sicurezza
+- Estesa la suite offline sintetica a 628 test per CLI, GUI, merge, sicurezza
   dei path, Ghostscript opzionale e selezione revised/original.
 - Il flusso fascicolo resta locale, non carica documenti e non esegue OCR
   automatico.

@@ -30,6 +30,10 @@ _GHOSTSCRIPT_SETTINGS = {
     "small": "/ebook",
     "screen": "/screen",
 }
+OPTIMIZED_PDF_NOT_SMALLER_WARNING = (
+    "Attenzione: il PDF ottimizzato è più grande dell’originale. "
+    "Valutare l’uso del PDF originale."
+)
 
 
 class CaseFilePdfMergeError(ValueError):
@@ -60,6 +64,7 @@ class CaseFilePdfMergeResult:
     optimized_pdf_path: Path | None = None
     optimized_output_size_bytes: int | None = None
     size_reduction_percent: float | None = None
+    warnings: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -318,8 +323,15 @@ def merge_casefile_pdfs(
         source = resolve_safe_source_pdf(job.casefile_root, item.source_pdf)
         try:
             reader = PdfReader(source)
+            if reader.is_encrypted:
+                raise CaseFilePdfMergeError(
+                    "PDF non leggibile o protetto da password: "
+                    f"{item.source_pdf}"
+                )
             pages = len(reader.pages)
         except Exception as exc:
+            if isinstance(exc, CaseFilePdfMergeError):
+                raise
             raise CaseFilePdfMergeError(
                 f"PDF sorgente non leggibile: {item.source_pdf}: {exc}"
             ) from exc
@@ -376,6 +388,7 @@ def merge_casefile_pdfs(
     optimized_path: Path | None = None
     optimized_size: int | None = None
     reduction: float | None = None
+    warnings: list[str] = []
     if optimization_profile != "none":
         optimized_path = optimize_casefile_pdf(
             pdf_path,
@@ -385,6 +398,8 @@ def merge_casefile_pdfs(
         optimized_size = optimized_path.stat().st_size
         if actual_size:
             reduction = round((actual_size - optimized_size) * 100 / actual_size, 1)
+        if optimized_size >= actual_size:
+            warnings.append(OPTIMIZED_PDF_NOT_SMALLER_WARNING)
     report = {
         "source_plan": job.source_plan.name,
         "output_pdf": pdf_path.name,
@@ -406,7 +421,7 @@ def merge_casefile_pdfs(
         "created_at": datetime.now(timezone.utc).isoformat(),
         "items": report_items,
         "excluded": excluded,
-        "warnings": [],
+        "warnings": warnings,
     }
     _atomic_write_text(json_path, json.dumps(report, ensure_ascii=False, indent=2) + "\n")
     _atomic_write_text(md_path, format_casefile_pdf_merge_report(report))
@@ -414,7 +429,7 @@ def merge_casefile_pdfs(
         pdf_path, json_path, md_path, job.source_plan, job.plan.total_items,
         len(included), len(excluded), page_offset,
         estimate.estimated_output_size_bytes, actual_size, optimization_profile,
-        optimized_path, optimized_size, reduction,
+        optimized_path, optimized_size, reduction, tuple(warnings),
     )
 
 

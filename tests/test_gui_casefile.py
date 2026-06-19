@@ -292,6 +292,7 @@ class CasefileGuiControlsTest(unittest.TestCase):
             optimized_pdf_path=base / "fascicolo_unico_light.pdf",
             optimized_output_size_bytes=600,
             size_reduction_percent=33.3,
+            warnings=("Attenzione sintetica sul PDF ottimizzato.",),
         )
         self.window._casefile_pdf_merge_completed(result)
         log = self.window.casefile_log_view.toPlainText()
@@ -301,6 +302,7 @@ class CasefileGuiControlsTest(unittest.TestCase):
             "PDF generato:",
             "Dimensione stimata: 1.0 KB", "Dimensione finale: 900 B",
             "PDF ottimizzato:", "Riduzione: 33.3%",
+            "Warning: Attenzione sintetica sul PDF ottimizzato.",
         ):
             self.assertIn(text, log)
         self.assertTrue(self.window.casefile_open_merged_pdf_button.isEnabled())

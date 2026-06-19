@@ -166,7 +166,9 @@ privacy-safe JSON/Markdown reports. `--pdf-optimize balanced` (or `small` or
 `screen`) optionally asks locally installed Ghostscript (`gs`) to create
 `fascicolo_unico_light.pdf`; `none` is the default and does not require
 Ghostscript. The original merged PDF remains available if optimization cannot
-be performed.
+be performed, the light copy is not created, and the CLI or GUI shows a clear
+error. Ghostscript is a local optional component; neither merge nor optimization
+uploads documents.
 
 The same casefile analysis is also available from the GUI through the
 **Fascicolo** section. Select the casefile folder and the output folder, then
