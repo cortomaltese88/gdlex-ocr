@@ -12,7 +12,10 @@ for each job. The 0.2.x line adds a local **Judgments / Appeals** module that
 creates an heuristic judgment card from Markdown or after PDF conversion.
 The 0.3.x line adds local **PDP/TIAP casefile** folder analysis without OCR,
 available from both CLI and GUI, with document unit recognition, local index
-parsing and index-document matching.
+parsing and index-document matching. The 0.4.x line expands casefile analysis
+with CSV exports (`fascicolo_index.csv`, `fascicolo_unita.csv`), an
+operational summary, a "largest files" section and GUI buttons to open the
+output folder and Markdown report.
 
 ## What It Does
 
@@ -23,7 +26,8 @@ parsing and index-document matching.
 - Writes `manifest.json` and `run.log` next to the generated outputs.
 - Can generate a local `sentenza_analysis.md` judgment card for appeal review.
 - Can analyze a local casefile folder from CLI or GUI, generating
-  `fascicolo_index.json` and `fascicolo_index.md` without OCR.
+  `fascicolo_index.json`, `fascicolo_index.md`, `fascicolo_index.csv`
+  and `fascicolo_unita.csv` without OCR.
 - Offers a PySide6 desktop GUI with local diagnostics.
 
 ## Why Local-First
@@ -125,20 +129,28 @@ Local casefile analysis:
 gdlex-ocr --analyze-casefile casefile_folder/ --output output/
 ```
 
-Scans a casefile folder and generates `fascicolo_index.json` and
-`fascicolo_index.md` in the output directory. The analysis is heuristic and
-works on filenames, SHA-256 hashes and lightweight indexes found in the
-folder. It does not run OCR, does not read PDF contents and does not legally
-interpret the casefile. It detects possible duplicates, classifies documents by
-filename, lightly parses TXT/CSV/HTML/XML indexes and attempts index-document
-matching. All processing is local and the JSON/Markdown outputs are
-privacy-safe: they do not include absolute paths or document contents.
+Scans a casefile folder and generates `fascicolo_index.json`,
+`fascicolo_index.md`, `fascicolo_index.csv` and `fascicolo_unita.csv` in
+the output directory. The analysis is heuristic and works on filenames,
+SHA-256 hashes and lightweight indexes found in the folder. It does not run
+OCR, does not read PDF contents and does not legally interpret the casefile.
+It detects possible duplicates, classifies documents by filename, lightly
+parses TXT/CSV/HTML/XML indexes and attempts index-document matching. All
+processing is local and outputs are privacy-safe: they do not include
+absolute paths or document contents.
+
+The Markdown report includes a "File più grandi" section with the top 10
+files by size and an operational summary with total size, index coverage,
+warnings and documentary unit count. The `fascicolo_unita.csv` contains
+one row per PDP/TIAP documentary unit.
 
 The same casefile analysis is also available from the GUI through the
 **Fascicolo** section. Select the casefile folder and the output folder, then
 click **Analizza fascicolo**. The analysis runs in a background thread without
 blocking the interface. It does not run OCR, does not read PDF contents, and
-the casefile folder path is not saved in settings (`QSettings`).
+the casefile folder path is not saved in settings (`QSettings`). After
+completion, **Apri cartella output** and **Apri report Markdown** buttons
+provide direct access to the generated outputs.
 
 For a repeatable local-first synthetic benchmark, without real documents:
 

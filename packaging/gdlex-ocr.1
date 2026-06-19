@@ -1,4 +1,4 @@
-.TH GDLEX-OCR 1 "18 June 2026" "GD LEX OCR 0.3.3" "User Commands"
+.TH GDLEX-OCR 1 "19 June 2026" "GD LEX OCR 0.4.0" "User Commands"
 .SH NAME
 gdlex-ocr \- convert PDF documents to Markdown using local OCR
 .SH SYNOPSIS
@@ -88,10 +88,16 @@ selection and an
 .B "Analizza fascicolo"
 button. The analysis runs in a background thread, does not perform OCR, does
 not read PDF contents, and generates
-.I fascicolo_index.json
+.IR fascicolo_index.json ,
+.IR fascicolo_index.md ,
+.I fascicolo_index.csv
 and
-.IR fascicolo_index.md .
-The casefile folder path is not saved in settings.
+.IR fascicolo_unita.csv .
+The casefile folder path is not saved in settings. After completion,
+.B "Apri cartella output"
+and
+.B "Apri report Markdown"
+buttons provide direct access to the generated outputs.
 .TP
 .B \-\-version
 Print the installed application version without starting the graphical
@@ -125,6 +131,12 @@ Default privacy-safe JSON output created by local casefile analysis.
 .TP
 .I fascicolo_index.md
 Default privacy-safe Markdown output created by local casefile analysis.
+.TP
+.I fascicolo_index.csv
+Default privacy-safe CSV document inventory created by local casefile analysis.
+.TP
+.I fascicolo_unita.csv
+Default privacy-safe CSV with one row per PDP/TIAP documentary unit.
 .SH EXIT STATUS
 .B gdlex-ocr \-\-doctor
 returns 0 when all checks pass, 1 for missing essential components, and 2

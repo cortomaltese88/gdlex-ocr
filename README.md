@@ -2,14 +2,16 @@
 
 [English README](README.en.md)
 
-## Versione 0.3.3
+## Versione 0.4.0
 
 GD LEX OCR è un'applicazione desktop locale in Python e PySide6 per
 convertire fascicoli e documenti PDF in Markdown tramite Docling. È pensata
 per workflow legali in cui servono elaborazione locale, output verificabile e
 tracciabilità tecnica del risultato, senza modificare il PDF originale. La
-linea 0.3.x aggiunge il modulo locale **Fascicoli PDP/TIAP** per analizzare
-cartelle fascicolo senza OCR e produrre indici privacy-safe.
+linea 0.4.x espande il modulo locale **Fascicoli PDP/TIAP** con export CSV
+(`fascicolo_index.csv`, `fascicolo_unita.csv`), riepilogo operativo,
+sezione "File più grandi" e pulsanti GUI per aprire cartella output e report
+Markdown.
 
 ## Prerequisiti minimi
 
@@ -143,7 +145,7 @@ bash scripts/uninstall-desktop.sh
 
 ## Pacchetto Debian leggero
 
-Il pacchetto `.deb` v0.3.3 installa sorgenti, asset, launcher e documentazione,
+Il pacchetto `.deb` v0.4.0 installa sorgenti, asset, launcher e documentazione,
 ma non incorpora `.venv`, dipendenze Python, modelli OCR o documenti elaborati.
 Per costruirlo:
 
@@ -227,22 +229,34 @@ Analisi fascicolo locale:
 gdlex-ocr --analyze-casefile cartella_fascicolo/ --output output/
 ```
 
-Analizza una cartella fascicolo e genera `fascicolo_index.json` e
-`fascicolo_index.md` nella directory di output. L'analisi e' euristica e lavora
-sui nomi dei file, sugli hash SHA-256 e sugli indici leggeri trovati nella
-cartella. Non esegue OCR, non legge il contenuto dei PDF e non interpreta
-giuridicamente il fascicolo. Rileva possibili duplicati, classifica i documenti
-per filename, individua e interpreta in modo leggero indici TXT/CSV/HTML/XML e
-tenta il matching tra voci di indice e documenti presenti. L'elaborazione e'
-interamente locale e gli output sono privacy-safe: non includono path assoluti
-ne' contenuto documentale.
+Analizza una cartella fascicolo e genera `fascicolo_index.json`,
+`fascicolo_index.md`, `fascicolo_index.csv` e `fascicolo_unita.csv` nella
+directory di output. L'analisi e' euristica e lavora sui nomi dei file, sugli
+hash SHA-256 e sugli indici leggeri trovati nella cartella. Non esegue OCR,
+non legge il contenuto dei PDF e non interpreta giuridicamente il fascicolo.
+Rileva possibili duplicati, classifica i documenti per filename, individua e
+interpreta in modo leggero indici TXT/CSV/HTML/XML e tenta il matching tra
+voci di indice e documenti presenti. L'elaborazione e' interamente locale e
+gli output sono privacy-safe: non includono path assoluti ne' contenuto
+documentale.
+
+Il report Markdown include la sezione "File più grandi" con i primi 10 file
+per dimensione e il "Riepilogo operativo" con dimensione totale del
+fascicolo, copertura indice, warning e conteggio unità documentali.
+
+Il CSV `fascicolo_unita.csv` contiene una riga per ogni unità documentale
+PDP/TIAP, con ID unità, PDF principale, dimensione, indice allegati,
+marker COMPLETE, conteggi file e SHA-256.
 
 La stessa analisi fascicolo è disponibile anche dalla GUI tramite la sezione
 **Fascicolo**. Si selezionano la cartella del fascicolo e la cartella di output,
 quindi si avvia l'analisi con il pulsante **Analizza fascicolo**. L'elaborazione
 avviene in background senza bloccare l'interfaccia. Non viene eseguito OCR, non
 viene letto il contenuto dei PDF e il path della cartella fascicolo non viene
-salvato nelle impostazioni (`QSettings`).
+salvato nelle impostazioni (`QSettings`). Al termine, i pulsanti **Apri
+cartella output** e **Apri report Markdown** consentono di accedere
+direttamente agli output prodotti. Il log mostra percorsi di input, output e
+conteggi dettagliati.
 
 Se dopo l'installazione APT parte una vecchia copia di sviluppo, verificare il
 `PATH`: un wrapper `~/.local/bin/gdlex-ocr` può avere precedenza su

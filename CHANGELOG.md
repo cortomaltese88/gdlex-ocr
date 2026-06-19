@@ -4,6 +4,37 @@ Tutte le modifiche rilevanti del progetto saranno documentate in questo file.
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-06-19
+
+### Funzionalità
+
+- Generazione `fascicolo_index.csv` con inventario documenti dall'analisi
+  fascicolo PDP/TIAP.
+- Generazione `fascicolo_unita.csv` con una riga per unità documentale
+  PDP/TIAP (ID unità, PDF principale, dimensione, allegati, COMPLETE,
+  conteggi, SHA-256).
+- Aggiunta sezione "File più grandi" nel report Markdown con i primi 10 file
+  per dimensione.
+- Aggiunta sezione "Riepilogo operativo" nel report Markdown con dimensione
+  totale, copertura indice, warning e conteggio unità.
+- Aggiunti pulsanti GUI "Apri cartella output" e "Apri report Markdown"
+  nella sezione Fascicolo.
+- Log fascicolo con percorsi input/output e path di ciascun file generato.
+- Conteggio match indice e unità documentali nel riepilogo GUI e nel dialogo
+  di completamento.
+- CLI analisi fascicolo produce anche `fascicolo_index.csv` e
+  `fascicolo_unita.csv`.
+
+### Test
+
+- Test reale su fascicolo ministeriale: 237 file, 79 PDF, 79 indici,
+  79 match, 79 unità, 0 warning, CSV unità 80 righe totali.
+- Suite offline a 474 test sintetici.
+
+### Privacy
+
+- Output con path relativi, niente upload, niente lettura contenuto PDF.
+
 ## [0.3.3] - 2026-06-18
 
 ### Interfaccia

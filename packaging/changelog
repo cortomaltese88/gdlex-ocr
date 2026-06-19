@@ -1,3 +1,22 @@
+gdlex-ocr (0.4.0) unstable; urgency=medium
+
+  * Add fascicolo_index.csv with document inventory from casefile analysis.
+  * Add fascicolo_unita.csv with one row per PDP/TIAP documentary unit.
+  * Add "File più grandi" section with top-10 files by size in Markdown report.
+  * Add "Riepilogo operativo" section with total size, index coverage, warnings
+    and unit count in Markdown report.
+  * Add GUI buttons "Apri cartella output" and "Apri report Markdown" in the
+    Fascicolo section.
+  * Log casefile analysis input/output paths and per-output file paths.
+  * Show index match count and documentary unit count in GUI summary and dialog.
+  * CLI casefile analysis outputs fascicolo_index.csv and fascicolo_unita.csv.
+  * Real test on ministerial casefile: 237 files, 79 PDF, 79 indexes,
+    79 matches, 79 units, 0 warnings, CSV units 80 rows.
+  * Privacy: outputs use relative paths only; no upload; no PDF content reading.
+  * Expand synthetic offline tests to 474.
+
+ -- Studio GD LEX <cortomaltese88@users.noreply.github.com>  Thu, 19 Jun 2026 12:00:00 +0200
+
 gdlex-ocr (0.3.3) unstable; urgency=low
 
   * Improve tab visibility in the dark GUI theme (Matrix and Chiaro).
