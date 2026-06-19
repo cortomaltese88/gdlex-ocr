@@ -144,13 +144,43 @@ files by size and an operational summary with total size, index coverage,
 warnings and documentary unit count. The `fascicolo_unita.csv` contains
 one row per PDP/TIAP documentary unit.
 
+The analysis also writes a reviewable merge plan as
+`fascicolo_merge_plan.json`, `fascicolo_merge_plan.csv` and
+`fascicolo_merge_plan.md`. A revised plan saved from the GUI uses the same
+three formats with the `_revised` suffix. The review table supports
+inclusion/exclusion and its reason, bookmark editing, button or drag-and-drop
+reordering, `Alt+Up` / `Alt+Down`, and opening the local source PDF by double
+clicking it.
+
+The reviewed documents can be merged locally from the GUI or CLI:
+
+```bash
+gdlex-ocr --merge-casefile-pdf casefile_folder/ --output output/
+```
+
+The revised plan is preferred when present, with the original plan as a
+fallback. The command creates `fascicolo_unico.pdf`, document bookmarks and
+privacy-safe JSON/Markdown reports. `--pdf-optimize balanced` (or `small` or
+`screen`) optionally asks locally installed Ghostscript (`gs`) to create
+`fascicolo_unico_light.pdf`; `none` is the default and does not require
+Ghostscript. The original merged PDF remains available if optimization cannot
+be performed.
+
 The same casefile analysis is also available from the GUI through the
 **Fascicolo** section. Select the casefile folder and the output folder, then
 click **Analizza fascicolo**. The analysis runs in a background thread without
 blocking the interface. It does not run OCR, does not read PDF contents, and
 the casefile folder path is not saved in settings (`QSettings`). After
 completion, **Apri cartella output** and **Apri report Markdown** buttons
-provide direct access to the generated outputs.
+provide direct access to the generated outputs. **Genera PDF unico** performs
+the reviewed merge, while **Invia PDF unico a OCR** prefers the light copy,
+falls back to the original, and switches to the OCR tab without starting OCR.
+No casefile document is uploaded and no OCR runs automatically during analysis,
+review, merge, or handoff.
+
+The size estimate is approximate, Ghostscript does not guarantee a reduction
+for every PDF and optimization may affect rendering. Visually compare the
+merged PDF, bookmarks and any light copy with the source documents before use.
 
 For a repeatable local-first synthetic benchmark, without real documents:
 

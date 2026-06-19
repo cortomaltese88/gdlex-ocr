@@ -4,6 +4,26 @@ Tutte le modifiche rilevanti del progetto saranno documentate in questo file.
 
 ## [Unreleased]
 
+### Fascicoli PDP/TIAP
+
+- Aggiunti metadati TIAP, classificazione atti, profilo fascicolo e ordinamento
+  suggerito con merge plan JSON, CSV e Markdown.
+- Aggiunta revisione GUI di inclusione, motivo esclusione, segnalibro e ordine,
+  con drag & drop, scorciatoie, apertura PDF sorgente ed export `_revised`.
+- Aggiunta generazione locale di `fascicolo_unico.pdf` con segnalibri e report,
+  preferendo il piano revisionato quando presente.
+- Aggiunte stima dimensione e copia opzionale `fascicolo_unico_light.pdf` con
+  profili Ghostscript `balanced`, `small` e `screen`.
+- Aggiunto handoff esplicito del PDF unico alla scheda OCR, con preferenza per
+  la copia light e senza avvio automatico dell'OCR.
+
+### Test e privacy
+
+- Estesa la suite offline sintetica a 627 test per CLI, GUI, merge, sicurezza
+  dei path, Ghostscript opzionale e selezione revised/original.
+- Il flusso fascicolo resta locale, non carica documenti e non esegue OCR
+  automatico.
+
 ## [0.4.0] - 2026-06-19
 
 ### Funzionalità

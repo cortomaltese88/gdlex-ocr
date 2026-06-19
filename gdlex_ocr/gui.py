@@ -943,8 +943,8 @@ class MainWindow(QMainWindow):
 
         casefile_note = QLabel(
             "Analisi locale euristica: non esegue OCR e non legge il "
-            "contenuto dei PDF. Genera fascicolo_index.json, "
-            "fascicolo_index.md e fascicolo_index.csv."
+            "contenuto dei PDF. Genera indice, CSV unità e merge plan "
+            "revisionabile."
         )
         casefile_note.setObjectName("sectionHint")
         casefile_note.setWordWrap(True)

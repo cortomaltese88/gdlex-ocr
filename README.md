@@ -285,7 +285,22 @@ direttamente agli output prodotti. Il log mostra percorsi di input, output e
 conteggi dettagliati.
 Nella revisione del merge plan, **Genera PDF unico** avvia il merge in
 background e **Apri PDF unico** apre il risultato con l'applicazione locale
-predefinita.
+predefinita. La tabella consente di includere o escludere gli atti, indicare il
+motivo dell'esclusione, modificare i segnalibri e cambiare l'ordine con i
+pulsanti, il trascinamento o `Alt+Up` / `Alt+Down`; un doppio click apre il PDF
+sorgente locale senza modificare il piano. **Salva piano revisionato** crea le
+varianti JSON, CSV e Markdown con suffisso `_revised`.
+
+Il profilo PDF scelto nella GUI ha gli stessi effetti dell'opzione CLI
+`--pdf-optimize`: **Apri PDF leggero** è disponibile solo quando Ghostscript ha
+creato la copia alleggerita. **Invia PDF unico a OCR** seleziona la copia light
+se esiste, altrimenti l'originale, e passa alla scheda OCR senza avviare
+automaticamente alcuna elaborazione.
+
+La stima della dimensione è approssimativa; Ghostscript non garantisce una
+riduzione per ogni documento e può modificare la resa. Prima dell'uso è quindi
+necessario controllare visivamente il PDF unico, i segnalibri e l'eventuale
+copia alleggerita rispetto ai documenti sorgente.
 
 Se dopo l'installazione APT parte una vecchia copia di sviluppo, verificare il
 `PATH`: un wrapper `~/.local/bin/gdlex-ocr` può avere precedenza su

@@ -88,7 +88,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--analyze-casefile",
         metavar="CARTELLA",
-        help="analizza una cartella fascicolo e genera indice JSON e Markdown",
+        help=(
+            "analizza una cartella fascicolo e genera indici, CSV unità e "
+            "merge plan revisionabile"
+        ),
     )
     parser.add_argument(
         "--merge-casefile-pdf",
