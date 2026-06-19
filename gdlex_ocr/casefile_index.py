@@ -699,11 +699,15 @@ _TITLE_RE = re.compile(
     r"Documento\s*:\s*(\d{1,4})\s*-\s*(.+)",
     re.IGNORECASE,
 )
-_METADATA_SKIP_KEYS = frozenset({
-    "faldone",
-    "tot. pagine",
-    "data inserimento",
+_METADATA_PRIVACY_KEYS = frozenset({
+    "soggetto cognome/nome",
+    "indagato",
 })
+
+_FALDONE_NUMBER_RE = re.compile(r"\d+")
+_PG_PROGRESSIVE_RE = re.compile(
+    r"[Nn]\s*\d+/\d+-(\d+)(?:/\d{4})?\b"
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -712,6 +716,14 @@ class AttachmentIndexMetadata:
     act_number: str | None = None
     description: str | None = None
     index_date: str | None = None
+    faldone: str | None = None
+    faldone_number: int | None = None
+    total_pages: int | None = None
+    insertion_date: str | None = None
+    pg_protocol: str | None = None
+    pg_progressive: int | None = None
+    notes: str | None = None
+    extra_description: str | None = None
 
 
 def parse_attachment_index_metadata(html: str) -> AttachmentIndexMetadata:
@@ -732,22 +744,78 @@ def parse_attachment_index_metadata(html: str) -> AttachmentIndexMetadata:
             act_title = _clean_text(match.group(2))
 
     index_date: str | None = None
-    description: str | None = None
+    faldone: str | None = None
+    faldone_number: int | None = None
+    total_pages: int | None = None
+    insertion_date: str | None = None
+    pg_protocol: str | None = None
+    pg_progressive: int | None = None
+    notes: str | None = None
+    extra_description: str | None = None
+
     for key, value in parser.metadata:
         key_lower = key.casefold().strip()
+        candidate = _clean_text(value)
+        if not candidate:
+            continue
+
         if key_lower == "data":
-            index_date = _clean_text(value) or None
-        elif key_lower not in _METADATA_SKIP_KEYS:
-            candidate = _clean_text(value)
-            if candidate:
-                description = _short_label(candidate)
+            index_date = candidate
+        elif key_lower == "faldone":
+            faldone = candidate
+            faldone_number = _extract_faldone_number(candidate)
+        elif key_lower == "tot. pagine":
+            try:
+                total_pages = int(candidate)
+            except ValueError:
+                pass
+        elif key_lower == "data inserimento":
+            insertion_date = candidate
+        elif key_lower == "nr. fascicolo":
+            pg_protocol = _short_label(candidate)
+            pg_progressive = _extract_pg_progressive(candidate)
+        elif key_lower in {"note", "note:"}:
+            notes = _short_label(candidate)
+        elif key_lower == "altro":
+            extra_description = _short_label(candidate)
+        elif key_lower in _METADATA_PRIVACY_KEYS:
+            pass
+        else:
+            if extra_description is None:
+                extra_description = _short_label(candidate)
+
+    description = pg_protocol or extra_description or notes
 
     return AttachmentIndexMetadata(
         act_title=act_title,
         act_number=act_number,
         description=description,
         index_date=index_date,
+        faldone=faldone,
+        faldone_number=faldone_number,
+        total_pages=total_pages,
+        insertion_date=insertion_date,
+        pg_protocol=pg_protocol,
+        pg_progressive=pg_progressive,
+        notes=notes,
+        extra_description=extra_description,
     )
+
+
+def _extract_faldone_number(raw: str) -> int | None:
+    """Normalize faldone number from patterns like 'FALDONE 1-FALDONE 1'."""
+    numbers = _FALDONE_NUMBER_RE.findall(raw)
+    if not numbers:
+        return None
+    return int(numbers[0])
+
+
+def _extract_pg_progressive(raw: str) -> int | None:
+    """Extract progressive number from PG protocol, e.g. 'N 266/3-16/2024' → 16."""
+    match = _PG_PROGRESSIVE_RE.search(raw)
+    if match is None:
+        return None
+    return int(match.group(1))
 
 
 class _AttachmentMetadataParser(HTMLParser):

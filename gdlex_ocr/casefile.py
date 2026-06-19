@@ -90,6 +90,14 @@ class CaseFileUnit:
     act_number: str | None = None
     description: str | None = None
     index_date: str | None = None
+    faldone: str | None = None
+    faldone_number: int | None = None
+    total_pages: int | None = None
+    insertion_date: str | None = None
+    pg_protocol: str | None = None
+    pg_progressive: int | None = None
+    notes: str | None = None
+    extra_description: str | None = None
     act_category: str | None = None
     act_category_confidence: str | None = None
     act_category_reason: str | None = None
@@ -97,6 +105,9 @@ class CaseFileUnit:
     sort_group: str | None = None
     sort_priority: int | None = None
     suggested_order: int | None = None
+    order_source_kind: str | None = None
+    order_source_value: str | None = None
+    order_source_confidence: str | None = None
     merge_candidate: bool = False
 
 
@@ -373,6 +384,14 @@ def enrich_units_from_indexes(
             act_number=meta.act_number,
             description=meta.description,
             index_date=meta.index_date,
+            faldone=meta.faldone,
+            faldone_number=meta.faldone_number,
+            total_pages=meta.total_pages,
+            insertion_date=meta.insertion_date,
+            pg_protocol=meta.pg_protocol,
+            pg_progressive=meta.pg_progressive,
+            notes=meta.notes,
+            extra_description=meta.extra_description,
         ))
     return tuple(enriched)
 

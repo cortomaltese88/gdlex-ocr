@@ -61,7 +61,7 @@ class CaseFileMergePlanTest(unittest.TestCase):
             self.assertIsNotNone(unit_300.bookmark_title)
             self.assertIn("300", unit_300.bookmark_title)
 
-    def test_suggested_order_uses_act_number(self) -> None:
+    def test_suggested_order_does_not_use_act_number(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             _create_enriched_fixture(root)
@@ -70,8 +70,10 @@ class CaseFileMergePlanTest(unittest.TestCase):
             unit_100 = next(u for u in analysis.units if u.unit_id == "100")
             unit_200 = next(u for u in analysis.units if u.unit_id == "200")
 
-            self.assertEqual(4, unit_100.suggested_order)
-            self.assertEqual(12, unit_200.suggested_order)
+            self.assertIsNotNone(unit_100.suggested_order)
+            self.assertIsNotNone(unit_200.suggested_order)
+            self.assertNotEqual(4, unit_100.suggested_order)
+            self.assertNotEqual(12, unit_200.suggested_order)
 
     def test_suggested_order_fallback_index(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

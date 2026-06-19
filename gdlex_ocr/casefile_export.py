@@ -211,6 +211,14 @@ def casefile_unit_to_dict(unit: CaseFileUnit) -> dict[str, object]:
         "act_number": unit.act_number,
         "description": unit.description,
         "index_date": unit.index_date,
+        "faldone": unit.faldone,
+        "faldone_number": unit.faldone_number,
+        "total_pages": unit.total_pages,
+        "insertion_date": unit.insertion_date,
+        "pg_protocol": unit.pg_protocol,
+        "pg_progressive": unit.pg_progressive,
+        "notes": unit.notes,
+        "extra_description": unit.extra_description,
         "act_category": unit.act_category,
         "act_category_confidence": unit.act_category_confidence,
         "act_category_reason": unit.act_category_reason,
@@ -218,6 +226,9 @@ def casefile_unit_to_dict(unit: CaseFileUnit) -> dict[str, object]:
         "sort_group": unit.sort_group,
         "sort_priority": unit.sort_priority,
         "suggested_order": unit.suggested_order,
+        "order_source_kind": unit.order_source_kind,
+        "order_source_value": unit.order_source_value,
+        "order_source_confidence": unit.order_source_confidence,
         "merge_candidate": unit.merge_candidate,
         "warnings": [
             casefile_warning_to_dict(warning)
@@ -369,7 +380,9 @@ def format_casefile_analysis_markdown(analysis: CaseFileAnalysis) -> str:
     )
     _profile = str(payload.get("casefile_profile", ""))
     if _profile == "ministeriale_tiap":
-        lines.append("- Strategia suggerita: ordinamento da metadati TIAP")
+        lines.append(
+            "- Strategia suggerita: faldone + data atto + progressivo PG + unit_id"
+        )
     elif _profile == "immagini_scansioni":
         lines.append("- Strategia suggerita: conversione immagini e ordinamento per nome file")
     elif _profile == "pdf_sciolti":
@@ -400,15 +413,22 @@ def format_casefile_analysis_markdown(analysis: CaseFileAnalysis) -> str:
         lines.append("## Unità documentali PDP/TIAP")
         lines.append("")
         lines.append(
-            "| # | Ordine | Atto/Titolo | Categoria"
+            "| # | Ordine | Faldone | Data | Progr. PG"
+            " | Atto/Titolo | Categoria"
             " | Segnalibro | PDF principale | Warning |"
         )
         lines.append(
-            "|---|--------|-------------|-----------|"
+            "|---|--------|---------|------|----------"
+            "|-------------|-----------|"
             "------------|----------------|---------|"
         )
         for i, unit in enumerate(units, 1):
             order = unit.get("suggested_order", "")
+            faldone_n = unit.get("faldone_number", "")
+            faldone_n = faldone_n if faldone_n is not None else ""
+            idx_date = _md_escape(str(unit.get("index_date") or ""))
+            pg_prog = unit.get("pg_progressive", "")
+            pg_prog = pg_prog if pg_prog is not None else ""
             act_label = _md_escape(_unit_act_label(unit))
             category = _md_escape(
                 _unit_category_label(unit.get("act_category"))
@@ -417,7 +437,8 @@ def format_casefile_analysis_markdown(analysis: CaseFileAnalysis) -> str:
             main_pdf = _md_escape(str(unit["main_pdf_path"] or ""))
             warn_count = len(unit["warnings"])
             lines.append(
-                f"| {i} | {order} | {act_label} | {category}"
+                f"| {i} | {order} | {faldone_n} | {idx_date} | {pg_prog}"
+                f" | {act_label} | {category}"
                 f" | {bookmark} | {main_pdf} | {warn_count} |"
             )
         lines.append("")
@@ -662,6 +683,13 @@ _UNITS_CSV_COLUMNS = [
     "Confidenza categoria",
     "Descrizione",
     "Data indice",
+    "Faldone",
+    "Tot. pagine",
+    "Data inserimento",
+    "Protocollo PG",
+    "Progressivo PG",
+    "Note",
+    "Descrizione extra",
     "PDF principale",
     "Dimensione (byte)",
     "Dimensione",
@@ -673,6 +701,8 @@ _UNITS_CSV_COLUMNS = [
     "Warning",
     "SHA-256",
     "Ordine suggerito",
+    "Fonte ordine",
+    "Confidenza ordine",
     "Segnalibro",
     "Gruppo ordinamento",
     "Priorità ordinamento",
@@ -709,6 +739,13 @@ def format_casefile_units_csv(analysis: CaseFileAnalysis) -> str:
             str(unit.get("act_category_confidence") or ""),
             str(unit.get("description") or ""),
             str(unit.get("index_date") or ""),
+            str(unit.get("faldone") or ""),
+            unit.get("total_pages") if unit.get("total_pages") is not None else "",
+            str(unit.get("insertion_date") or ""),
+            str(unit.get("pg_protocol") or ""),
+            unit.get("pg_progressive") if unit.get("pg_progressive") is not None else "",
+            str(unit.get("notes") or ""),
+            str(unit.get("extra_description") or ""),
             str(unit["main_pdf_path"] or ""),
             int(unit["size_bytes"]),
             _format_size(unit["size_bytes"]),
@@ -720,6 +757,8 @@ def format_casefile_units_csv(analysis: CaseFileAnalysis) -> str:
             len(unit["warnings"]),
             sha256,
             unit.get("suggested_order", ""),
+            str(unit.get("order_source_kind") or ""),
+            str(unit.get("order_source_confidence") or ""),
             str(unit.get("bookmark_title") or ""),
             sort_group_label,
             unit.get("sort_priority", ""),
