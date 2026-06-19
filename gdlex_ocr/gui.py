@@ -79,12 +79,16 @@ from gdlex_ocr.casefile_merge_plan_export import (
     write_casefile_merge_plan_markdown,
 )
 from gdlex_ocr.casefile_pdf_merge import (
+    CaseFilePdfMergeError,
     CaseFilePdfMergeJob,
     CaseFilePdfMergeResult,
     build_casefile_pdf_merge_job,
+    default_casefile_merged_pdf_path,
+    default_casefile_optimized_pdf_path,
     estimate_casefile_pdf_merge_size,
     format_bytes,
     merge_casefile_pdfs,
+    select_casefile_pdf_for_ocr,
 )
 from gdlex_ocr.icons import tray_icon
 from gdlex_ocr.manifest import (
@@ -920,6 +924,9 @@ class MainWindow(QMainWindow):
         self.casefile_output_edit.setPlaceholderText(
             "Cartella di destinazione per i file di indice"
         )
+        self.casefile_output_edit.textChanged.connect(
+            self._refresh_casefile_pdf_actions
+        )
         self.casefile_output_button = QPushButton("Sfoglia…")
         self.casefile_output_button.setMinimumWidth(150)
         self.casefile_output_button.setMinimumHeight(36)
@@ -1120,11 +1127,24 @@ class MainWindow(QMainWindow):
             self._open_casefile_optimized_pdf
         )
         casefile_buttons_row.addWidget(self.casefile_open_optimized_pdf_button)
+        self.casefile_send_pdf_to_ocr_button = QPushButton(
+            "Invia PDF unico a OCR"
+        )
+        self.casefile_send_pdf_to_ocr_button.setObjectName(
+            "casefileSendPdfToOcrButton"
+        )
+        self.casefile_send_pdf_to_ocr_button.setEnabled(False)
+        self.casefile_send_pdf_to_ocr_button.clicked.connect(
+            self._send_casefile_pdf_to_ocr
+        )
+        casefile_buttons_row.addWidget(self.casefile_send_pdf_to_ocr_button)
         casefile_buttons_row.addStretch(1)
         casefile_tab_layout.addLayout(casefile_buttons_row)
 
         self._casefile_output_dir: str | None = None
         self._casefile_report_path: str | None = None
+        self.main_tabs.currentChanged.connect(self._main_tab_changed)
+        self._refresh_casefile_pdf_actions()
 
         self._load_gui_settings()
         self._connect_settings_persistence()
@@ -1664,6 +1684,62 @@ class MainWindow(QMainWindow):
         if directory:
             self.casefile_output_edit.setText(directory)
 
+    def _main_tab_changed(self, index: int) -> None:
+        if self.main_tabs.tabText(index) == "Fascicolo":
+            self._refresh_casefile_pdf_actions()
+
+    def _refresh_casefile_pdf_actions(self, _text: str = "") -> None:
+        output_text = self.casefile_output_edit.text().strip()
+        selected: Path | None = None
+        original: Path | None = None
+        optimized: Path | None = None
+        if output_text:
+            output = Path(os.path.expanduser(os.path.expandvars(output_text)))
+            try:
+                selected = select_casefile_pdf_for_ocr(output)
+            except CaseFilePdfMergeError:
+                pass
+            if output.is_dir():
+                original_candidate = default_casefile_merged_pdf_path(output)
+                optimized_candidate = default_casefile_optimized_pdf_path(output)
+                original = original_candidate if original_candidate.is_file() else None
+                optimized = optimized_candidate if optimized_candidate.is_file() else None
+        self._casefile_merged_pdf_path = str(original) if original else None
+        self._casefile_optimized_pdf_path = str(optimized) if optimized else None
+        self.casefile_open_merged_pdf_button.setEnabled(original is not None)
+        self.casefile_open_optimized_pdf_button.setEnabled(optimized is not None)
+        self.casefile_send_pdf_to_ocr_button.setEnabled(selected is not None)
+
+    def _set_ocr_input_pdf(self, path: Path) -> None:
+        self.pdf_edit.setText(str(path))
+        self._on_pdf_text_edited(str(path))
+
+    def _switch_to_ocr_tab(self) -> None:
+        for index in range(self.main_tabs.count()):
+            if self.main_tabs.tabText(index) == "OCR documento":
+                self.main_tabs.setCurrentIndex(index)
+                return
+
+    def _send_casefile_pdf_to_ocr(self) -> None:
+        output_text = self.casefile_output_edit.text().strip()
+        if not output_text:
+            self._append_casefile_log("Genera prima il PDF unico del fascicolo.")
+            return
+        output = Path(os.path.expanduser(os.path.expandvars(output_text)))
+        try:
+            selected = select_casefile_pdf_for_ocr(output)
+        except CaseFilePdfMergeError:
+            selected = None
+        if selected is None:
+            self._refresh_casefile_pdf_actions()
+            self._append_casefile_log("Genera prima il PDF unico del fascicolo.")
+            return
+        self._set_ocr_input_pdf(selected)
+        self._switch_to_ocr_tab()
+        self._append_casefile_log(
+            f"PDF unico inviato alla scheda OCR: {selected}"
+        )
+
     def _start_casefile_analysis(self) -> None:
         input_text = self.casefile_input_edit.text().strip()
         if not input_text:
@@ -1954,6 +2030,8 @@ class MainWindow(QMainWindow):
             return
         self.casefile_merge_generate_button.setEnabled(False)
         self.casefile_open_merged_pdf_button.setEnabled(False)
+        self.casefile_open_optimized_pdf_button.setEnabled(False)
+        self.casefile_send_pdf_to_ocr_button.setEnabled(False)
         self._append_casefile_log("Generazione PDF unico…")
         profile = str(self.casefile_pdf_profile_combo.currentData())
         self._append_casefile_log(
@@ -2010,6 +2088,7 @@ class MainWindow(QMainWindow):
         self.casefile_open_optimized_pdf_button.setEnabled(
             result.optimized_pdf_path is not None
         )
+        self.casefile_send_pdf_to_ocr_button.setEnabled(True)
 
     def _casefile_pdf_merge_failed(self, message: str) -> None:
         self._append_casefile_log(f"PDF unico non generato: {message}")
@@ -2075,6 +2154,7 @@ class MainWindow(QMainWindow):
         self._casefile_report_path = str(result.markdown_path)
         self.casefile_open_folder_button.setEnabled(True)
         self.casefile_open_report_button.setEnabled(True)
+        self._refresh_casefile_pdf_actions()
 
         QMessageBox.information(
             self,

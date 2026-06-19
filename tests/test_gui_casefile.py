@@ -96,6 +96,15 @@ class CasefileGuiControlsTest(unittest.TestCase):
             self.window.casefile_open_optimized_pdf_button.text(),
         )
         self.assertFalse(self.window.casefile_open_optimized_pdf_button.isEnabled())
+        self.assertEqual(
+            "Invia PDF unico a OCR",
+            self.window.casefile_send_pdf_to_ocr_button.text(),
+        )
+        self.assertEqual(
+            "casefileSendPdfToOcrButton",
+            self.window.casefile_send_pdf_to_ocr_button.objectName(),
+        )
+        self.assertFalse(self.window.casefile_send_pdf_to_ocr_button.isEnabled())
         self.assertTrue(self.window.casefile_merge_table.dragEnabled())
         self.assertTrue(self.window.casefile_merge_table.acceptDrops())
         self.assertTrue(self.window.casefile_merge_table.showDropIndicator())
@@ -296,6 +305,46 @@ class CasefileGuiControlsTest(unittest.TestCase):
             self.assertIn(text, log)
         self.assertTrue(self.window.casefile_open_merged_pdf_button.isEnabled())
         self.assertTrue(self.window.casefile_open_optimized_pdf_button.isEnabled())
+        self.assertTrue(self.window.casefile_send_pdf_to_ocr_button.isEnabled())
+
+    def test_send_merged_pdf_to_ocr_prefers_light_and_switches_tab(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output = Path(tmpdir)
+            (output / "fascicolo_unico.pdf").write_bytes(b"synthetic-original")
+            light = output / "fascicolo_unico_light.pdf"
+            light.write_bytes(b"synthetic-light")
+            self.window.casefile_output_edit.setText(str(output))
+
+            self.assertTrue(self.window.casefile_send_pdf_to_ocr_button.isEnabled())
+            self.window.main_tabs.setCurrentIndex(1)
+            self.window._send_casefile_pdf_to_ocr()
+
+            self.assertEqual(str(light), self.window.pdf_edit.text())
+            self.assertEqual("OCR documento", self.window.main_tabs.tabText(
+                self.window.main_tabs.currentIndex()
+            ))
+            self.assertIn(
+                f"PDF unico inviato alla scheda OCR: {light}",
+                self.window.casefile_log_view.toPlainText(),
+            )
+
+    def test_send_merged_pdf_to_ocr_falls_back_and_missing_is_clear(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output = Path(tmpdir)
+            self.window.casefile_output_edit.setText(str(output))
+            self.assertFalse(self.window.casefile_send_pdf_to_ocr_button.isEnabled())
+            self.window._send_casefile_pdf_to_ocr()
+            self.assertIn(
+                "Genera prima il PDF unico del fascicolo.",
+                self.window.casefile_log_view.toPlainText(),
+            )
+
+            original = output / "fascicolo_unico.pdf"
+            original.write_bytes(b"synthetic-original")
+            self.window._refresh_casefile_pdf_actions()
+            self.assertTrue(self.window.casefile_send_pdf_to_ocr_button.isEnabled())
+            self.window._send_casefile_pdf_to_ocr()
+            self.assertEqual(str(original), self.window.pdf_edit.text())
 
     def test_casefile_gui_rejects_missing_input(self) -> None:
         self.window.casefile_input_edit.setText("")

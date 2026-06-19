@@ -80,6 +80,24 @@ def default_casefile_optimized_pdf_path(output_dir: Path) -> Path:
     return Path(output_dir) / OPTIMIZED_PDF_FILENAME
 
 
+def select_casefile_pdf_for_ocr(
+    output_dir: Path, prefer_light: bool = True
+) -> Path | None:
+    """Select an existing merged PDF for OCR without opening or creating it."""
+    output = Path(output_dir)
+    if not output.is_dir():
+        raise CaseFilePdfMergeError(
+            f"Cartella output del fascicolo non trovata: {output}"
+        )
+    optimized = default_casefile_optimized_pdf_path(output)
+    original = default_casefile_merged_pdf_path(output)
+    if prefer_light and optimized.is_file():
+        return optimized
+    if original.is_file():
+        return original
+    return None
+
+
 def default_casefile_pdf_merge_report_json_path(output_dir: Path) -> Path:
     return Path(output_dir) / MERGE_REPORT_JSON_FILENAME
 
