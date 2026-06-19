@@ -43,6 +43,20 @@ class CasefileGuiControlsTest(unittest.TestCase):
         self.assertFalse(self.window.casefile_input_edit.isReadOnly())
         self.assertFalse(self.window.casefile_output_edit.isReadOnly())
 
+    def test_casefile_output_buttons_exist(self) -> None:
+        self.assertIsNotNone(self.window.casefile_open_folder_button)
+        self.assertIsNotNone(self.window.casefile_open_report_button)
+        self.assertFalse(self.window.casefile_open_folder_button.isEnabled())
+        self.assertFalse(self.window.casefile_open_report_button.isEnabled())
+        self.assertEqual(
+            "casefileOpenFolderButton",
+            self.window.casefile_open_folder_button.objectName(),
+        )
+        self.assertEqual(
+            "casefileOpenReportButton",
+            self.window.casefile_open_report_button.objectName(),
+        )
+
     def test_casefile_gui_does_not_store_sensitive_input_path(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             settings_path = Path(tmpdir) / "settings.ini"
@@ -339,11 +353,15 @@ class CasefileAnalysisHelperTest(unittest.TestCase):
             self.assertEqual(3, result.total_files)
             self.assertEqual(2, result.total_pdf_files)
             self.assertIsInstance(result.total_indexes, int)
+            self.assertIsInstance(result.total_index_matches, int)
+            self.assertIsInstance(result.total_units, int)
             self.assertIsInstance(result.total_warnings, int)
             self.assertTrue(result.json_path.is_file())
             self.assertTrue(result.markdown_path.is_file())
+            self.assertTrue(result.csv_path.is_file())
             self.assertEqual("fascicolo_index.json", result.json_path.name)
             self.assertEqual("fascicolo_index.md", result.markdown_path.name)
+            self.assertEqual("fascicolo_index.csv", result.csv_path.name)
 
     def test_casefile_gui_success_creates_output_dir(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

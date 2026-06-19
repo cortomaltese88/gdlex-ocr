@@ -18,9 +18,12 @@ from gdlex_ocr.casefile import (
 )
 from gdlex_ocr.casefile_export import (
     casefile_analysis_to_dict,
+    default_casefile_csv_path,
     default_casefile_json_path,
     default_casefile_markdown_path,
+    format_casefile_analysis_csv,
     format_casefile_analysis_markdown,
+    write_casefile_analysis_csv,
     write_casefile_analysis_json,
     write_casefile_analysis_markdown,
 )
@@ -517,6 +520,89 @@ class CaseFileExportTest(unittest.TestCase):
             Path("out") / "fascicolo_index.md",
             default_casefile_markdown_path(Path("out")),
         )
+
+    # -- Markdown: File più grandi --
+
+    def test_markdown_contains_largest_files_section(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            analysis = self._matched_analysis(Path(temporary_directory))
+
+            markdown = format_casefile_analysis_markdown(analysis)
+
+            self.assertIn("## File più grandi", markdown)
+            self.assertIn("| # | File | Dimensione | Tipo |", markdown)
+
+    # -- Markdown: Riepilogo operativo --
+
+    def test_markdown_contains_riepilogo_operativo(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            analysis = self._matched_analysis(Path(temporary_directory))
+
+            markdown = format_casefile_analysis_markdown(analysis)
+
+            self.assertIn("## Riepilogo operativo", markdown)
+            self.assertIn("Dimensione totale fascicolo:", markdown)
+            self.assertIn("Copertura indice:", markdown)
+            self.assertIn("1/1 voci con match", markdown)
+
+    # -- CSV export tests --
+
+    def test_default_casefile_csv_path(self) -> None:
+        self.assertEqual(
+            Path("out") / "fascicolo_index.csv",
+            default_casefile_csv_path(Path("out")),
+        )
+
+    def test_format_casefile_analysis_csv_header_and_rows(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            analysis = self._matched_analysis(Path(temporary_directory))
+
+            csv_text = format_casefile_analysis_csv(analysis)
+            lines = csv_text.strip().splitlines()
+
+            self.assertEqual(3, len(lines))
+            self.assertIn("#", lines[0])
+            self.assertIn("Tipo", lines[0])
+            self.assertIn("SHA-256", lines[0])
+
+    def test_write_casefile_analysis_csv_writes_file(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            analysis = self._matched_analysis(root)
+            output_path = root / "out" / "fascicolo_index.csv"
+
+            returned_path = write_casefile_analysis_csv(analysis, output_path)
+            content = output_path.read_text(encoding="utf-8")
+
+            self.assertEqual(output_path, returned_path)
+            self.assertIn("001_sentenza.pdf", content)
+
+    def test_write_casefile_analysis_csv_creates_parent_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            analysis = self._matched_analysis(root)
+            output_path = root / "missing" / "nested" / "fascicolo_index.csv"
+
+            write_casefile_analysis_csv(analysis, output_path)
+
+            self.assertTrue(output_path.is_file())
+
+    def test_write_casefile_analysis_csv_rejects_directory_output(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            analysis = self._matched_analysis(root)
+
+            with self.assertRaisesRegex(IsADirectoryError, "cartella"):
+                write_casefile_analysis_csv(analysis, root)
+
+    def test_csv_does_not_leak_absolute_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            analysis = self._matched_analysis(root)
+
+            csv_text = format_casefile_analysis_csv(analysis)
+
+            self.assertNotIn(str(root), csv_text)
 
     def _matched_analysis(self, root: Path) -> CaseFileAnalysis:
         (root / "atti").mkdir()

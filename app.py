@@ -11,8 +11,10 @@ from PySide6.QtWidgets import QApplication
 
 from gdlex_ocr.casefile import analyze_case_folder
 from gdlex_ocr.casefile_export import (
+    default_casefile_csv_path,
     default_casefile_json_path,
     default_casefile_markdown_path,
+    write_casefile_analysis_csv,
     write_casefile_analysis_json,
     write_casefile_analysis_markdown,
 )
@@ -216,6 +218,7 @@ def analyze_casefile_cli(input_name: str, output_name: str) -> int:
 
     json_path = default_casefile_json_path(output_dir)
     md_path = default_casefile_markdown_path(output_dir)
+    csv_path = default_casefile_csv_path(output_dir)
 
     try:
         write_casefile_analysis_json(analysis, json_path)
@@ -229,8 +232,15 @@ def analyze_casefile_cli(input_name: str, output_name: str) -> int:
         print(f"Errore: impossibile scrivere il Markdown: {exc}", file=sys.stderr)
         return 1
 
+    try:
+        write_casefile_analysis_csv(analysis, csv_path)
+    except OSError as exc:
+        print(f"Errore: impossibile scrivere il CSV: {exc}", file=sys.stderr)
+        return 1
+
     print(json_path)
     print(md_path)
+    print(csv_path)
     return 0
 
 

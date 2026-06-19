@@ -1,7 +1,9 @@
-"""Privacy-safe JSON and Markdown case-file export primitives."""
+"""Privacy-safe JSON, Markdown and CSV case-file export primitives."""
 
 from __future__ import annotations
 
+import csv
+import io
 import json
 import re
 from enum import Enum
@@ -425,6 +427,22 @@ def format_casefile_analysis_markdown(analysis: CaseFileAnalysis) -> str:
         lines.append("Nessun indice rilevato.")
         lines.append("")
 
+    # -- File più grandi --
+    documents = payload["documents"]
+    if documents:
+        sorted_by_size = sorted(documents, key=lambda d: d["size_bytes"], reverse=True)
+        top_n = sorted_by_size[:10]
+        lines.append("## File più grandi")
+        lines.append("")
+        lines.append("| # | File | Dimensione | Tipo |")
+        lines.append("|---|------|------------|------|")
+        for i, doc in enumerate(top_n, 1):
+            rel_path = _md_escape(str(doc["relative_path"]))
+            size = _format_size(doc["size_bytes"])
+            doc_type = _md_escape(str(doc["document_type"]))
+            lines.append(f"| {i} | {rel_path} | {size} | {doc_type} |")
+        lines.append("")
+
     # -- Warning --
     lines.append("## Warning")
     lines.append("")
@@ -436,6 +454,24 @@ def format_casefile_analysis_markdown(analysis: CaseFileAnalysis) -> str:
             lines.append(f"- `{code}`: {message}")
     else:
         lines.append("Nessun warning.")
+    lines.append("")
+
+    # -- Riepilogo operativo --
+    total_size = sum(int(doc["size_bytes"]) for doc in documents) if documents else 0
+    total_entries = summary["total_index_entries"]
+    total_matches = summary["total_index_matches"]
+    match_pct = (
+        f"{total_matches / total_entries * 100:.0f}%"
+        if total_entries > 0
+        else "n/a"
+    )
+    lines.append("## Riepilogo operativo")
+    lines.append("")
+    lines.append(f"- Dimensione totale fascicolo: {_format_size(total_size)}")
+    lines.append(f"- Copertura indice: {match_pct} ({total_matches}/{total_entries} voci con match)")
+    lines.append(f"- Warning totali: {summary['total_warnings']}")
+    if summary["total_units"]:
+        lines.append(f"- Unità documentali: {summary['total_units']}")
     lines.append("")
 
     return "\n".join(lines)
@@ -466,3 +502,54 @@ def _format_size(size_bytes: object) -> str:
     if n < 1024 * 1024:
         return f"{n / 1024:.1f} KB"
     return f"{n / (1024 * 1024):.1f} MB"
+
+
+# ---------------------------------------------------------------------------
+# CSV export
+# ---------------------------------------------------------------------------
+
+_CSV_COLUMNS = [
+    "#",
+    "Tipo",
+    "Confidenza",
+    "File",
+    "Dimensione (byte)",
+    "Dimensione",
+    "SHA-256",
+]
+
+
+def default_casefile_csv_path(output_dir: Path) -> Path:
+    return Path(output_dir) / "fascicolo_index.csv"
+
+
+def format_casefile_analysis_csv(analysis: CaseFileAnalysis) -> str:
+    payload = casefile_analysis_to_dict(analysis)
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(_CSV_COLUMNS)
+    for i, doc in enumerate(payload["documents"], 1):
+        writer.writerow([
+            i,
+            str(doc["document_type"]),
+            str(doc["type_confidence"]),
+            str(doc["relative_path"]),
+            int(doc["size_bytes"]),
+            _format_size(doc["size_bytes"]),
+            str(doc["sha256"] or ""),
+        ])
+    return buf.getvalue()
+
+
+def write_casefile_analysis_csv(
+    analysis: CaseFileAnalysis,
+    output_path: Path,
+) -> Path:
+    path = Path(output_path)
+    if path.is_dir():
+        raise IsADirectoryError(f"Il percorso di output è una cartella: {path}")
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    content = format_casefile_analysis_csv(analysis)
+    path.write_text(content, encoding="utf-8")
+    return output_path

@@ -47,8 +47,10 @@ from PySide6.QtWidgets import (
 from gdlex_ocr.casefile import analyze_case_folder
 from gdlex_ocr.casefile_export import (
     casefile_analysis_to_dict,
+    default_casefile_csv_path,
     default_casefile_json_path,
     default_casefile_markdown_path,
+    write_casefile_analysis_csv,
     write_casefile_analysis_json,
     write_casefile_analysis_markdown,
 )
@@ -178,27 +180,35 @@ class CasefileGuiResult:
 
     json_path: Path
     markdown_path: Path
+    csv_path: Path
     total_files: int
     total_pdf_files: int
     total_indexes: int
+    total_index_matches: int
+    total_units: int
     total_warnings: int
 
 
 def run_casefile_analysis(input_dir: Path, output_dir: Path) -> CasefileGuiResult:
-    """Run a full casefile analysis and write JSON + Markdown output."""
+    """Run a full casefile analysis and write JSON, Markdown, and CSV output."""
     analysis = analyze_case_folder(input_dir)
     json_path = default_casefile_json_path(output_dir)
     md_path = default_casefile_markdown_path(output_dir)
+    csv_path = default_casefile_csv_path(output_dir)
     write_casefile_analysis_json(analysis, json_path)
     write_casefile_analysis_markdown(analysis, md_path)
+    write_casefile_analysis_csv(analysis, csv_path)
     payload = casefile_analysis_to_dict(analysis)
     summary = payload["summary"]
     return CasefileGuiResult(
         json_path=json_path,
         markdown_path=md_path,
+        csv_path=csv_path,
         total_files=summary["total_files"],
         total_pdf_files=summary["total_pdf_files"],
         total_indexes=summary["total_indexes"],
+        total_index_matches=summary["total_index_matches"],
+        total_units=summary["total_units"],
         total_warnings=summary["total_warnings"],
     )
 
@@ -794,8 +804,8 @@ class MainWindow(QMainWindow):
 
         casefile_note = QLabel(
             "Analisi locale euristica: non esegue OCR e non legge il "
-            "contenuto dei PDF. Genera fascicolo_index.json e "
-            "fascicolo_index.md."
+            "contenuto dei PDF. Genera fascicolo_index.json, "
+            "fascicolo_index.md e fascicolo_index.csv."
         )
         casefile_note.setObjectName("sectionHint")
         casefile_note.setWordWrap(True)
@@ -824,6 +834,34 @@ class MainWindow(QMainWindow):
         self.casefile_log_view.setFont(monospace_font)
         casefile_log_layout.addWidget(self.casefile_log_view)
         casefile_tab_layout.addWidget(casefile_log_group, 1)
+
+        # --- Casefile output buttons ---
+        casefile_buttons_row = QHBoxLayout()
+        casefile_buttons_row.setSpacing(10)
+        self.casefile_open_folder_button = QPushButton("Apri cartella output")
+        self.casefile_open_folder_button.setObjectName(
+            "casefileOpenFolderButton"
+        )
+        self.casefile_open_folder_button.setEnabled(False)
+        self.casefile_open_folder_button.clicked.connect(
+            self._open_casefile_output_folder
+        )
+        casefile_buttons_row.addWidget(self.casefile_open_folder_button)
+
+        self.casefile_open_report_button = QPushButton("Apri report Markdown")
+        self.casefile_open_report_button.setObjectName(
+            "casefileOpenReportButton"
+        )
+        self.casefile_open_report_button.setEnabled(False)
+        self.casefile_open_report_button.clicked.connect(
+            self._open_casefile_report
+        )
+        casefile_buttons_row.addWidget(self.casefile_open_report_button)
+        casefile_buttons_row.addStretch(1)
+        casefile_tab_layout.addLayout(casefile_buttons_row)
+
+        self._casefile_output_dir: str | None = None
+        self._casefile_report_path: str | None = None
 
         self._load_gui_settings()
         self._connect_settings_persistence()
@@ -1402,7 +1440,11 @@ class MainWindow(QMainWindow):
 
         self._set_casefile_running(True)
         self.casefile_log_view.clear()
+        self.casefile_open_folder_button.setEnabled(False)
+        self.casefile_open_report_button.setEnabled(False)
         self._append_casefile_log("Avvio analisi fascicolo…")
+        self._append_casefile_log(f"  Input:  {input_dir}")
+        self._append_casefile_log(f"  Output: {output_dir}")
 
         self._casefile_worker = CasefileWorker(
             input_dir, output_dir, parent=self
@@ -1417,8 +1459,19 @@ class MainWindow(QMainWindow):
             f"Fascicolo: {result.total_files} file, "
             f"{result.total_pdf_files} PDF, "
             f"{result.total_indexes} indici, "
+            f"{result.total_index_matches} match, "
+            f"{result.total_units} unità, "
             f"{result.total_warnings} warning"
         )
+        self._append_casefile_log(f"  JSON:     {result.json_path}")
+        self._append_casefile_log(f"  Markdown: {result.markdown_path}")
+        self._append_casefile_log(f"  CSV:      {result.csv_path}")
+
+        self._casefile_output_dir = str(result.json_path.parent)
+        self._casefile_report_path = str(result.markdown_path)
+        self.casefile_open_folder_button.setEnabled(True)
+        self.casefile_open_report_button.setEnabled(True)
+
         QMessageBox.information(
             self,
             "Analisi fascicolo completata",
@@ -1426,9 +1479,12 @@ class MainWindow(QMainWindow):
             f"File totali: {result.total_files}\n"
             f"PDF: {result.total_pdf_files}\n"
             f"Indici: {result.total_indexes}\n"
+            f"Match: {result.total_index_matches}\n"
+            f"Unità documentali: {result.total_units}\n"
             f"Warning: {result.total_warnings}\n\n"
             f"JSON: {result.json_path}\n"
-            f"Markdown: {result.markdown_path}",
+            f"Markdown: {result.markdown_path}\n"
+            f"CSV: {result.csv_path}",
         )
 
     def _casefile_failed(self, message: str) -> None:
@@ -1445,6 +1501,36 @@ class MainWindow(QMainWindow):
         self._set_casefile_running(False)
         if worker is not None:
             worker.deleteLater()
+
+    def _open_casefile_output_folder(self) -> None:
+        folder = self._casefile_output_dir
+        if not folder or not Path(folder).is_dir():
+            QMessageBox.warning(
+                self,
+                "Cartella non trovata",
+                "La cartella di output non esiste o non è accessibile.",
+            )
+            return
+        self._open_local_path(
+            Path(folder),
+            "Impossibile aprire la cartella",
+            "Errore durante l'apertura della cartella.",
+        )
+
+    def _open_casefile_report(self) -> None:
+        path = self._casefile_report_path
+        if not path or not Path(path).is_file():
+            QMessageBox.warning(
+                self,
+                "File non trovato",
+                "Il report Markdown non esiste o non è accessibile.",
+            )
+            return
+        self._open_local_path(
+            Path(path),
+            "Impossibile aprire il file",
+            "Errore durante l'apertura del report.",
+        )
 
     def _set_casefile_running(self, running: bool) -> None:
         self.casefile_input_edit.setEnabled(not running)
