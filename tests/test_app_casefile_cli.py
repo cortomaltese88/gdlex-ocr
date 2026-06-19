@@ -50,9 +50,15 @@ class AppCasefileCliTest(unittest.TestCase):
             json_path = out_dir / "fascicolo_index.json"
             md_path = out_dir / "fascicolo_index.md"
             units_csv_path = out_dir / "fascicolo_unita.csv"
+            merge_json_path = out_dir / "fascicolo_merge_plan.json"
+            merge_csv_path = out_dir / "fascicolo_merge_plan.csv"
+            merge_md_path = out_dir / "fascicolo_merge_plan.md"
             self.assertTrue(json_path.exists())
             self.assertTrue(md_path.exists())
             self.assertTrue(units_csv_path.exists())
+            self.assertTrue(merge_json_path.exists())
+            self.assertTrue(merge_csv_path.exists())
+            self.assertTrue(merge_md_path.exists())
 
             payload = json.loads(json_path.read_text(encoding="utf-8"))
             self.assertIn("summary", payload)
@@ -64,6 +70,9 @@ class AppCasefileCliTest(unittest.TestCase):
             self.assertIn("fascicolo_index.json", printed)
             self.assertIn("fascicolo_index.md", printed)
             self.assertIn("fascicolo_unita.csv", printed)
+            self.assertIn("fascicolo_merge_plan.json", printed)
+            self.assertIn("fascicolo_merge_plan.csv", printed)
+            self.assertIn("fascicolo_merge_plan.md", printed)
 
     def test_analyze_casefile_requires_output(self) -> None:
         error = io.StringIO()
@@ -169,10 +178,19 @@ class AppCasefileCliTest(unittest.TestCase):
             units_csv_text = (out_dir / "fascicolo_unita.csv").read_text(
                 encoding="utf-8",
             )
+            merge_text = "".join(
+                (out_dir / name).read_text(encoding="utf-8-sig")
+                for name in (
+                    "fascicolo_merge_plan.json",
+                    "fascicolo_merge_plan.csv",
+                    "fascicolo_merge_plan.md",
+                )
+            )
 
             self.assertNotIn(temp_dir, json_text)
             self.assertNotIn(temp_dir, md_text)
             self.assertNotIn(temp_dir, units_csv_text)
+            self.assertNotIn(temp_dir, merge_text)
 
     def test_help_mentions_analyze_casefile(self) -> None:
         output = io.StringIO()

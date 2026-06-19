@@ -56,6 +56,15 @@ from gdlex_ocr.casefile_export import (
     write_casefile_analysis_markdown,
     write_casefile_units_csv,
 )
+from gdlex_ocr.casefile_merge_plan_export import (
+    build_casefile_merge_plan,
+    default_casefile_merge_plan_csv_path,
+    default_casefile_merge_plan_json_path,
+    default_casefile_merge_plan_markdown_path,
+    write_casefile_merge_plan_csv,
+    write_casefile_merge_plan_json,
+    write_casefile_merge_plan_markdown,
+)
 from gdlex_ocr.icons import tray_icon
 from gdlex_ocr.manifest import (
     format_manifest_verification,
@@ -184,6 +193,9 @@ class CasefileGuiResult:
     markdown_path: Path
     csv_path: Path
     units_csv_path: Path
+    merge_plan_json_path: Path
+    merge_plan_csv_path: Path
+    merge_plan_markdown_path: Path
     total_files: int
     total_pdf_files: int
     total_indexes: int
@@ -195,6 +207,7 @@ class CasefileGuiResult:
     casefile_profile: str = ""
     casefile_profile_confidence: str = ""
     total_merge_candidates: int = 0
+    total_merge_included: int = 0
 
 
 def run_casefile_analysis(input_dir: Path, output_dir: Path) -> CasefileGuiResult:
@@ -204,10 +217,17 @@ def run_casefile_analysis(input_dir: Path, output_dir: Path) -> CasefileGuiResul
     md_path = default_casefile_markdown_path(output_dir)
     csv_path = default_casefile_csv_path(output_dir)
     units_csv_path = default_casefile_units_csv_path(output_dir)
+    merge_plan = build_casefile_merge_plan(analysis)
+    merge_json_path = default_casefile_merge_plan_json_path(output_dir)
+    merge_csv_path = default_casefile_merge_plan_csv_path(output_dir)
+    merge_md_path = default_casefile_merge_plan_markdown_path(output_dir)
     write_casefile_analysis_json(analysis, json_path)
     write_casefile_analysis_markdown(analysis, md_path)
     write_casefile_analysis_csv(analysis, csv_path)
     write_casefile_units_csv(analysis, units_csv_path)
+    write_casefile_merge_plan_json(merge_plan, merge_json_path)
+    write_casefile_merge_plan_csv(merge_plan, merge_csv_path)
+    write_casefile_merge_plan_markdown(merge_plan, merge_md_path)
     payload = casefile_analysis_to_dict(analysis)
     summary = payload["summary"]
     units_with_title = sum(
@@ -227,6 +247,9 @@ def run_casefile_analysis(input_dir: Path, output_dir: Path) -> CasefileGuiResul
         markdown_path=md_path,
         csv_path=csv_path,
         units_csv_path=units_csv_path,
+        merge_plan_json_path=merge_json_path,
+        merge_plan_csv_path=merge_csv_path,
+        merge_plan_markdown_path=merge_md_path,
         total_files=summary["total_files"],
         total_pdf_files=summary["total_pdf_files"],
         total_indexes=summary["total_indexes"],
@@ -238,6 +261,7 @@ def run_casefile_analysis(input_dir: Path, output_dir: Path) -> CasefileGuiResul
         casefile_profile=profile_name,
         casefile_profile_confidence=profile_confidence,
         total_merge_candidates=merge_candidates,
+        total_merge_included=merge_plan.total_included,
     )
 
 
@@ -1509,10 +1533,22 @@ class MainWindow(QMainWindow):
                 f"  Unità candidate PDF unico: "
                 f"{result.total_merge_candidates}/{result.total_units}"
             )
+            self._append_casefile_log(
+                f"  Inclusi iniziali: {result.total_merge_included}"
+            )
         self._append_casefile_log(f"  JSON:       {result.json_path}")
         self._append_casefile_log(f"  Markdown:   {result.markdown_path}")
         self._append_casefile_log(f"  CSV:        {result.csv_path}")
         self._append_casefile_log(f"  CSV unità:  {result.units_csv_path}")
+        self._append_casefile_log(
+            f"  Merge plan JSON: {result.merge_plan_json_path}"
+        )
+        self._append_casefile_log(
+            f"  Merge plan CSV: {result.merge_plan_csv_path}"
+        )
+        self._append_casefile_log(
+            f"  Merge plan Markdown: {result.merge_plan_markdown_path}"
+        )
 
         self._casefile_output_dir = str(result.json_path.parent)
         self._casefile_report_path = str(result.markdown_path)
@@ -1532,7 +1568,10 @@ class MainWindow(QMainWindow):
             f"JSON: {result.json_path}\n"
             f"Markdown: {result.markdown_path}\n"
             f"CSV: {result.csv_path}\n"
-            f"CSV unità: {result.units_csv_path}",
+            f"CSV unità: {result.units_csv_path}\n"
+            f"Merge plan JSON: {result.merge_plan_json_path}\n"
+            f"Merge plan CSV: {result.merge_plan_csv_path}\n"
+            f"Merge plan Markdown: {result.merge_plan_markdown_path}",
         )
 
     def _casefile_failed(self, message: str) -> None:

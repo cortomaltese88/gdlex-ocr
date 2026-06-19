@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import tempfile
 import unittest
+from dataclasses import replace
 from pathlib import Path
 
 from gdlex_ocr.casefile import analyze_case_folder
@@ -12,6 +13,15 @@ from gdlex_ocr.casefile_export import (
     casefile_analysis_to_dict,
     format_casefile_analysis_markdown,
     format_casefile_units_csv,
+)
+from gdlex_ocr.casefile_merge_plan_export import (
+    build_casefile_merge_plan,
+    default_casefile_merge_plan_csv_path,
+    default_casefile_merge_plan_json_path,
+    default_casefile_merge_plan_markdown_path,
+    format_casefile_merge_plan_csv,
+    format_casefile_merge_plan_markdown,
+    merge_plan_to_dict,
 )
 
 
@@ -38,6 +48,87 @@ def _create_enriched_fixture(root: Path) -> None:
 
 
 class CaseFileMergePlanTest(unittest.TestCase):
+    def test_reviewable_plan_default_output_paths(self) -> None:
+        output_dir = Path("output")
+
+        self.assertEqual(
+            output_dir / "fascicolo_merge_plan.json",
+            default_casefile_merge_plan_json_path(output_dir),
+        )
+        self.assertEqual(
+            output_dir / "fascicolo_merge_plan.csv",
+            default_casefile_merge_plan_csv_path(output_dir),
+        )
+        self.assertEqual(
+            output_dir / "fascicolo_merge_plan.md",
+            default_casefile_merge_plan_markdown_path(output_dir),
+        )
+
+    def test_reviewable_plan_has_one_included_item_per_main_pdf(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _create_enriched_fixture(root)
+
+            plan = build_casefile_merge_plan(analyze_case_folder(root))
+
+            self.assertEqual(3, plan.total_items)
+            self.assertEqual(3, plan.total_merge_candidates)
+            self.assertEqual(3, plan.total_included)
+            self.assertEqual(0, plan.total_excluded)
+            self.assertTrue(all(i.include_in_merged_pdf for i in plan.items))
+            self.assertTrue(all(i.exclude_reason is None for i in plan.items))
+
+    def test_reviewable_plan_order_and_bookmarks_do_not_use_act_number(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _create_enriched_fixture(root)
+
+            plan = build_casefile_merge_plan(analyze_case_folder(root))
+
+            self.assertEqual([1, 2, 3], [i.final_order for i in plan.items])
+            self.assertEqual(
+                ["001", "002", "003"],
+                [i.bookmark_label[:3] for i in plan.items],
+            )
+            numbered = next(i for i in plan.items if i.act_number == "12")
+            self.assertFalse(numbered.bookmark_label.startswith("012"))
+
+    def test_reviewable_plan_tie_is_stable_by_unit_id(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _create_enriched_fixture(root)
+            analysis = analyze_case_folder(root)
+            tied = replace(
+                analysis,
+                units=tuple(
+                    replace(u, suggested_order=1)
+                    for u in reversed(analysis.units)
+                ),
+            )
+
+            plan = build_casefile_merge_plan(tied)
+
+            self.assertEqual(["100", "200", "300"], [i.unit_id for i in plan.items])
+
+    def test_reviewable_plan_exports_are_privacy_safe_and_revision_friendly(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _create_enriched_fixture(root)
+            plan = build_casefile_merge_plan(analyze_case_folder(root))
+
+            serialized = json.dumps(merge_plan_to_dict(plan), ensure_ascii=False)
+            csv_text = format_casefile_merge_plan_csv(plan)
+            markdown = format_casefile_merge_plan_markdown(plan)
+
+            self.assertNotIn(str(root), serialized + csv_text + markdown)
+            for column in (
+                "Ordine finale", "Includi", "Motivo esclusione", "Segnalibro"
+            ):
+                self.assertIn(column, csv_text.splitlines()[0])
+            self.assertIn("## Riepilogo merge plan", markdown)
+            self.assertIn("Inclusi: 3", markdown)
+            self.assertIn("Esclusi: 0", markdown)
+
     def test_bookmark_title_uses_act_number_and_title(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

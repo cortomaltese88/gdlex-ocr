@@ -20,6 +20,15 @@ from gdlex_ocr.casefile_export import (
     write_casefile_analysis_markdown,
     write_casefile_units_csv,
 )
+from gdlex_ocr.casefile_merge_plan_export import (
+    build_casefile_merge_plan,
+    default_casefile_merge_plan_csv_path,
+    default_casefile_merge_plan_json_path,
+    default_casefile_merge_plan_markdown_path,
+    write_casefile_merge_plan_csv,
+    write_casefile_merge_plan_json,
+    write_casefile_merge_plan_markdown,
+)
 from gdlex_ocr.gui import MainWindow
 from gdlex_ocr.icons import application_icon
 from gdlex_ocr.judgments import (
@@ -222,6 +231,10 @@ def analyze_casefile_cli(input_name: str, output_name: str) -> int:
     md_path = default_casefile_markdown_path(output_dir)
     csv_path = default_casefile_csv_path(output_dir)
     units_csv_path = default_casefile_units_csv_path(output_dir)
+    merge_plan = build_casefile_merge_plan(analysis)
+    merge_json_path = default_casefile_merge_plan_json_path(output_dir)
+    merge_csv_path = default_casefile_merge_plan_csv_path(output_dir)
+    merge_md_path = default_casefile_merge_plan_markdown_path(output_dir)
 
     try:
         write_casefile_analysis_json(analysis, json_path)
@@ -247,10 +260,21 @@ def analyze_casefile_cli(input_name: str, output_name: str) -> int:
         print(f"Errore: impossibile scrivere il CSV unità: {exc}", file=sys.stderr)
         return 1
 
+    try:
+        write_casefile_merge_plan_json(merge_plan, merge_json_path)
+        write_casefile_merge_plan_csv(merge_plan, merge_csv_path)
+        write_casefile_merge_plan_markdown(merge_plan, merge_md_path)
+    except OSError as exc:
+        print(f"Errore: impossibile scrivere il merge plan: {exc}", file=sys.stderr)
+        return 1
+
     print(json_path)
     print(md_path)
     print(csv_path)
     print(units_csv_path)
+    print(merge_json_path)
+    print(merge_csv_path)
+    print(merge_md_path)
     return 0
 
 

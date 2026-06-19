@@ -266,6 +266,35 @@ class CasefileGuiControlsTest(unittest.TestCase):
         ocr_text = self.window.log_view.toPlainText()
         self.assertNotIn("test message", ocr_text)
 
+    def test_casefile_completion_log_mentions_merge_plan(self) -> None:
+        base = Path("output")
+        result = CasefileGuiResult(
+            json_path=base / "fascicolo_index.json",
+            markdown_path=base / "fascicolo_index.md",
+            csv_path=base / "fascicolo_index.csv",
+            units_csv_path=base / "fascicolo_unita.csv",
+            merge_plan_json_path=base / "fascicolo_merge_plan.json",
+            merge_plan_csv_path=base / "fascicolo_merge_plan.csv",
+            merge_plan_markdown_path=base / "fascicolo_merge_plan.md",
+            total_files=2,
+            total_pdf_files=2,
+            total_indexes=0,
+            total_index_matches=0,
+            total_units=2,
+            total_warnings=0,
+            total_merge_candidates=2,
+            total_merge_included=2,
+        )
+
+        with patch("gdlex_ocr.gui.QMessageBox.information"):
+            self.window._casefile_completed(result)
+
+        log = self.window.casefile_log_view.toPlainText()
+        self.assertIn("Merge plan JSON", log)
+        self.assertIn("Merge plan CSV", log)
+        self.assertIn("Merge plan Markdown", log)
+        self.assertIn("Inclusi iniziali: 2", log)
+
     def test_stable_object_names(self) -> None:
         self.assertEqual("mainTabs", self.window.main_tabs.objectName())
         self.assertEqual("ocrTab", self.window.ocr_tab.objectName())
@@ -360,10 +389,22 @@ class CasefileAnalysisHelperTest(unittest.TestCase):
             self.assertTrue(result.markdown_path.is_file())
             self.assertTrue(result.csv_path.is_file())
             self.assertTrue(result.units_csv_path.is_file())
+            self.assertTrue(result.merge_plan_json_path.is_file())
+            self.assertTrue(result.merge_plan_csv_path.is_file())
+            self.assertTrue(result.merge_plan_markdown_path.is_file())
             self.assertEqual("fascicolo_index.json", result.json_path.name)
             self.assertEqual("fascicolo_index.md", result.markdown_path.name)
             self.assertEqual("fascicolo_index.csv", result.csv_path.name)
             self.assertEqual("fascicolo_unita.csv", result.units_csv_path.name)
+            self.assertEqual(
+                "fascicolo_merge_plan.json", result.merge_plan_json_path.name
+            )
+            self.assertEqual(
+                "fascicolo_merge_plan.csv", result.merge_plan_csv_path.name
+            )
+            self.assertEqual(
+                "fascicolo_merge_plan.md", result.merge_plan_markdown_path.name
+            )
 
     def test_casefile_gui_success_creates_output_dir(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
