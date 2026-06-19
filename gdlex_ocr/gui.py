@@ -190,6 +190,7 @@ class CasefileGuiResult:
     total_index_matches: int
     total_units: int
     total_warnings: int
+    total_units_with_title: int = 0
 
 
 def run_casefile_analysis(input_dir: Path, output_dir: Path) -> CasefileGuiResult:
@@ -205,6 +206,9 @@ def run_casefile_analysis(input_dir: Path, output_dir: Path) -> CasefileGuiResul
     write_casefile_units_csv(analysis, units_csv_path)
     payload = casefile_analysis_to_dict(analysis)
     summary = payload["summary"]
+    units_with_title = sum(
+        1 for u in analysis.units if u.act_title
+    )
     return CasefileGuiResult(
         json_path=json_path,
         markdown_path=md_path,
@@ -216,6 +220,7 @@ def run_casefile_analysis(input_dir: Path, output_dir: Path) -> CasefileGuiResul
         total_index_matches=summary["total_index_matches"],
         total_units=summary["total_units"],
         total_warnings=summary["total_warnings"],
+        total_units_with_title=units_with_title,
     )
 
 
@@ -1469,6 +1474,11 @@ class MainWindow(QMainWindow):
             f"{result.total_units} unità, "
             f"{result.total_warnings} warning"
         )
+        if result.total_units:
+            self._append_casefile_log(
+                f"  Unità con titolo atto: "
+                f"{result.total_units_with_title}/{result.total_units}"
+            )
         self._append_casefile_log(f"  JSON:       {result.json_path}")
         self._append_casefile_log(f"  Markdown:   {result.markdown_path}")
         self._append_casefile_log(f"  CSV:        {result.csv_path}")

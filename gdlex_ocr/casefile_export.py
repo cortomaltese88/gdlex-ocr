@@ -201,6 +201,10 @@ def casefile_unit_to_dict(unit: CaseFileUnit) -> dict[str, object]:
         "total_pdf_files": int(unit.total_pdf_files),
         "total_non_pdf_files": int(unit.total_non_pdf_files),
         "size_bytes": int(unit.size_bytes),
+        "act_title": unit.act_title,
+        "act_number": unit.act_number,
+        "description": unit.description,
+        "index_date": unit.index_date,
         "warnings": [
             casefile_warning_to_dict(warning)
             for warning in unit.warnings
@@ -356,20 +360,23 @@ def format_casefile_analysis_markdown(analysis: CaseFileAnalysis) -> str:
         lines.append("## Unità documentali PDP/TIAP")
         lines.append("")
         lines.append(
-            "| # | ID | PDF principale | Dimensione"
-            " | Lista allegati | File | Warning |"
+            "| # | ID | Atto/Titolo | PDF principale | Dimensione"
+            " | Lista allegati | Warning |"
         )
-        lines.append("|---|----|----------------|------------|----------------|------|---------|")
+        lines.append(
+            "|---|----|-------------|----------------|------------|"
+            "----------------|---------|"
+        )
         for i, unit in enumerate(units, 1):
             uid = _md_escape(str(unit["unit_id"]))
+            act_label = _md_escape(_unit_act_label(unit))
             main_pdf = _md_escape(str(unit["main_pdf_path"] or ""))
             size = _format_size(unit["size_bytes"])
             index_path = _md_escape(str(unit["attachment_index_path"] or ""))
-            total = unit["total_files"]
             warn_count = len(unit["warnings"])
             lines.append(
-                f"| {i} | {uid} | {main_pdf} | {size}"
-                f" | {index_path} | {total} | {warn_count} |"
+                f"| {i} | {uid} | {act_label} | {main_pdf} | {size}"
+                f" | {index_path} | {warn_count} |"
             )
         lines.append("")
 
@@ -491,6 +498,15 @@ def write_casefile_analysis_markdown(
     return output_path
 
 
+def _unit_act_label(unit: dict[str, object]) -> str:
+    parts: list[str] = []
+    if unit.get("act_number"):
+        parts.append(str(unit["act_number"]))
+    if unit.get("act_title"):
+        parts.append(str(unit["act_title"]))
+    return " - ".join(parts) if parts else ""
+
+
 def _md_escape(value: str) -> str:
     return value.replace("|", "\\|")
 
@@ -562,6 +578,9 @@ def write_casefile_analysis_csv(
 _UNITS_CSV_COLUMNS = [
     "#",
     "ID unità",
+    "Atto",
+    "Descrizione",
+    "Data indice",
     "PDF principale",
     "Dimensione (byte)",
     "Dimensione",
@@ -595,6 +614,9 @@ def format_casefile_units_csv(analysis: CaseFileAnalysis) -> str:
         writer.writerow([
             i,
             str(unit["unit_id"]),
+            _unit_act_label(unit),
+            str(unit.get("description") or ""),
+            str(unit.get("index_date") or ""),
             str(unit["main_pdf_path"] or ""),
             int(unit["size_bytes"]),
             _format_size(unit["size_bytes"]),

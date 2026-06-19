@@ -689,3 +689,120 @@ def _with_index_warning(
         warnings=index.warnings + (warning,),
         entries=(),
     )
+
+
+# ---------------------------------------------------------------------------
+# Ministerial ListaAllegati.html metadata extraction
+# ---------------------------------------------------------------------------
+
+_TITLE_RE = re.compile(
+    r"Documento\s*:\s*(\d{1,4})\s*-\s*(.+)",
+    re.IGNORECASE,
+)
+_METADATA_SKIP_KEYS = frozenset({
+    "faldone",
+    "tot. pagine",
+    "data inserimento",
+})
+
+
+@dataclass(frozen=True, slots=True)
+class AttachmentIndexMetadata:
+    act_title: str | None = None
+    act_number: str | None = None
+    description: str | None = None
+    index_date: str | None = None
+
+
+def parse_attachment_index_metadata(html: str) -> AttachmentIndexMetadata:
+    """Extract privacy-safe act metadata from a ministerial ListaAllegati.html."""
+    parser = _AttachmentMetadataParser()
+    try:
+        parser.feed(html)
+        parser.close()
+    except Exception:
+        return AttachmentIndexMetadata()
+
+    act_title: str | None = None
+    act_number: str | None = None
+    if parser.title:
+        match = _TITLE_RE.search(parser.title)
+        if match:
+            act_number = match.group(1)
+            act_title = _clean_text(match.group(2))
+
+    index_date: str | None = None
+    description: str | None = None
+    for key, value in parser.metadata:
+        key_lower = key.casefold().strip()
+        if key_lower == "data":
+            index_date = _clean_text(value) or None
+        elif key_lower not in _METADATA_SKIP_KEYS:
+            candidate = _clean_text(value)
+            if candidate:
+                description = _short_label(candidate)
+
+    return AttachmentIndexMetadata(
+        act_title=act_title,
+        act_number=act_number,
+        description=description,
+        index_date=index_date,
+    )
+
+
+class _AttachmentMetadataParser(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.title: str = ""
+        self.metadata: list[tuple[str, str]] = []
+        self._in_title = False
+        self._title_parts: list[str] = []
+        self._in_strong = False
+        self._strong_text: list[str] = []
+        self._in_li = False
+        self._li_text: list[str] = []
+
+    def handle_starttag(
+        self,
+        tag: str,
+        attrs: list[tuple[str, str | None]],
+    ) -> None:
+        lower = tag.casefold()
+        if lower == "title":
+            self._in_title = True
+            self._title_parts = []
+        elif lower == "strong":
+            self._in_strong = True
+            self._strong_text = []
+        elif lower == "li":
+            self._in_li = True
+            self._li_text = []
+
+    def handle_endtag(self, tag: str) -> None:
+        lower = tag.casefold()
+        if lower == "title" and self._in_title:
+            self.title = _clean_text(" ".join(self._title_parts))
+            self._in_title = False
+        elif lower == "strong" and self._in_strong:
+            self._in_strong = False
+        elif lower == "li" and self._in_li:
+            key = _clean_text(" ".join(self._strong_text))
+            full_text = _clean_text(" ".join(self._li_text))
+            if key and full_text:
+                sep = f"{key} :"
+                idx = full_text.find(sep)
+                if idx >= 0:
+                    value = full_text[idx + len(sep):].strip()
+                else:
+                    value = full_text[len(key):].strip().lstrip(":")
+                self.metadata.append((key, value))
+            self._in_li = False
+            self._strong_text = []
+
+    def handle_data(self, data: str) -> None:
+        if self._in_title:
+            self._title_parts.append(data)
+        if self._in_strong:
+            self._strong_text.append(data)
+        if self._in_li:
+            self._li_text.append(data)

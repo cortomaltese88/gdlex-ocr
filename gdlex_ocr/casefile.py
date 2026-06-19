@@ -86,6 +86,10 @@ class CaseFileUnit:
     total_non_pdf_files: int
     size_bytes: int
     warnings: tuple[ExtractionWarning, ...] = ()
+    act_title: str | None = None
+    act_number: str | None = None
+    description: str | None = None
+    index_date: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -186,6 +190,7 @@ def normalize_casefile_documents(
         )
 
     units = build_casefile_units(documents)
+    units = enrich_units_from_indexes(root, units)
     analysis = CaseFileAnalysis(
         source_dir=str(root),
         documents=tuple(documents),
@@ -325,6 +330,41 @@ def build_casefile_units(
             return (1, unit.unit_id)
 
     return tuple(sorted(units, key=_sort_key))
+
+
+def enrich_units_from_indexes(
+    folder: Path,
+    units: tuple[CaseFileUnit, ...],
+) -> tuple[CaseFileUnit, ...]:
+    """Read each unit's ListaAllegati.html and populate act metadata fields."""
+    from gdlex_ocr.casefile_index import parse_attachment_index_metadata
+
+    enriched: list[CaseFileUnit] = []
+    for unit in units:
+        if unit.attachment_index_path is None:
+            enriched.append(unit)
+            continue
+        html_path = folder / unit.attachment_index_path
+        try:
+            html = html_path.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            try:
+                html = html_path.read_bytes().decode("latin-1")
+            except Exception:
+                enriched.append(unit)
+                continue
+        except Exception:
+            enriched.append(unit)
+            continue
+        meta = parse_attachment_index_metadata(html)
+        enriched.append(replace(
+            unit,
+            act_title=meta.act_title,
+            act_number=meta.act_number,
+            description=meta.description,
+            index_date=meta.index_date,
+        ))
+    return tuple(enriched)
 
 
 def _is_local_unit_index(index: CaseFileIndex) -> bool:
