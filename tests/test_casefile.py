@@ -179,6 +179,42 @@ class CaseFileTest(unittest.TestCase):
             self.assertEqual("high", pdf_document.type_confidence)
             self.assertEqual(file_sha256(pdf), pdf_document.sha256)
 
+    def test_analyze_case_folder_reports_progress_phases(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            (root / "sentenza.pdf").write_bytes(b"synthetic pdf")
+            events: list[dict[str, object]] = []
+
+            analyze_case_folder(root, progress_callback=events.append)
+
+            phases = [event["phase"] for event in events]
+            self.assertEqual("prepare", phases[0])
+            self.assertIn("scan", phases)
+            self.assertIn("hash", phases)
+            self.assertEqual("done", phases[-1])
+            expected_order = [
+                "prepare", "scan", "index", "enrich",
+                "classify", "plan", "hash", "done",
+            ]
+            ordered_positions = [
+                phases.index(phase)
+                for phase in expected_order
+                if phase in phases
+            ]
+            self.assertEqual(sorted(ordered_positions), ordered_positions)
+
+    def test_analyze_case_folder_ignores_progress_callback_errors(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            (root / "sentenza.pdf").write_bytes(b"synthetic pdf")
+
+            def failing_callback(_event: dict[str, object]) -> None:
+                raise RuntimeError("callback failed")
+
+            analysis = analyze_case_folder(root, progress_callback=failing_callback)
+
+            self.assertEqual(1, analysis.total_files)
+
     def test_default_document_type_unknown_for_unrecognized_filename(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             root = Path(temporary_directory)

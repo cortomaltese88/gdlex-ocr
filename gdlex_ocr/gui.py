@@ -253,13 +253,37 @@ class CasefileGuiResult:
     total_merge_included: int = 0
 
 
-def run_casefile_analysis(input_dir: Path, output_dir: Path) -> CasefileGuiResult:
+def run_casefile_analysis(
+    input_dir: Path,
+    output_dir: Path,
+    progress_callback=None,
+) -> CasefileGuiResult:
     """Run a full casefile analysis and write JSON, Markdown, and CSV output."""
-    analysis = analyze_case_folder(input_dir)
+    analysis_progress_callback = None
+    if progress_callback is not None:
+        def analysis_progress_callback(event: dict[str, object]) -> None:
+            if str(event.get("phase") or "") == "done":
+                return
+            try:
+                progress_callback(event)
+            except Exception:
+                return
+
+    analysis = analyze_case_folder(
+        input_dir,
+        progress_callback=analysis_progress_callback,
+    )
     json_path = default_casefile_json_path(output_dir)
     md_path = default_casefile_markdown_path(output_dir)
     csv_path = default_casefile_csv_path(output_dir)
     units_csv_path = default_casefile_units_csv_path(output_dir)
+    _emit_casefile_analysis_progress(
+        progress_callback,
+        "export",
+        current=7,
+        total=8,
+        message="Scrittura report e merge plan...",
+    )
     merge_plan = build_casefile_merge_plan(analysis)
     merge_json_path = default_casefile_merge_plan_json_path(output_dir)
     merge_csv_path = default_casefile_merge_plan_csv_path(output_dir)
@@ -285,7 +309,7 @@ def run_casefile_analysis(input_dir: Path, output_dir: Path) -> CasefileGuiResul
     )
     profile_name = str(payload.get("casefile_profile", ""))
     profile_confidence = str(payload.get("casefile_profile_confidence", ""))
-    return CasefileGuiResult(
+    result = CasefileGuiResult(
         json_path=json_path,
         markdown_path=md_path,
         csv_path=csv_path,
@@ -306,6 +330,35 @@ def run_casefile_analysis(input_dir: Path, output_dir: Path) -> CasefileGuiResul
         total_merge_candidates=merge_candidates,
         total_merge_included=merge_plan.total_included,
     )
+    _emit_casefile_analysis_progress(
+        progress_callback,
+        "done",
+        current=8,
+        total=8,
+        message="Analisi fascicolo completata.",
+    )
+    return result
+
+
+def _emit_casefile_analysis_progress(
+    callback,
+    phase: str,
+    *,
+    current: int,
+    total: int,
+    message: str,
+) -> None:
+    if callback is None:
+        return
+    try:
+        callback({
+            "phase": phase,
+            "current": current,
+            "total": total,
+            "message": message,
+        })
+    except Exception:
+        return
 
 
 class CasefileWorker(QThread):
@@ -313,15 +366,28 @@ class CasefileWorker(QThread):
 
     completed = Signal(object)
     failed = Signal(str)
+    progress = Signal(object)
+    progress_changed = Signal(object)
 
     def __init__(self, input_dir: Path, output_dir: Path, parent=None) -> None:
         super().__init__(parent)
         self.input_dir = input_dir
         self.output_dir = output_dir
 
+    def _emit_progress(self, progress: dict[str, object]) -> None:
+        try:
+            self.progress.emit(progress)
+            self.progress_changed.emit(progress)
+        except Exception:
+            return
+
     def run(self) -> None:
         try:
-            result = run_casefile_analysis(self.input_dir, self.output_dir)
+            result = run_casefile_analysis(
+                self.input_dir,
+                self.output_dir,
+                progress_callback=self._emit_progress,
+            )
             self.completed.emit(result)
         except Exception as exc:
             self.failed.emit(str(exc))
@@ -472,6 +538,8 @@ class MainWindow(QMainWindow):
         self._casefile_merged_pdf_path: str | None = None
         self._casefile_optimized_pdf_path: str | None = None
         self._casefile_pdf_merge_running = False
+        self._casefile_analysis_running = False
+        self._casefile_last_progress_log_key: tuple[str, str] | None = None
 
         self.setWindowTitle(f"{APP_NAME} {APP_VERSION_LABEL}")
         app = QApplication.instance()
@@ -984,6 +1052,21 @@ class MainWindow(QMainWindow):
         )
         casefile_layout.addWidget(self.casefile_start_button, 2, 2)
         casefile_tab_layout.addWidget(casefile_group)
+
+        casefile_progress_group = QGroupBox("Avanzamento analisi")
+        casefile_progress_layout = QVBoxLayout(casefile_progress_group)
+        casefile_progress_layout.setContentsMargins(18, 12, 18, 10)
+        casefile_progress_layout.setSpacing(8)
+        self.casefile_progress_label = QLabel("Analisi fascicolo: pronto")
+        self.casefile_progress_label.setObjectName("casefileProgressLabel")
+        casefile_progress_layout.addWidget(self.casefile_progress_label)
+        self.casefile_progress_bar = QProgressBar()
+        self.casefile_progress_bar.setObjectName("casefileProgressBar")
+        self.casefile_progress_bar.setRange(0, 100)
+        self.casefile_progress_bar.setValue(0)
+        self.casefile_progress_bar.setFormat("%p%")
+        casefile_progress_layout.addWidget(self.casefile_progress_bar)
+        casefile_tab_layout.addWidget(casefile_progress_group)
 
         # --- Reviewable merge plan and explicit PDF generation ---
         merge_review_group = QGroupBox("Revisione PDF unico")
@@ -1827,9 +1910,13 @@ class MainWindow(QMainWindow):
         self._set_casefile_running(True)
         self._casefile_root = input_dir.resolve(strict=False)
         self.casefile_log_view.clear()
+        self._casefile_last_progress_log_key = None
         self._clear_casefile_merge_plan()
         self.casefile_open_folder_button.setEnabled(False)
         self.casefile_open_report_button.setEnabled(False)
+        self.casefile_progress_bar.setRange(0, 100)
+        self.casefile_progress_bar.setValue(0)
+        self.casefile_progress_label.setText("Analisi fascicolo: preparazione")
         self._append_casefile_log("Avvio analisi fascicolo…")
         self._append_casefile_log(f"  Input:  {input_dir}")
         self._append_casefile_log(f"  Output: {output_dir}")
@@ -1837,6 +1924,7 @@ class MainWindow(QMainWindow):
         self._casefile_worker = CasefileWorker(
             input_dir, output_dir, parent=self
         )
+        self._casefile_worker.progress.connect(self._casefile_analysis_progress)
         self._casefile_worker.completed.connect(self._casefile_completed)
         self._casefile_worker.failed.connect(self._casefile_failed)
         self._casefile_worker.finished.connect(self._casefile_worker_finished)
@@ -1954,17 +2042,21 @@ class MainWindow(QMainWindow):
         finally:
             self.casefile_merge_table.blockSignals(False)
         enabled = bool(plan and plan.total_items)
+        controls_available = (
+            not self._casefile_pdf_merge_running
+            and not self._casefile_analysis_running
+        )
         self.casefile_merge_up_button.setEnabled(
-            enabled and not self._casefile_pdf_merge_running
+            enabled and controls_available
         )
         self.casefile_merge_down_button.setEnabled(
-            enabled and not self._casefile_pdf_merge_running
+            enabled and controls_available
         )
         self.casefile_merge_save_button.setEnabled(
-            plan is not None and not self._casefile_pdf_merge_running
+            plan is not None and controls_available
         )
         self.casefile_merge_generate_button.setEnabled(
-            plan is not None and not self._casefile_pdf_merge_running
+            plan is not None and controls_available
         )
         if selected_row is not None and plan and plan.total_items:
             row = min(max(selected_row, 0), plan.total_items - 1)
@@ -2215,7 +2307,56 @@ class MainWindow(QMainWindow):
         if worker is not None:
             worker.deleteLater()
 
+    def _casefile_analysis_progress(self, progress: dict[str, object]) -> None:
+        phase = str(progress.get("phase") or "")
+        current = int(progress.get("current") or 0)
+        total = int(progress.get("total") or 0)
+        message = str(progress.get("message") or "").strip()
+        phase_ranges = {
+            "prepare": (0, 8),
+            "scan": (8, 18),
+            "index": (18, 38),
+            "enrich": (38, 50),
+            "classify": (50, 62),
+            "plan": (62, 72),
+            "hash": (72, 88),
+            "export": (88, 98),
+            "done": (100, 100),
+        }
+        start, end = phase_ranges.get(phase, (0, 0))
+        if phase == "hash" and total > 0:
+            percent = start + int(min(current, total) * (end - start) / total)
+        elif phase == "done":
+            percent = 100
+        else:
+            percent = end or start
+        self.casefile_progress_bar.setRange(0, 100)
+        self.casefile_progress_bar.setValue(min(max(percent, 0), 100))
+        phase_label = {
+            "prepare": "preparazione",
+            "scan": "scansione cartella",
+            "index": "indicizzazione",
+            "enrich": "lettura metadati",
+            "classify": "classificazione",
+            "plan": "piano PDF unico",
+            "hash": "calcolo impronte",
+            "export": "scrittura report",
+            "done": "completata",
+        }.get(phase, "in corso")
+        detail = message or phase_label
+        self.casefile_progress_label.setText(f"Analisi fascicolo: {detail}")
+        log_key = (phase, message)
+        if message and log_key != self._casefile_last_progress_log_key:
+            self._append_casefile_log(f"Analisi fascicolo: {message}")
+            self._casefile_last_progress_log_key = log_key
+
     def _casefile_completed(self, result: CasefileGuiResult) -> None:
+        self.casefile_progress_bar.setValue(100)
+        self.casefile_progress_label.setText("Analisi fascicolo: completata")
+        self._append_casefile_log("Analisi fascicolo completata.")
+        self._append_casefile_log(f"File: {result.total_files}")
+        self._append_casefile_log(f"PDF: {result.total_pdf_files}")
+        self._append_casefile_log(f"Unità: {result.total_units}")
         self._append_casefile_log(
             f"Fascicolo: {result.total_files} file, "
             f"{result.total_pdf_files} PDF, "
@@ -2286,6 +2427,9 @@ class MainWindow(QMainWindow):
         )
 
     def _casefile_failed(self, message: str) -> None:
+        self.casefile_progress_bar.setRange(0, 100)
+        self.casefile_progress_bar.setValue(0)
+        self.casefile_progress_label.setText("Analisi fascicolo: errore")
         self._append_casefile_log(f"Errore analisi fascicolo: {message}")
         QMessageBox.critical(
             self,
@@ -2355,11 +2499,28 @@ class MainWindow(QMainWindow):
         )
 
     def _set_casefile_running(self, running: bool) -> None:
+        self._casefile_analysis_running = running
         self.casefile_input_edit.setEnabled(not running)
         self.casefile_input_button.setEnabled(not running)
         self.casefile_output_edit.setEnabled(not running)
         self.casefile_output_button.setEnabled(not running)
         self.casefile_start_button.setEnabled(not running)
+        plan = self._casefile_merge_plan
+        has_plan = plan is not None
+        has_rows = bool(plan and plan.total_items)
+        controls_available = not running and not self._casefile_pdf_merge_running
+        self.casefile_merge_table.setEnabled(not running)
+        self.casefile_merge_up_button.setEnabled(has_rows and controls_available)
+        self.casefile_merge_down_button.setEnabled(has_rows and controls_available)
+        self.casefile_merge_save_button.setEnabled(has_plan and controls_available)
+        self.casefile_merge_generate_button.setEnabled(has_plan and controls_available)
+        self.casefile_pdf_profile_combo.setEnabled(controls_available)
+        if running:
+            self.casefile_open_merged_pdf_button.setEnabled(False)
+            self.casefile_open_optimized_pdf_button.setEnabled(False)
+            self.casefile_send_pdf_to_ocr_button.setEnabled(False)
+        elif not self._casefile_pdf_merge_running:
+            self._refresh_casefile_pdf_actions()
 
     def _set_casefile_pdf_merge_running(self, running: bool) -> None:
         self._casefile_pdf_merge_running = running

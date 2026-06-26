@@ -38,9 +38,23 @@ class CasefileGuiControlsTest(unittest.TestCase):
         self.assertIsNotNone(self.window.casefile_input_button)
         self.assertIsNotNone(self.window.casefile_output_button)
         self.assertIsNotNone(self.window.casefile_start_button)
+        self.assertIsNotNone(self.window.casefile_progress_label)
+        self.assertIsNotNone(self.window.casefile_progress_bar)
         self.assertEqual(
             "Analizza fascicolo",
             self.window.casefile_start_button.text(),
+        )
+        self.assertEqual(
+            "Analisi fascicolo: pronto",
+            self.window.casefile_progress_label.text(),
+        )
+        self.assertEqual(
+            "casefileProgressLabel",
+            self.window.casefile_progress_label.objectName(),
+        )
+        self.assertEqual(
+            "casefileProgressBar",
+            self.window.casefile_progress_bar.objectName(),
         )
         self.assertFalse(self.window.casefile_input_edit.isReadOnly())
         self.assertFalse(self.window.casefile_output_edit.isReadOnly())
@@ -258,6 +272,9 @@ class CasefileGuiControlsTest(unittest.TestCase):
             call_args = worker_cls.call_args
             self.assertEqual(input_dir, call_args.args[0])
             self.assertEqual(output_dir, call_args.args[1])
+            worker.progress.connect.assert_called_once_with(
+                self.window._casefile_analysis_progress
+            )
             worker.start.assert_called_once()
 
     def test_generate_pdf_invokes_merge_worker_with_selected_folders(self) -> None:
@@ -418,6 +435,11 @@ class CasefileGuiControlsTest(unittest.TestCase):
         self.assertTrue(self.window.casefile_start_button.isEnabled())
         self.assertTrue(self.window.casefile_input_edit.isEnabled())
         self.assertTrue(self.window.casefile_output_edit.isEnabled())
+        self.window.casefile_merge_save_button.setEnabled(True)
+        self.window.casefile_merge_generate_button.setEnabled(True)
+        self.window.casefile_open_merged_pdf_button.setEnabled(True)
+        self.window.casefile_open_optimized_pdf_button.setEnabled(True)
+        self.window.casefile_send_pdf_to_ocr_button.setEnabled(True)
 
         self.window._set_casefile_running(True)
         self.assertFalse(self.window.casefile_start_button.isEnabled())
@@ -425,10 +447,80 @@ class CasefileGuiControlsTest(unittest.TestCase):
         self.assertFalse(self.window.casefile_input_button.isEnabled())
         self.assertFalse(self.window.casefile_output_edit.isEnabled())
         self.assertFalse(self.window.casefile_output_button.isEnabled())
+        self.assertFalse(self.window.casefile_merge_save_button.isEnabled())
+        self.assertFalse(self.window.casefile_merge_generate_button.isEnabled())
+        self.assertFalse(self.window.casefile_open_merged_pdf_button.isEnabled())
+        self.assertFalse(self.window.casefile_open_optimized_pdf_button.isEnabled())
+        self.assertFalse(self.window.casefile_send_pdf_to_ocr_button.isEnabled())
 
         self.window._set_casefile_running(False)
         self.assertTrue(self.window.casefile_start_button.isEnabled())
         self.assertTrue(self.window.casefile_input_edit.isEnabled())
+
+    def test_casefile_progress_updates_label_bar_and_log(self) -> None:
+        self.window._casefile_analysis_progress({
+            "phase": "scan",
+            "current": 2,
+            "total": 8,
+            "message": "Scansione cartella completata: 3 file.",
+        })
+
+        self.assertEqual(
+            "Analisi fascicolo: Scansione cartella completata: 3 file.",
+            self.window.casefile_progress_label.text(),
+        )
+        self.assertGreater(self.window.casefile_progress_bar.value(), 0)
+        self.assertIn(
+            "Analisi fascicolo: Scansione cartella completata: 3 file.",
+            self.window.casefile_log_view.toPlainText(),
+        )
+
+    def test_casefile_completion_restores_controls_after_worker_finished(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            input_dir = Path(tmpdir) / "input"
+            unit_dir = input_dir / "100"
+            unit_dir.mkdir(parents=True)
+            (unit_dir / "100.pdf").write_bytes(b"%PDF-synthetic")
+            (unit_dir / "COMPLETE").write_bytes(b"")
+            output_dir = Path(tmpdir) / "output"
+            result = run_casefile_analysis(input_dir, output_dir)
+
+            self.window.casefile_input_edit.setText(str(input_dir))
+            self.window.casefile_output_edit.setText(str(output_dir))
+            self.window._set_casefile_running(True)
+            with patch("gdlex_ocr.gui.QMessageBox.information"):
+                self.window._casefile_completed(result)
+
+            self.assertFalse(self.window.casefile_merge_save_button.isEnabled())
+            self.assertFalse(self.window.casefile_merge_generate_button.isEnabled())
+
+            self.window._casefile_worker_finished()
+
+            self.assertTrue(self.window.casefile_start_button.isEnabled())
+            self.assertTrue(self.window.casefile_merge_save_button.isEnabled())
+            self.assertTrue(self.window.casefile_merge_generate_button.isEnabled())
+            self.assertEqual(
+                "Analisi fascicolo: completata",
+                self.window.casefile_progress_label.text(),
+            )
+
+    def test_casefile_error_restores_controls_after_worker_finished(self) -> None:
+        self.window._set_casefile_running(True)
+
+        with patch("gdlex_ocr.gui.QMessageBox.critical"):
+            self.window._casefile_failed("errore sintetico")
+        self.window._casefile_worker_finished()
+
+        self.assertTrue(self.window.casefile_start_button.isEnabled())
+        self.assertTrue(self.window.casefile_input_edit.isEnabled())
+        self.assertEqual(
+            "Analisi fascicolo: errore",
+            self.window.casefile_progress_label.text(),
+        )
+        self.assertIn(
+            "Errore analisi fascicolo: errore sintetico",
+            self.window.casefile_log_view.toPlainText(),
+        )
 
     def test_casefile_gui_does_not_interfere_with_ocr_controls(self) -> None:
         self.window._set_casefile_running(True)
@@ -480,6 +572,8 @@ class CasefileGuiControlsTest(unittest.TestCase):
             self.window.casefile_input_edit,
             self.window.casefile_output_edit,
             self.window.casefile_start_button,
+            self.window.casefile_progress_label,
+            self.window.casefile_progress_bar,
             self.window.casefile_log_view,
         ):
             ancestor = widget.parent()

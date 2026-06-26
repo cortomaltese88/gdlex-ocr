@@ -7,7 +7,7 @@ import re
 from dataclasses import dataclass, replace
 from enum import Enum
 from pathlib import Path
-from typing import TYPE_CHECKING, Iterable
+from typing import TYPE_CHECKING, Callable, Iterable
 
 from gdlex_ocr.casefile_classify import classify_by_filename
 from gdlex_ocr.manifest import file_sha256
@@ -19,6 +19,7 @@ ATTACHMENT_INDEX_FILENAME = "ListaAllegati.html"
 
 _FILE_ORDER_RE = re.compile(r"^(\d{1,6})(?:\D|$)")
 _NUMERIC_DIR_RE = re.compile(r"^\d+$")
+ProgressCallback = Callable[[dict[str, object]], None]
 
 if TYPE_CHECKING:
     from gdlex_ocr.casefile_index import CaseFileIndexEntry
@@ -143,6 +144,7 @@ def normalize_casefile_documents(
     paths: Iterable[Path],
     *,
     compute_hashes: bool = True,
+    progress_callback: ProgressCallback | None = None,
 ) -> CaseFileAnalysis:
     """Build a privacy-safe case-file index from already discovered paths."""
     from gdlex_ocr.casefile_index import (
@@ -158,6 +160,13 @@ def normalize_casefile_documents(
             (Path(path) for path in paths),
             key=lambda path: _relative_sort_key(root, path),
         )
+    )
+    _emit_progress(
+        progress_callback,
+        "index",
+        current=3,
+        total=8,
+        message="Indicizzazione documenti e indici fascicolo...",
     )
 
     documents: list[CaseFileDocument] = []
@@ -209,8 +218,29 @@ def normalize_casefile_documents(
         )
 
     units = build_casefile_units(documents)
+    _emit_progress(
+        progress_callback,
+        "enrich",
+        current=4,
+        total=8,
+        message="Lettura metadati unità documentali...",
+    )
     units = enrich_units_from_indexes(root, units)
+    _emit_progress(
+        progress_callback,
+        "classify",
+        current=5,
+        total=8,
+        message="Classificazione atti fascicolo...",
+    )
     units = classify_casefile_units(units)
+    _emit_progress(
+        progress_callback,
+        "plan",
+        current=6,
+        total=8,
+        message="Preparazione piano PDF unico...",
+    )
     units = plan_casefile_units(units)
     analysis = CaseFileAnalysis(
         source_dir=str(root),
@@ -223,8 +253,27 @@ def normalize_casefile_documents(
         units=units,
     )
     if not compute_hashes:
+        _emit_progress(
+            progress_callback,
+            "done",
+            current=8,
+            total=8,
+            message="Analisi dati fascicolo completata.",
+        )
         return analysis
-    return hash_casefile_documents(root, analysis)
+    hashed = hash_casefile_documents(
+        root,
+        analysis,
+        progress_callback=progress_callback,
+    )
+    _emit_progress(
+        progress_callback,
+        "done",
+        current=8,
+        total=8,
+        message="Analisi dati fascicolo completata.",
+    )
+    return hashed
 
 
 def analyze_case_folder(
@@ -232,19 +281,38 @@ def analyze_case_folder(
     *,
     recursive: bool = True,
     compute_hashes: bool = True,
+    progress_callback: ProgressCallback | None = None,
 ) -> CaseFileAnalysis:
     """Scan and normalize a local case folder, hashing files by default."""
     root = _validate_folder(folder)
+    _emit_progress(
+        progress_callback,
+        "prepare",
+        current=1,
+        total=8,
+        message="Preparazione analisi fascicolo...",
+    )
+    paths = scan_directory(root, recursive=recursive)
+    _emit_progress(
+        progress_callback,
+        "scan",
+        current=2,
+        total=8,
+        message=f"Scansione cartella completata: {len(paths)} file.",
+    )
     return normalize_casefile_documents(
         root,
-        scan_directory(root, recursive=recursive),
+        paths,
         compute_hashes=compute_hashes,
+        progress_callback=progress_callback,
     )
 
 
 def hash_casefile_documents(
     folder: Path,
     analysis: CaseFileAnalysis,
+    *,
+    progress_callback: ProgressCallback | None = None,
 ) -> CaseFileAnalysis:
     """Populate SHA-256 metadata and duplicate-file warnings for documents."""
     root = _validate_folder(folder)
@@ -255,8 +323,16 @@ def hash_casefile_documents(
         if warning.code != DUPLICATE_FILE_WARNING
     ]
     first_path_by_hash: dict[str, str] = {}
+    total_documents = len(analysis.documents)
+    _emit_progress(
+        progress_callback,
+        "hash",
+        current=0,
+        total=total_documents,
+        message="Calcolo impronte SHA-256...",
+    )
 
-    for document in analysis.documents:
+    for index, document in enumerate(analysis.documents, start=1):
         path = root / document.relative_path
         digest = file_sha256(path)
         document_warnings = tuple(
@@ -283,6 +359,13 @@ def hash_casefile_documents(
                 warnings=document_warnings,
             )
         )
+        _emit_progress(
+            progress_callback,
+            "hash",
+            current=index,
+            total=total_documents,
+            message=f"Calcolo impronte SHA-256: {index}/{total_documents}",
+        )
 
     return replace(
         analysis,
@@ -290,6 +373,28 @@ def hash_casefile_documents(
         documents=tuple(documents),
         warnings=tuple(warnings),
     )
+
+
+def _emit_progress(
+    callback: ProgressCallback | None,
+    phase: str,
+    *,
+    current: int,
+    total: int,
+    message: str,
+) -> None:
+    if callback is None:
+        return
+    event = {
+        "phase": phase,
+        "current": current,
+        "total": total,
+        "message": message,
+    }
+    try:
+        callback(event)
+    except Exception:
+        return
 
 
 def build_casefile_units(
