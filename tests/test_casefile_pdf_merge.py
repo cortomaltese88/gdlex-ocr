@@ -11,6 +11,7 @@ from unittest.mock import patch
 from pypdf import PdfReader, PdfWriter
 
 from gdlex_ocr.casefile_pdf_merge import (
+    CaseFilePdfMergeCancelled,
     CaseFilePdfMergeError,
     build_casefile_pdf_merge_job,
     estimate_casefile_pdf_merge_size,
@@ -219,6 +220,77 @@ class CaseFilePdfMergeTest(unittest.TestCase):
             self.assertIn("## Atti inclusi", combined)
             self.assertIn("## Atti esclusi", combined)
             self.assertIn("## Dimensione PDF", combined)
+
+    def test_progress_callback_reports_structured_merge_phases(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root, output = Path(tmp) / "root", Path(tmp) / "output"
+            _pdf(root / "a.pdf", 1)
+            _pdf(root / "b.pdf", 1)
+            _plan(output / "fascicolo_merge_plan.json", [
+                {"final_order": 1, "unit_id": "a", "source_pdf": "a.pdf",
+                 "include_in_merged_pdf": True, "bookmark_label": "001 - Primo"},
+                {"final_order": 2, "unit_id": "b", "source_pdf": "b.pdf",
+                 "include_in_merged_pdf": True, "bookmark_label": "002 - Secondo"},
+            ])
+            events: list[dict[str, object]] = []
+
+            merge_casefile_pdfs(
+                build_casefile_pdf_merge_job(root, output),
+                progress_callback=events.append,
+            )
+
+            phases = [event["phase"] for event in events]
+            self.assertIn("prepare", phases)
+            self.assertIn("merge", phases)
+            self.assertIn("write", phases)
+            self.assertIn("report", phases)
+            self.assertEqual("done", phases[-1])
+            merge_events = [event for event in events if event["phase"] == "merge"]
+            self.assertEqual([1, 2], [event["current"] for event in merge_events])
+            self.assertEqual([2, 2], [event["total"] for event in merge_events])
+            self.assertEqual(
+                ["a.pdf", "b.pdf"], [event["source_pdf"] for event in merge_events]
+            )
+            self.assertEqual(
+                ["001 - Primo", "002 - Secondo"],
+                [event["bookmark_label"] for event in merge_events],
+            )
+
+    def test_cancel_during_merge_removes_tmp_and_writes_no_reports(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root, output = Path(tmp) / "root", Path(tmp) / "output"
+            _pdf(root / "a.pdf", 1)
+            _pdf(root / "b.pdf", 1)
+            _plan(output / "fascicolo_merge_plan.json", [
+                {"final_order": 1, "unit_id": "a", "source_pdf": "a.pdf",
+                 "include_in_merged_pdf": True, "bookmark_label": "001 - Primo"},
+                {"final_order": 2, "unit_id": "b", "source_pdf": "b.pdf",
+                 "include_in_merged_pdf": True, "bookmark_label": "002 - Secondo"},
+            ])
+            seen_first_merge = False
+
+            def cancel_after_first_merge() -> bool:
+                return seen_first_merge
+
+            def progress(event: dict[str, object]) -> None:
+                nonlocal seen_first_merge
+                if event["phase"] == "merge" and event["current"] == 1:
+                    seen_first_merge = True
+
+            with self.assertRaisesRegex(
+                CaseFilePdfMergeCancelled,
+                "Generazione PDF unico annullata dall’utente",
+            ):
+                merge_casefile_pdfs(
+                    build_casefile_pdf_merge_job(root, output),
+                    progress_callback=progress,
+                    cancel_callback=cancel_after_first_merge,
+                )
+
+            self.assertFalse((output / "fascicolo_unico.pdf").exists())
+            self.assertFalse((output / "fascicolo_unico.pdf.tmp").exists())
+            self.assertFalse((output / "fascicolo_unico_report.json").exists())
+            self.assertFalse((output / "fascicolo_unico_report.md").exists())
 
     def test_optimization_not_smaller_warns_without_failing_or_deleting_original(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

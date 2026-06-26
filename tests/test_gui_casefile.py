@@ -275,6 +275,33 @@ class CasefileGuiControlsTest(unittest.TestCase):
             worker_cls.assert_called_once_with(root, output, "none", self.window)
             worker.start.assert_called_once()
 
+    def test_pdf_merge_progress_and_cancel_are_shown(self) -> None:
+        worker = MagicMock()
+        worker.isRunning.return_value = True
+        self.window._casefile_pdf_merge_worker = worker
+        self.window._casefile_pdf_merge_progress({
+            "phase": "merge",
+            "current": 12,
+            "total": 79,
+            "source_pdf": "711356/711356.pdf",
+            "bookmark_label": "012 - SEGUITO D'INDAGINE",
+            "message": "Aggiunta unità 12/79",
+        })
+        self.assertEqual(
+            "PDF unico: atto 12/79 - 012 - SEGUITO D'INDAGINE",
+            self.window.casefile_pdf_progress_label.text(),
+        )
+
+        self.window.casefile_pdf_cancel_button.setEnabled(True)
+        self.window._cancel_casefile_pdf_merge()
+
+        worker.request_cancel.assert_called_once()
+        self.assertFalse(self.window.casefile_pdf_cancel_button.isEnabled())
+        self.assertIn(
+            "Richiesto annullamento generazione PDF unico.",
+            self.window.casefile_log_view.toPlainText(),
+        )
+
     def test_pdf_merge_completion_logs_summary_and_enables_open(self) -> None:
         base = Path("/tmp/synthetic-output")
         result = CaseFilePdfMergeResult(

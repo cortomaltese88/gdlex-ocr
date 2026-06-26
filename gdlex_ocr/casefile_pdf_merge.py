@@ -9,6 +9,7 @@ import subprocess
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
+from typing import Callable
 
 from pypdf import PdfReader, PdfWriter
 
@@ -38,6 +39,14 @@ OPTIMIZED_PDF_NOT_SMALLER_WARNING = (
 
 class CaseFilePdfMergeError(ValueError):
     """Raised when a case-file PDF merge cannot be completed safely."""
+
+
+class CaseFilePdfMergeCancelled(CaseFilePdfMergeError):
+    """Raised when the user cancels a case-file PDF merge."""
+
+
+CaseFilePdfMergeProgressCallback = Callable[[dict[str, object]], None]
+CaseFilePdfMergeCancelCallback = Callable[[], bool]
 
 
 @dataclass(frozen=True, slots=True)
@@ -300,13 +309,43 @@ def optimize_casefile_pdf(
 
 
 def merge_casefile_pdfs(
-    job: CaseFilePdfMergeJob, optimization_profile: str = "none"
+    job: CaseFilePdfMergeJob,
+    optimization_profile: str = "none",
+    progress_callback: CaseFilePdfMergeProgressCallback | None = None,
+    cancel_callback: CaseFilePdfMergeCancelCallback | None = None,
 ) -> CaseFilePdfMergeResult:
     """Preflight all sources, merge them, and atomically publish the outputs."""
+    def emit_progress(
+        phase: str,
+        current: int = 0,
+        total: int = 0,
+        source_pdf: str | None = None,
+        bookmark_label: str | None = None,
+        message: str | None = None,
+    ) -> None:
+        if progress_callback is None:
+            return
+        progress_callback({
+            "phase": phase,
+            "current": current,
+            "total": total,
+            "source_pdf": source_pdf,
+            "bookmark_label": bookmark_label,
+            "message": message or "",
+        })
+
+    def check_cancelled() -> None:
+        if cancel_callback is not None and cancel_callback():
+            raise CaseFilePdfMergeCancelled(
+                "Generazione PDF unico annullata dall’utente."
+            )
+
     if optimization_profile not in PDF_OPTIMIZATION_PROFILES:
         raise CaseFilePdfMergeError(
             f"Profilo ottimizzazione PDF non valido: {optimization_profile}"
         )
+    check_cancelled()
+    emit_progress("prepare", 0, 0, message="Preparazione merge PDF...")
     estimate = estimate_casefile_pdf_merge_size(job)
     included = sorted(
         (item for item in job.plan.items if item.include_in_merged_pdf),
@@ -319,7 +358,16 @@ def merge_casefile_pdfs(
         raise CaseFilePdfMergeError("Il merge plan non contiene PDF inclusi.")
 
     prepared: list[tuple[CaseFileMergePlanItem, Path, PdfReader, int]] = []
-    for item in included:
+    for index, item in enumerate(included, start=1):
+        check_cancelled()
+        emit_progress(
+            "prepare",
+            index,
+            len(included),
+            source_pdf=item.source_pdf,
+            bookmark_label=item.bookmark_label,
+            message=f"Preparazione unità {index}/{len(included)}",
+        )
         source = resolve_safe_source_pdf(job.casefile_root, item.source_pdf)
         try:
             reader = PdfReader(source)
@@ -344,16 +392,30 @@ def merge_casefile_pdfs(
     json_path = default_casefile_pdf_merge_report_json_path(job.output_dir)
     md_path = default_casefile_pdf_merge_report_md_path(job.output_dir)
     pdf_tmp = pdf_path.with_name(pdf_path.name + ".tmp")
+    optimized_path = default_casefile_optimized_pdf_path(job.output_dir)
+    optimized_tmp = optimized_path.with_name(optimized_path.name + ".tmp")
     writer = PdfWriter()
     report_items: list[dict[str, object]] = []
     page_offset = 0
+    actual_size = 0
+    optimized_size: int | None = None
+    optimized_result_tmp: Path | None = None
     try:
-        for item, _source, reader, pages in prepared:
+        for index, (item, _source, reader, pages) in enumerate(prepared, start=1):
+            check_cancelled()
+            label = item.bookmark_label or item.bookmark_title or item.source_pdf
+            emit_progress(
+                "merge",
+                index,
+                len(prepared),
+                source_pdf=item.source_pdf,
+                bookmark_label=label,
+                message=f"Aggiunta unità {index}/{len(prepared)}",
+            )
             start_index = page_offset
             for page in reader.pages:
                 writer.add_page(page)
                 page_offset += 1
-            label = item.bookmark_label or item.bookmark_title or item.source_pdf
             writer.add_outline_item(label, start_index)
             report_items.append({
                 "final_order": item.final_order,
@@ -363,14 +425,39 @@ def merge_casefile_pdfs(
                 "start_page": start_index + 1,
                 "end_page": page_offset,
             })
+        check_cancelled()
+        emit_progress(
+            "write",
+            len(prepared),
+            len(prepared),
+            message="Scrittura PDF unico...",
+        )
         with pdf_tmp.open("wb") as stream:
             writer.write(stream)
         check = PdfReader(pdf_tmp)
         if len(check.pages) != page_offset:
             raise CaseFilePdfMergeError("Verifica del PDF unito non riuscita.")
-        os.replace(pdf_tmp, pdf_path)
+        actual_size = pdf_tmp.stat().st_size
+        if optimization_profile != "none":
+            check_cancelled()
+            emit_progress(
+                "optimize",
+                len(prepared),
+                len(prepared),
+                message="Ottimizzazione PDF con Ghostscript...",
+            )
+            optimized_result_tmp = optimize_casefile_pdf(
+                pdf_tmp,
+                optimized_tmp,
+                optimization_profile,
+            )
+            optimized_size = optimized_result_tmp.stat().st_size
+        check_cancelled()
     except Exception as exc:
         pdf_tmp.unlink(missing_ok=True)
+        optimized_tmp.unlink(missing_ok=True)
+        if optimized_result_tmp is not None:
+            optimized_result_tmp.unlink(missing_ok=True)
         if isinstance(exc, CaseFilePdfMergeError):
             raise
         raise CaseFilePdfMergeError(f"Creazione del PDF unico non riuscita: {exc}") from exc
@@ -384,22 +471,21 @@ def merge_casefile_pdfs(
         for item in job.plan.items
         if not item.include_in_merged_pdf
     ]
-    actual_size = pdf_path.stat().st_size
-    optimized_path: Path | None = None
-    optimized_size: int | None = None
+    published_optimized_path: Path | None = None
     reduction: float | None = None
     warnings: list[str] = []
-    if optimization_profile != "none":
-        optimized_path = optimize_casefile_pdf(
-            pdf_path,
-            default_casefile_optimized_pdf_path(job.output_dir),
-            optimization_profile,
-        )
-        optimized_size = optimized_path.stat().st_size
+    if optimized_result_tmp is not None and optimized_size is not None:
+        published_optimized_path = optimized_path
         if actual_size:
             reduction = round((actual_size - optimized_size) * 100 / actual_size, 1)
         if optimized_size >= actual_size:
             warnings.append(OPTIMIZED_PDF_NOT_SMALLER_WARNING)
+    emit_progress(
+        "report",
+        len(prepared),
+        len(prepared),
+        message="Scrittura report PDF unico...",
+    )
     report = {
         "source_plan": job.source_plan.name,
         "output_pdf": pdf_path.name,
@@ -414,7 +500,9 @@ def merge_casefile_pdfs(
         "actual_output_size_bytes": actual_size,
         "actual_output_size_human": format_bytes(actual_size),
         "optimization_profile": optimization_profile,
-        "optimized_output_pdf": optimized_path.name if optimized_path else None,
+        "optimized_output_pdf": (
+            published_optimized_path.name if published_optimized_path else None
+        ),
         "optimized_output_size_bytes": optimized_size,
         "optimized_output_size_human": format_bytes(optimized_size) if optimized_size is not None else None,
         "size_reduction_percent": reduction,
@@ -423,13 +511,31 @@ def merge_casefile_pdfs(
         "excluded": excluded,
         "warnings": warnings,
     }
-    _atomic_write_text(json_path, json.dumps(report, ensure_ascii=False, indent=2) + "\n")
-    _atomic_write_text(md_path, format_casefile_pdf_merge_report(report))
+    try:
+        os.replace(pdf_tmp, pdf_path)
+        if optimized_result_tmp is not None and published_optimized_path is not None:
+            os.replace(optimized_result_tmp, published_optimized_path)
+        _atomic_write_text(json_path, json.dumps(report, ensure_ascii=False, indent=2) + "\n")
+        _atomic_write_text(md_path, format_casefile_pdf_merge_report(report))
+    except Exception as exc:
+        pdf_tmp.unlink(missing_ok=True)
+        optimized_tmp.unlink(missing_ok=True)
+        if optimized_result_tmp is not None:
+            optimized_result_tmp.unlink(missing_ok=True)
+        if isinstance(exc, CaseFilePdfMergeError):
+            raise
+        raise CaseFilePdfMergeError(f"Creazione del PDF unico non riuscita: {exc}") from exc
+    emit_progress(
+        "done",
+        len(prepared),
+        len(prepared),
+        message="PDF unico generato.",
+    )
     return CaseFilePdfMergeResult(
         pdf_path, json_path, md_path, job.source_plan, job.plan.total_items,
         len(included), len(excluded), page_offset,
         estimate.estimated_output_size_bytes, actual_size, optimization_profile,
-        optimized_path, optimized_size, reduction, tuple(warnings),
+        published_optimized_path, optimized_size, reduction, tuple(warnings),
     )
 
 

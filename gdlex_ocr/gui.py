@@ -79,6 +79,7 @@ from gdlex_ocr.casefile_merge_plan_export import (
     write_casefile_merge_plan_markdown,
 )
 from gdlex_ocr.casefile_pdf_merge import (
+    CaseFilePdfMergeCancelled,
     CaseFilePdfMergeError,
     CaseFilePdfMergeJob,
     CaseFilePdfMergeResult,
@@ -327,12 +328,18 @@ class CasefileWorker(QThread):
 
 
 def run_casefile_pdf_merge(
-    casefile_root: Path, output_dir: Path, optimization_profile: str = "none"
+    casefile_root: Path,
+    output_dir: Path,
+    optimization_profile: str = "none",
+    progress_callback=None,
+    cancel_callback=None,
 ) -> CaseFilePdfMergeResult:
     """Build and execute a case-file PDF merge job for GUI and tests."""
     return merge_casefile_pdfs(
         build_casefile_pdf_merge_job(casefile_root, output_dir),
         optimization_profile,
+        progress_callback=progress_callback,
+        cancel_callback=cancel_callback,
     )
 
 
@@ -341,6 +348,8 @@ class CasefilePdfMergeWorker(QThread):
 
     completed = Signal(object)
     failed = Signal(str)
+    cancelled = Signal(str)
+    progress_changed = Signal(object)
 
     def __init__(
         self, casefile_root: Path, output_dir: Path,
@@ -350,14 +359,30 @@ class CasefilePdfMergeWorker(QThread):
         self.casefile_root = casefile_root
         self.output_dir = output_dir
         self.optimization_profile = optimization_profile
+        self._cancel_requested = False
+
+    def request_cancel(self) -> None:
+        self._cancel_requested = True
+
+    def _is_cancel_requested(self) -> bool:
+        return self._cancel_requested
+
+    def _emit_progress(self, progress: dict[str, object]) -> None:
+        self.progress_changed.emit(progress)
 
     def run(self) -> None:
         try:
             self.completed.emit(
                 run_casefile_pdf_merge(
-                    self.casefile_root, self.output_dir, self.optimization_profile
+                    self.casefile_root,
+                    self.output_dir,
+                    self.optimization_profile,
+                    progress_callback=self._emit_progress,
+                    cancel_callback=self._is_cancel_requested,
                 )
             )
+        except CaseFilePdfMergeCancelled as exc:
+            self.cancelled.emit(str(exc))
         except Exception as exc:
             self.failed.emit(str(exc))
 
@@ -446,6 +471,7 @@ class MainWindow(QMainWindow):
         self._casefile_pdf_merge_worker: CasefilePdfMergeWorker | None = None
         self._casefile_merged_pdf_path: str | None = None
         self._casefile_optimized_pdf_path: str | None = None
+        self._casefile_pdf_merge_running = False
 
         self.setWindowTitle(f"{APP_NAME} {APP_VERSION_LABEL}")
         app = QApplication.instance()
@@ -1054,10 +1080,26 @@ class MainWindow(QMainWindow):
             self._generate_casefile_pdf
         )
         merge_buttons.addWidget(self.casefile_merge_generate_button)
+        self.casefile_pdf_cancel_button = QPushButton("Annulla generazione PDF")
+        self.casefile_pdf_cancel_button.setObjectName("casefilePdfCancelButton")
+        self.casefile_pdf_cancel_button.setEnabled(False)
+        self.casefile_pdf_cancel_button.clicked.connect(
+            self._cancel_casefile_pdf_merge
+        )
+        merge_buttons.addWidget(self.casefile_pdf_cancel_button)
         merge_review_layout.addLayout(merge_buttons)
         self.casefile_pdf_estimate_label = QLabel("Stima PDF unico: non disponibile")
         self.casefile_pdf_estimate_label.setObjectName("casefilePdfEstimateLabel")
         merge_review_layout.addWidget(self.casefile_pdf_estimate_label)
+        self.casefile_pdf_progress_label = QLabel("PDF unico: pronto")
+        self.casefile_pdf_progress_label.setObjectName("casefilePdfProgressLabel")
+        merge_review_layout.addWidget(self.casefile_pdf_progress_label)
+        self.casefile_pdf_progress_bar = QProgressBar()
+        self.casefile_pdf_progress_bar.setObjectName("casefilePdfProgressBar")
+        self.casefile_pdf_progress_bar.setRange(0, 100)
+        self.casefile_pdf_progress_bar.setValue(0)
+        self.casefile_pdf_progress_bar.setFormat("%p%")
+        merge_review_layout.addWidget(self.casefile_pdf_progress_bar)
         self.casefile_merge_up_shortcut = QShortcut(
             QKeySequence("Alt+Up"), self.casefile_merge_table
         )
@@ -1689,6 +1731,11 @@ class MainWindow(QMainWindow):
             self._refresh_casefile_pdf_actions()
 
     def _refresh_casefile_pdf_actions(self, _text: str = "") -> None:
+        if self._casefile_pdf_merge_running:
+            self.casefile_open_merged_pdf_button.setEnabled(False)
+            self.casefile_open_optimized_pdf_button.setEnabled(False)
+            self.casefile_send_pdf_to_ocr_button.setEnabled(False)
+            return
         output_text = self.casefile_output_edit.text().strip()
         selected: Path | None = None
         original: Path | None = None
@@ -1803,7 +1850,10 @@ class MainWindow(QMainWindow):
         self.casefile_merge_down_button.setEnabled(False)
         self.casefile_merge_save_button.setEnabled(False)
         self.casefile_merge_generate_button.setEnabled(False)
+        self.casefile_pdf_cancel_button.setEnabled(False)
         self.casefile_pdf_estimate_label.setText("Stima PDF unico: non disponibile")
+        self.casefile_pdf_progress_label.setText("PDF unico: pronto")
+        self.casefile_pdf_progress_bar.setValue(0)
 
     def _load_casefile_merge_plan(self, path: Path) -> bool:
         """Load a generated plan into the review table without blocking the GUI."""
@@ -1904,10 +1954,18 @@ class MainWindow(QMainWindow):
         finally:
             self.casefile_merge_table.blockSignals(False)
         enabled = bool(plan and plan.total_items)
-        self.casefile_merge_up_button.setEnabled(enabled)
-        self.casefile_merge_down_button.setEnabled(enabled)
-        self.casefile_merge_save_button.setEnabled(plan is not None)
-        self.casefile_merge_generate_button.setEnabled(plan is not None)
+        self.casefile_merge_up_button.setEnabled(
+            enabled and not self._casefile_pdf_merge_running
+        )
+        self.casefile_merge_down_button.setEnabled(
+            enabled and not self._casefile_pdf_merge_running
+        )
+        self.casefile_merge_save_button.setEnabled(
+            plan is not None and not self._casefile_pdf_merge_running
+        )
+        self.casefile_merge_generate_button.setEnabled(
+            plan is not None and not self._casefile_pdf_merge_running
+        )
         if selected_row is not None and plan and plan.total_items:
             row = min(max(selected_row, 0), plan.total_items - 1)
             self.casefile_merge_table.selectRow(row)
@@ -2028,10 +2086,9 @@ class MainWindow(QMainWindow):
                 self, "Cartella non trovata", "La cartella del fascicolo non esiste."
             )
             return
-        self.casefile_merge_generate_button.setEnabled(False)
-        self.casefile_open_merged_pdf_button.setEnabled(False)
-        self.casefile_open_optimized_pdf_button.setEnabled(False)
-        self.casefile_send_pdf_to_ocr_button.setEnabled(False)
+        self._set_casefile_pdf_merge_running(True)
+        self.casefile_pdf_progress_bar.setValue(0)
+        self.casefile_pdf_progress_label.setText("PDF unico: preparazione")
         self._append_casefile_log("Generazione PDF unico…")
         profile = str(self.casefile_pdf_profile_combo.currentData())
         self._append_casefile_log(
@@ -2043,6 +2100,12 @@ class MainWindow(QMainWindow):
         self._casefile_pdf_merge_worker.completed.connect(
             self._casefile_pdf_merge_completed
         )
+        self._casefile_pdf_merge_worker.progress_changed.connect(
+            self._casefile_pdf_merge_progress
+        )
+        self._casefile_pdf_merge_worker.cancelled.connect(
+            self._casefile_pdf_merge_cancelled
+        )
         self._casefile_pdf_merge_worker.failed.connect(
             self._casefile_pdf_merge_failed
         )
@@ -2050,6 +2113,43 @@ class MainWindow(QMainWindow):
             self._casefile_pdf_merge_finished
         )
         self._casefile_pdf_merge_worker.start()
+
+    def _cancel_casefile_pdf_merge(self) -> None:
+        worker = self._casefile_pdf_merge_worker
+        if worker is None or not worker.isRunning():
+            return
+        self.casefile_pdf_cancel_button.setEnabled(False)
+        self.casefile_pdf_progress_label.setText("PDF unico: annullamento in corso")
+        self._append_casefile_log("Richiesto annullamento generazione PDF unico.")
+        worker.request_cancel()
+
+    def _casefile_pdf_merge_progress(self, progress: dict[str, object]) -> None:
+        phase = str(progress.get("phase") or "")
+        current = int(progress.get("current") or 0)
+        total = int(progress.get("total") or 0)
+        bookmark = str(progress.get("bookmark_label") or "").strip()
+        message = str(progress.get("message") or "").strip()
+        phase_base = {
+            "prepare": 5,
+            "merge": 10,
+            "write": 82,
+            "optimize": 90,
+            "report": 96,
+            "done": 100,
+        }
+        percent = phase_base.get(phase, 0)
+        if phase in {"prepare", "merge"} and total > 0:
+            span = 5 if phase == "prepare" else 72
+            start = 0 if phase == "prepare" else 10
+            percent = start + int(min(current, total) * span / total)
+        self.casefile_pdf_progress_bar.setValue(min(max(percent, 0), 100))
+        if phase == "merge" and total > 0:
+            detail = f"PDF unico: atto {current}/{total}"
+            if bookmark:
+                detail = f"{detail} - {bookmark}"
+            self.casefile_pdf_progress_label.setText(detail)
+        elif message:
+            self.casefile_pdf_progress_label.setText(f"PDF unico: {message}")
 
     def _casefile_pdf_merge_completed(
         self, result: CaseFilePdfMergeResult
@@ -2086,13 +2186,23 @@ class MainWindow(QMainWindow):
         self._append_casefile_log(
             f"  Report Markdown: {result.report_markdown_path}"
         )
+        self.casefile_pdf_progress_bar.setValue(100)
+        self.casefile_pdf_progress_label.setText("PDF unico: completato")
         self.casefile_open_merged_pdf_button.setEnabled(True)
         self.casefile_open_optimized_pdf_button.setEnabled(
             result.optimized_pdf_path is not None
         )
         self.casefile_send_pdf_to_ocr_button.setEnabled(True)
 
+    def _casefile_pdf_merge_cancelled(self, message: str) -> None:
+        self.casefile_pdf_progress_label.setText("PDF unico: annullato")
+        self._append_casefile_log(f"PDF unico non generato: {message}")
+        QMessageBox.information(
+            self, "PDF unico annullato", message
+        )
+
     def _casefile_pdf_merge_failed(self, message: str) -> None:
+        self.casefile_pdf_progress_label.setText("PDF unico: errore")
         self._append_casefile_log(f"PDF unico non generato: {message}")
         QMessageBox.critical(
             self, "Errore PDF unico", f"Impossibile generare il PDF unico:\n{message}"
@@ -2101,9 +2211,7 @@ class MainWindow(QMainWindow):
     def _casefile_pdf_merge_finished(self) -> None:
         worker = self._casefile_pdf_merge_worker
         self._casefile_pdf_merge_worker = None
-        self.casefile_merge_generate_button.setEnabled(
-            self._casefile_merge_plan is not None
-        )
+        self._set_casefile_pdf_merge_running(False)
         if worker is not None:
             worker.deleteLater()
 
@@ -2252,6 +2360,30 @@ class MainWindow(QMainWindow):
         self.casefile_output_edit.setEnabled(not running)
         self.casefile_output_button.setEnabled(not running)
         self.casefile_start_button.setEnabled(not running)
+
+    def _set_casefile_pdf_merge_running(self, running: bool) -> None:
+        self._casefile_pdf_merge_running = running
+        plan = self._casefile_merge_plan
+        has_plan = plan is not None
+        has_rows = bool(plan and plan.total_items)
+        self.casefile_input_edit.setEnabled(not running)
+        self.casefile_input_button.setEnabled(not running)
+        self.casefile_output_edit.setEnabled(not running)
+        self.casefile_output_button.setEnabled(not running)
+        self.casefile_start_button.setEnabled(not running)
+        self.casefile_merge_table.setEnabled(not running)
+        self.casefile_merge_up_button.setEnabled(has_rows and not running)
+        self.casefile_merge_down_button.setEnabled(has_rows and not running)
+        self.casefile_merge_save_button.setEnabled(has_plan and not running)
+        self.casefile_merge_generate_button.setEnabled(has_plan and not running)
+        self.casefile_pdf_profile_combo.setEnabled(not running)
+        self.casefile_pdf_cancel_button.setEnabled(running)
+        if running:
+            self.casefile_open_merged_pdf_button.setEnabled(False)
+            self.casefile_open_optimized_pdf_button.setEnabled(False)
+            self.casefile_send_pdf_to_ocr_button.setEnabled(False)
+        else:
+            self._refresh_casefile_pdf_actions()
 
     # ------------------------------------------------------------------
     # Processing
