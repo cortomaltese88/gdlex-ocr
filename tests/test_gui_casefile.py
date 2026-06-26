@@ -14,9 +14,44 @@ from PySide6.QtCore import QSettings, Qt
 from PySide6.QtGui import QKeySequence
 from PySide6.QtWidgets import QApplication, QScrollArea, QTabWidget, QTableWidget
 
+from gdlex_ocr.casefile import ExtractionWarning
+from gdlex_ocr.casefile_merge_plan_export import (
+    CaseFileMergePlan,
+    CaseFileMergePlanItem,
+    load_casefile_merge_plan,
+    write_casefile_merge_plan_json,
+)
 from gdlex_ocr.casefile_pdf_merge import CaseFilePdfMergeResult
 from gdlex_ocr.gui import CasefileGuiResult, MainWindow, run_casefile_analysis
 from gdlex_ocr.theme import apply_theme
+
+
+def _synthetic_merge_item(
+    unit_id: str,
+    final_order: int,
+    warnings: tuple[ExtractionWarning, ...] = (),
+) -> CaseFileMergePlanItem:
+    return CaseFileMergePlanItem(
+        final_order=final_order,
+        unit_id=unit_id,
+        source_pdf=f"{unit_id}/{unit_id}.pdf",
+        include_in_merged_pdf=True,
+        exclude_reason=None,
+        merge_candidate=True,
+        bookmark_title=f"Unità {unit_id}",
+        bookmark_label=f"{final_order:03d} - Unità {unit_id}",
+        act_title=f"Unità {unit_id}",
+        act_number=None,
+        act_category="altro",
+        suggested_order=final_order,
+        sort_group="altro",
+        sort_priority=90,
+        faldone_number=None,
+        index_date=None,
+        pg_progressive=None,
+        total_pages=1,
+        warnings=warnings,
+    )
 
 
 class CasefileGuiControlsTest(unittest.TestCase):
@@ -199,6 +234,69 @@ class CasefileGuiControlsTest(unittest.TestCase):
                 "Piano revisionato salvato:",
                 self.window.casefile_log_view.toPlainText(),
             )
+
+    def test_merge_plan_warning_rows_show_badge_tooltip_and_still_edit(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_dir = Path(tmpdir) / "output"
+            output_dir.mkdir()
+            warning = ExtractionWarning(
+                code="anomalous_date",
+                message="Data atto anomala: 07/08/5202",
+                path="200/ListaAllegati.html",
+            )
+            plan = CaseFileMergePlan(items=(
+                _synthetic_merge_item("100", 1),
+                _synthetic_merge_item("200", 2, (warning,)),
+                _synthetic_merge_item("300", 3),
+            ))
+            plan_path = write_casefile_merge_plan_json(
+                plan, output_dir / "fascicolo_merge_plan.json"
+            )
+
+            self.assertTrue(self.window._load_casefile_merge_plan(plan_path))
+
+            table = self.window.casefile_merge_table
+            self.assertEqual(3, table.rowCount())
+            warning_cell = table.item(1, 8)
+            self.assertEqual("⚠ Data atto anomala: 07/08/5202", warning_cell.text())
+            self.assertIn("Warning:", warning_cell.toolTip())
+            self.assertIn("- Data atto anomala: 07/08/5202", warning_cell.toolTip())
+            self.assertNotEqual(
+                Qt.BrushStyle.NoBrush,
+                warning_cell.background().style(),
+            )
+            self.assertNotEqual(
+                Qt.BrushStyle.NoBrush,
+                table.item(1, 0).background().style(),
+            )
+            for row in (0, 2):
+                self.assertEqual("", table.item(row, 8).text())
+                self.assertEqual("", table.item(row, 8).toolTip())
+                self.assertEqual(
+                    Qt.BrushStyle.NoBrush,
+                    table.item(row, 8).background().style(),
+                )
+
+            self.assertIn(
+                "Merge plan caricato: 3 item - warning: 1",
+                self.window.casefile_log_view.toPlainText(),
+            )
+
+            table.item(1, 1).setCheckState(Qt.CheckState.Unchecked)
+            self.assertEqual("escluso_manualmente", table.item(1, 2).text())
+            table.item(1, 1).setCheckState(Qt.CheckState.Checked)
+
+            table.selectRow(1)
+            self.window._move_casefile_merge_row(-1)
+            self.assertEqual("200", table.item(0, 6).text())
+            self.assertTrue(table.item(0, 8).text().startswith("⚠ "))
+
+            self.window._save_casefile_merge_plan()
+            revised = load_casefile_merge_plan(
+                output_dir / "fascicolo_merge_plan_revised.json"
+            )
+            self.assertEqual(3, revised.total_items)
+            self.assertEqual(1, sum(len(item.warnings) for item in revised.items))
 
     def test_double_click_opens_safe_source_pdf_without_changing_plan(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

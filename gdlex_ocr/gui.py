@@ -11,6 +11,7 @@ from PySide6.QtGui import (
     QAction,
     QActionGroup,
     QCloseEvent,
+    QColor,
     QDesktopServices,
     QFontDatabase,
     QIcon,
@@ -49,7 +50,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from gdlex_ocr.casefile import analyze_case_folder
+from gdlex_ocr.casefile import ExtractionWarning, analyze_case_folder
 from gdlex_ocr.casefile_export import (
     casefile_analysis_to_dict,
     default_casefile_csv_path,
@@ -108,6 +109,10 @@ from gdlex_ocr.searchable_pdf import (
 )
 from gdlex_ocr.theme import (
     AVAILABLE_THEMES,
+    WARNING_CELL_BACKGROUND,
+    WARNING_CELL_FOREGROUND,
+    WARNING_ROW_MARKER_BACKGROUND,
+    WARNING_ROW_MARKER_FOREGROUND,
     apply_theme,
     load_theme_name,
     save_theme_name,
@@ -133,6 +138,52 @@ _OCR_BACKENDS = [
     ("OCRmyPDF", "ocrmypdf"),
     ("Comando esterno", "external"),
 ]
+_WARNING_BADGE = "⚠"
+_WARNING_CELL_BACKGROUND_COLOR = QColor(WARNING_CELL_BACKGROUND)
+_WARNING_CELL_FOREGROUND_COLOR = QColor(WARNING_CELL_FOREGROUND)
+_WARNING_ROW_MARKER_BACKGROUND_COLOR = QColor(WARNING_ROW_MARKER_BACKGROUND)
+_WARNING_ROW_MARKER_FOREGROUND_COLOR = QColor(WARNING_ROW_MARKER_FOREGROUND)
+_WARNING_CELL_MAX_TEXT_LENGTH = 96
+
+
+def _casefile_merge_warning_count(plan: CaseFileMergePlan) -> int:
+    return sum(len(item.warnings) for item in plan.items)
+
+
+def _format_casefile_warning_badge(
+    warnings: tuple[ExtractionWarning, ...],
+) -> str:
+    if not warnings:
+        return ""
+    if len(warnings) > 1:
+        return f"{_WARNING_BADGE} {len(warnings)} warning"
+    text = warnings[0].message.strip()
+    if len(text) > _WARNING_CELL_MAX_TEXT_LENGTH:
+        text = text[: _WARNING_CELL_MAX_TEXT_LENGTH - 3].rstrip() + "..."
+    return f"{_WARNING_BADGE} {text}"
+
+
+def _format_casefile_warning_tooltip(
+    warnings: tuple[ExtractionWarning, ...],
+) -> str:
+    if not warnings:
+        return ""
+    lines = ["Warning:"]
+    for warning in warnings:
+        message = warning.message.strip() or warning.code
+        lines.append(f"- {message}")
+    return "\n".join(lines)
+
+
+def _mark_casefile_warning_item(
+    item: QTableWidgetItem, *, subtle: bool = False
+) -> None:
+    if subtle:
+        item.setBackground(_WARNING_ROW_MARKER_BACKGROUND_COLOR)
+        item.setForeground(_WARNING_ROW_MARKER_FOREGROUND_COLOR)
+        return
+    item.setBackground(_WARNING_CELL_BACKGROUND_COLOR)
+    item.setForeground(_WARNING_CELL_FOREGROUND_COLOR)
 
 
 class MergePlanTableWidget(QTableWidget):
@@ -1961,7 +2012,10 @@ class MainWindow(QMainWindow):
         self._casefile_merge_plan = plan
         self._casefile_merge_plan_path = merge_path
         self._populate_casefile_merge_table()
-        self._append_casefile_log(f"Merge plan caricato: {plan.total_items} item")
+        warning_count = _casefile_merge_warning_count(plan)
+        self._append_casefile_log(
+            f"Merge plan caricato: {plan.total_items} item - warning: {warning_count}"
+        )
         self._append_casefile_log(f"  Inclusi: {plan.total_included}")
         self._append_casefile_log(f"  Esclusi: {plan.total_excluded}")
         self._update_casefile_pdf_estimate()
@@ -2002,8 +2056,16 @@ class MainWindow(QMainWindow):
             if plan is None:
                 return
             for row, merge_item in enumerate(plan.items):
+                warning_text = _format_casefile_warning_badge(merge_item.warnings)
+                warning_tooltip = _format_casefile_warning_tooltip(
+                    merge_item.warnings
+                )
+                has_warning = bool(merge_item.warnings)
+
                 order_item = QTableWidgetItem(str(merge_item.final_order or ""))
                 order_item.setFlags(order_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                if has_warning:
+                    _mark_casefile_warning_item(order_item, subtle=True)
                 self.casefile_merge_table.setItem(row, 0, order_item)
 
                 include_item = QTableWidgetItem()
@@ -2031,13 +2093,16 @@ class MainWindow(QMainWindow):
                     merge_item.source_pdf,
                     merge_item.unit_id,
                     str(merge_item.total_pages or ""),
-                    " | ".join(warning.message for warning in merge_item.warnings),
+                    warning_text,
                 )
                 for column, value in enumerate(values, 4):
                     table_item = QTableWidgetItem(value)
                     table_item.setFlags(
                         table_item.flags() & ~Qt.ItemFlag.ItemIsEditable
                     )
+                    if column == 8 and warning_tooltip:
+                        table_item.setToolTip(warning_tooltip)
+                        _mark_casefile_warning_item(table_item)
                     self.casefile_merge_table.setItem(row, column, table_item)
         finally:
             self.casefile_merge_table.blockSignals(False)

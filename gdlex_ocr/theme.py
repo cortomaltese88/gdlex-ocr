@@ -29,6 +29,10 @@ BORDER = "#245535"
 TEXT = "#d8f3df"
 TEXT_MUTED = "#8aaa93"
 WARNING = "#f0b45a"
+WARNING_CELL_BACKGROUND = "#5a421f"
+WARNING_CELL_FOREGROUND = "#fff1c2"
+WARNING_ROW_MARKER_BACKGROUND = "#2a2216"
+WARNING_ROW_MARKER_FOREGROUND = "#ffe1a1"
 
 _ASSET_DIR = Path(__file__).resolve().parent.parent / "assets"
 _ARROW_DOWN = (_ASSET_DIR / "matrix-arrow-down.svg").as_posix()
