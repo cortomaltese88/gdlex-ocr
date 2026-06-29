@@ -308,6 +308,8 @@ motivo dell'esclusione, modificare i segnalibri e cambiare l'ordine con i
 pulsanti, il trascinamento o `Alt+Up` / `Alt+Down`; un doppio click apre il PDF
 sorgente locale senza modificare il piano. **Salva piano revisionato** crea le
 varianti JSON, CSV e Markdown con suffisso `_revised`.
+La validazione del piano PDF può essere esportata in JSON e Markdown per
+conservare un report auditabile.
 
 Il profilo PDF scelto nella GUI ha gli stessi effetti dell'opzione CLI
 `--pdf-optimize`: **Apri PDF leggero** è disponibile solo quando Ghostscript ha

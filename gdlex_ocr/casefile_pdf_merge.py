@@ -30,6 +30,8 @@ MERGE_REPORT_MARKDOWN_FILENAME = "fascicolo_unico_report.md"
 ESTIMATE_REPORT_JSON_FILENAME = "fascicolo_pdf_estimate.json"
 ESTIMATE_REPORT_MARKDOWN_FILENAME = "fascicolo_pdf_estimate.md"
 ESTIMATE_REPORT_CSV_FILENAME = "fascicolo_pdf_estimate.csv"
+VALIDATION_REPORT_JSON_FILENAME = "fascicolo_merge_plan_validation.json"
+VALIDATION_REPORT_MARKDOWN_FILENAME = "fascicolo_merge_plan_validation.md"
 PDF_OPTIMIZATION_PROFILES = ("none", "balanced", "small", "screen")
 _GHOSTSCRIPT_SETTINGS = {
     "balanced": "/printer",
@@ -183,6 +185,82 @@ def default_casefile_pdf_estimate_md_path(output_dir: Path) -> Path:
 
 def default_casefile_pdf_estimate_csv_path(output_dir: Path) -> Path:
     return Path(output_dir) / ESTIMATE_REPORT_CSV_FILENAME
+
+
+def default_casefile_merge_plan_validation_json_path(output_dir: Path) -> Path:
+    return Path(output_dir) / VALIDATION_REPORT_JSON_FILENAME
+
+
+def default_casefile_merge_plan_validation_md_path(output_dir: Path) -> Path:
+    return Path(output_dir) / VALIDATION_REPORT_MARKDOWN_FILENAME
+
+
+def write_casefile_merge_plan_validation_reports(
+    validation: dict[str, object],
+    output_dir: Path,
+) -> tuple[Path, Path]:
+    """Write audit reports for a merge-plan validation without creating PDFs."""
+    output = Path(output_dir)
+    output.mkdir(parents=True, exist_ok=True)
+    json_path = default_casefile_merge_plan_validation_json_path(output)
+    md_path = default_casefile_merge_plan_validation_md_path(output)
+    _atomic_write_text(
+        json_path,
+        json.dumps(validation, ensure_ascii=False, indent=2) + "\n",
+    )
+    _atomic_write_text(
+        md_path,
+        format_casefile_merge_plan_validation_markdown(validation),
+    )
+    return json_path, md_path
+
+
+def format_casefile_merge_plan_validation_markdown(
+    validation: dict[str, object],
+) -> str:
+    lines = [
+        "# Validazione piano PDF fascicolo", "",
+        f"Piano usato: {validation.get('source_plan') or 'non trovato'}",
+        f"Item totali: {validation.get('total_items', 0)}",
+        f"Inclusi: {validation.get('included_items', 0)}",
+        f"Esclusi: {validation.get('excluded_items', 0)}",
+        f"Errori: {len(validation.get('errors', []))}",
+        f"Warning: {len(validation.get('warnings', []))}",
+        f"Esito: {'OK' if validation.get('ok') else 'ERRORE'}", "",
+        "## Errori", "",
+    ]
+    errors = validation.get("errors", [])
+    if errors:
+        lines.extend(f"- {_md(str(error))}" for error in errors)
+    else:
+        lines.append("Nessun errore.")
+    lines.extend(["", "## Warning", ""])
+    warnings = validation.get("warnings", [])
+    if warnings:
+        lines.extend(f"- {_md(str(warning))}" for warning in warnings)
+    else:
+        lines.append("Nessun warning.")
+    lines.extend([
+        "",
+        "## Item",
+        "",
+        "| # | Incluso | Ordine | Atto | PDF sorgente | Errori | Warning |",
+        "|---:|---|---:|---|---|---:|---:|",
+    ])
+    for item in validation.get("items", []):
+        if not isinstance(item, dict):
+            continue
+        included = "sì" if item.get("included") else "no"
+        lines.append(
+            f"| {item.get('index') or ''} | "
+            f"{included} | "
+            f"{item.get('final_order') or ''} | "
+            f"{_md(str(item.get('unit_id') or ''))} | "
+            f"{_md(str(item.get('source_pdf') or ''))} | "
+            f"{len(item.get('errors', []))} | "
+            f"{len(item.get('warnings', []))} |"
+        )
+    return "\n".join(lines) + "\n"
 
 
 def write_casefile_pdf_estimate_reports(

@@ -93,6 +93,7 @@ from gdlex_ocr.casefile_pdf_merge import (
     merge_casefile_pdfs,
     select_casefile_pdf_for_ocr,
     validate_casefile_merge_plan,
+    write_casefile_merge_plan_validation_reports,
     write_casefile_pdf_estimate_reports,
 )
 from gdlex_ocr.icons import tray_icon
@@ -1232,6 +1233,17 @@ class MainWindow(QMainWindow):
             self._validate_casefile_pdf_plan
         )
         merge_buttons.addWidget(self.casefile_merge_validate_button)
+        self.casefile_merge_export_validation_button = QPushButton(
+            "Esporta validazione"
+        )
+        self.casefile_merge_export_validation_button.setObjectName(
+            "casefileMergeExportValidationButton"
+        )
+        self.casefile_merge_export_validation_button.setEnabled(False)
+        self.casefile_merge_export_validation_button.clicked.connect(
+            self._export_casefile_pdf_plan_validation
+        )
+        merge_buttons.addWidget(self.casefile_merge_export_validation_button)
         self.casefile_merge_estimate_button = QPushButton("Stima PDF unico")
         self.casefile_merge_estimate_button.setObjectName(
             "casefileMergeEstimateButton"
@@ -2070,6 +2082,7 @@ class MainWindow(QMainWindow):
         self.casefile_merge_save_button.setEnabled(False)
         self.casefile_merge_generate_button.setEnabled(False)
         self.casefile_merge_validate_button.setEnabled(False)
+        self.casefile_merge_export_validation_button.setEnabled(False)
         self.casefile_merge_estimate_button.setEnabled(False)
         self.casefile_merge_export_estimate_button.setEnabled(False)
         self.casefile_pdf_cancel_button.setEnabled(False)
@@ -2207,6 +2220,9 @@ class MainWindow(QMainWindow):
             plan is not None and controls_available
         )
         self.casefile_merge_validate_button.setEnabled(
+            plan is not None and controls_available
+        )
+        self.casefile_merge_export_validation_button.setEnabled(
             plan is not None and controls_available
         )
         self.casefile_merge_estimate_button.setEnabled(
@@ -2367,6 +2383,29 @@ class MainWindow(QMainWindow):
                 "Controllare il log della scheda Fascicolo.",
             )
         return validation
+
+    def _export_casefile_pdf_plan_validation(self) -> None:
+        paths = self._selected_casefile_validation_paths()
+        if paths is None:
+            return
+        root, output = paths
+        validation = validate_casefile_merge_plan(root, output)
+        try:
+            json_path, md_path = write_casefile_merge_plan_validation_reports(
+                validation, output
+            )
+        except OSError as exc:
+            self._append_casefile_log(f"Validazione piano PDF non esportata: {exc}")
+            QMessageBox.critical(
+                self, "Esporta validazione",
+                f"Impossibile esportare la validazione:\n{exc}",
+            )
+            return
+        self._append_casefile_merge_validation_log(validation)
+        self._append_casefile_log(f"Validazione piano PDF esportata: {json_path}")
+        self._append_casefile_log(f"  Markdown: {md_path}")
+        self._append_casefile_log("Nessun PDF generato.")
+        self._refresh_casefile_pdf_actions()
 
     def _estimate_casefile_pdf(self) -> None:
         input_text = self.casefile_input_edit.text().strip()
@@ -2801,6 +2840,9 @@ class MainWindow(QMainWindow):
         self.casefile_merge_save_button.setEnabled(has_plan and controls_available)
         self.casefile_merge_generate_button.setEnabled(has_plan and controls_available)
         self.casefile_merge_validate_button.setEnabled(has_plan and controls_available)
+        self.casefile_merge_export_validation_button.setEnabled(
+            has_plan and controls_available
+        )
         self.casefile_merge_estimate_button.setEnabled(
             has_plan and controls_available
         )
@@ -2832,6 +2874,9 @@ class MainWindow(QMainWindow):
         self.casefile_merge_save_button.setEnabled(has_plan and not running)
         self.casefile_merge_generate_button.setEnabled(has_plan and not running)
         self.casefile_merge_validate_button.setEnabled(has_plan and not running)
+        self.casefile_merge_export_validation_button.setEnabled(
+            has_plan and not running
+        )
         self.casefile_merge_estimate_button.setEnabled(has_plan and not running)
         self.casefile_merge_export_estimate_button.setEnabled(
             has_plan and not running

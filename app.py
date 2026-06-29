@@ -38,6 +38,7 @@ from gdlex_ocr.casefile_pdf_merge import (
     format_bytes,
     merge_casefile_pdfs,
     validate_casefile_merge_plan,
+    write_casefile_merge_plan_validation_reports,
     write_casefile_pdf_estimate_reports,
 )
 from gdlex_ocr.gui import MainWindow
@@ -119,6 +120,14 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--write-validation-reports",
+        action="store_true",
+        help=(
+            "con --validate-casefile-merge-plan esporta la validazione in JSON "
+            "e Markdown"
+        ),
+    )
+    parser.add_argument(
         "--pdf-optimize",
         choices=PDF_OPTIMIZATION_PROFILES,
         default="none",
@@ -190,6 +199,14 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     if args.write_estimate_reports and not args.estimate_casefile_pdf and not skip:
         parser.error(
             "--write-estimate-reports richiede --estimate-casefile-pdf"
+        )
+    if (
+        args.write_validation_reports
+        and not args.validate_casefile_merge_plan
+        and not skip
+    ):
+        parser.error(
+            "--write-validation-reports richiede --validate-casefile-merge-plan"
         )
     casefile_mode = (
         args.analyze_casefile or args.merge_casefile_pdf
@@ -412,11 +429,26 @@ def estimate_casefile_pdf_cli(
     return 0
 
 
-def validate_casefile_merge_plan_cli(input_name: str, output_name: str) -> int:
+def validate_casefile_merge_plan_cli(
+    input_name: str,
+    output_name: str,
+    *,
+    write_reports: bool = False,
+) -> int:
     """Validate the case-file PDF merge plan without side effects."""
+    output_dir = Path(output_name).expanduser()
     validation = validate_casefile_merge_plan(
-        Path(input_name).expanduser(), Path(output_name).expanduser()
+        Path(input_name).expanduser(), output_dir
     )
+    report_paths = ()
+    if write_reports:
+        try:
+            report_paths = write_casefile_merge_plan_validation_reports(
+                validation, output_dir
+            )
+        except OSError as exc:
+            print(f"Errore: impossibile scrivere report validazione: {exc}", file=sys.stderr)
+            return 1
     print(f"Piano usato: {validation.get('source_plan') or 'non trovato'}")
     print(f"Item totali: {validation['total_items']}")
     print(f"Inclusi: {validation['included_items']}")
@@ -424,6 +456,8 @@ def validate_casefile_merge_plan_cli(input_name: str, output_name: str) -> int:
     print(f"Errori: {len(validation['errors'])}")
     print(f"Warning: {len(validation['warnings'])}")
     print(f"Esito: {'OK' if validation['ok'] else 'ERRORE'}")
+    for path in report_paths:
+        print(f"Report validazione creato: {path}")
     for error in validation["errors"]:
         print(f"Errore: {error}")
     for warning in validation["warnings"]:
@@ -548,6 +582,7 @@ def main(argv: list[str] | None = None) -> int:
         return validate_casefile_merge_plan_cli(
             args.validate_casefile_merge_plan,
             args.output,
+            write_reports=args.write_validation_reports,
         )
 
     if args.analyze_judgment:

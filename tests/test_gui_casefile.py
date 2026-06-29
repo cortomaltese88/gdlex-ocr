@@ -143,6 +143,17 @@ class CasefileGuiControlsTest(unittest.TestCase):
         )
         self.assertFalse(self.window.casefile_merge_validate_button.isEnabled())
         self.assertEqual(
+            "Esporta validazione",
+            self.window.casefile_merge_export_validation_button.text(),
+        )
+        self.assertEqual(
+            "casefileMergeExportValidationButton",
+            self.window.casefile_merge_export_validation_button.objectName(),
+        )
+        self.assertFalse(
+            self.window.casefile_merge_export_validation_button.isEnabled()
+        )
+        self.assertEqual(
             "Stima PDF unico", self.window.casefile_merge_estimate_button.text()
         )
         self.assertFalse(self.window.casefile_merge_estimate_button.isEnabled())
@@ -438,6 +449,81 @@ class CasefileGuiControlsTest(unittest.TestCase):
             self.assertFalse((output_dir / "fascicolo_unico.pdf").exists())
             self.assertFalse((output_dir / "fascicolo_unico_light.pdf").exists())
             self.assertFalse((output_dir / "fascicolo_pdf_estimate.json").exists())
+
+    def test_export_validation_button_writes_reports_without_enabling_open(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            input_dir = Path(tmpdir) / "input"
+            unit_dir = input_dir / "100"
+            unit_dir.mkdir(parents=True)
+            (unit_dir / "100.pdf").write_bytes(b"%PDF-synthetic")
+            output_dir = Path(tmpdir) / "output"
+            output_dir.mkdir()
+            plan = CaseFileMergePlan(items=(
+                _synthetic_merge_item("100", 1),
+            ))
+            plan_path = write_casefile_merge_plan_json(
+                plan, output_dir / "fascicolo_merge_plan.json"
+            )
+            self.window.casefile_input_edit.setText(str(input_dir))
+            self.window.casefile_output_edit.setText(str(output_dir))
+            self.assertTrue(self.window._load_casefile_merge_plan(plan_path))
+
+            self.window.casefile_merge_export_validation_button.click()
+
+            json_path = output_dir / "fascicolo_merge_plan_validation.json"
+            md_path = output_dir / "fascicolo_merge_plan_validation.md"
+            self.assertTrue(json_path.is_file())
+            self.assertTrue(md_path.is_file())
+            payload = json.loads(json_path.read_text(encoding="utf-8"))
+            self.assertTrue(payload["ok"])
+            log = self.window.casefile_log_view.toPlainText()
+            for text in (
+                "Esito: OK",
+                "Validazione piano PDF esportata:",
+                "fascicolo_merge_plan_validation.json",
+                "fascicolo_merge_plan_validation.md",
+                "Nessun PDF generato.",
+            ):
+                self.assertIn(text, log)
+            self.assertFalse((output_dir / "fascicolo_unico.pdf").exists())
+            self.assertFalse((output_dir / "fascicolo_unico_light.pdf").exists())
+            self.assertFalse(self.window.casefile_open_merged_pdf_button.isEnabled())
+            self.assertFalse(self.window.casefile_open_optimized_pdf_button.isEnabled())
+            self.assertFalse(self.window.casefile_send_pdf_to_ocr_button.isEnabled())
+
+    def test_export_validation_button_writes_reports_on_error(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            input_dir = Path(tmpdir) / "input"
+            input_dir.mkdir()
+            output_dir = Path(tmpdir) / "output"
+            output_dir.mkdir()
+            plan = CaseFileMergePlan(items=(
+                _synthetic_merge_item("100", 1),
+            ))
+            plan_path = write_casefile_merge_plan_json(
+                plan, output_dir / "fascicolo_merge_plan.json"
+            )
+            self.window.casefile_input_edit.setText(str(input_dir))
+            self.window.casefile_output_edit.setText(str(output_dir))
+            self.assertTrue(self.window._load_casefile_merge_plan(plan_path))
+
+            self.window.casefile_merge_export_validation_button.click()
+
+            json_path = output_dir / "fascicolo_merge_plan_validation.json"
+            md_path = output_dir / "fascicolo_merge_plan_validation.md"
+            self.assertTrue(json_path.is_file())
+            self.assertTrue(md_path.is_file())
+            payload = json.loads(json_path.read_text(encoding="utf-8"))
+            self.assertFalse(payload["ok"])
+            log = self.window.casefile_log_view.toPlainText()
+            self.assertIn("Esito: ERRORE", log)
+            self.assertIn("Validazione piano PDF esportata:", log)
+            self.assertIn("PDF sorgente non trovato", log)
+            self.assertFalse((output_dir / "fascicolo_unico.pdf").exists())
+            self.assertFalse((output_dir / "fascicolo_unico_light.pdf").exists())
+            self.assertFalse(self.window.casefile_open_merged_pdf_button.isEnabled())
+            self.assertFalse(self.window.casefile_open_optimized_pdf_button.isEnabled())
+            self.assertFalse(self.window.casefile_send_pdf_to_ocr_button.isEnabled())
 
     def test_export_estimate_pdf_button_writes_reports_without_enabling_open(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

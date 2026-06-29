@@ -191,6 +191,8 @@ completion, **Apri cartella output** and **Apri report Markdown** buttons
 provide direct access to the generated outputs. **Genera PDF unico** performs
 the reviewed merge, while **Invia PDF unico a OCR** prefers the light copy,
 falls back to the original, and switches to the OCR tab without starting OCR.
+The PDF plan validation can be exported to JSON and Markdown to keep an
+auditable report.
 No casefile document is uploaded and no OCR runs automatically during analysis,
 review, merge, or handoff.
 

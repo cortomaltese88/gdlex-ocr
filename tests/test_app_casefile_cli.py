@@ -286,6 +286,49 @@ class AppCasefileCliTest(unittest.TestCase):
             self.assertIn("Esito: OK", printed)
             self.assertFalse((out_dir / "fascicolo_unico.pdf").exists())
             self.assertFalse((out_dir / "fascicolo_unico_light.pdf").exists())
+            self.assertFalse(
+                (out_dir / "fascicolo_merge_plan_validation.json").exists()
+            )
+            self.assertFalse(
+                (out_dir / "fascicolo_merge_plan_validation.md").exists()
+            )
+
+    def test_validate_casefile_merge_plan_writes_reports_with_flag(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            case_dir = Path(temp_dir) / "fascicolo"
+            out_dir = Path(temp_dir) / "output"
+            _write_synthetic_pdf(case_dir / "one.pdf", 1)
+            _write_merge_plan(out_dir / "fascicolo_merge_plan.json", [
+                {"final_order": 1, "unit_id": "one", "source_pdf": "one.pdf",
+                 "include_in_merged_pdf": True, "bookmark_label": "One",
+                 "total_pages": 1},
+            ])
+
+            stdout = io.StringIO()
+            with redirect_stdout(stdout), patch(
+                "app.QApplication", side_effect=AssertionError("GUI should not start")
+            ):
+                status = app.main([
+                    "--validate-casefile-merge-plan", str(case_dir),
+                    "--output", str(out_dir),
+                    "--write-validation-reports",
+                ])
+
+            self.assertEqual(0, status)
+            printed = stdout.getvalue()
+            self.assertIn("Report validazione creato:", printed)
+            self.assertIn("fascicolo_merge_plan_validation.json", printed)
+            self.assertIn("fascicolo_merge_plan_validation.md", printed)
+            json_path = out_dir / "fascicolo_merge_plan_validation.json"
+            md_path = out_dir / "fascicolo_merge_plan_validation.md"
+            self.assertTrue(json_path.is_file())
+            self.assertTrue(md_path.is_file())
+            payload = json.loads(json_path.read_text(encoding="utf-8"))
+            self.assertTrue(payload["ok"])
+            self.assertIn("Esito: OK", md_path.read_text(encoding="utf-8"))
+            self.assertFalse((out_dir / "fascicolo_unico.pdf").exists())
+            self.assertFalse((out_dir / "fascicolo_unico_light.pdf").exists())
+            self.assertFalse((out_dir / "fascicolo_pdf_estimate.json").exists())
 
     def test_validate_casefile_merge_plan_returns_nonzero_on_errors(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -309,6 +352,37 @@ class AppCasefileCliTest(unittest.TestCase):
             self.assertIn("Esito: ERRORE", printed)
             self.assertIn("Errore:", printed)
             self.assertIn("senza PDF sorgente", printed)
+
+    def test_validate_casefile_merge_plan_errors_still_write_reports(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            case_dir = Path(temp_dir) / "fascicolo"
+            out_dir = Path(temp_dir) / "output"
+            case_dir.mkdir()
+            _write_merge_plan(out_dir / "fascicolo_merge_plan.json", [
+                {"final_order": 1, "unit_id": "one", "source_pdf": "",
+                 "include_in_merged_pdf": True, "bookmark_label": "One"},
+            ])
+
+            stdout = io.StringIO()
+            with redirect_stdout(stdout):
+                status = app.main([
+                    "--validate-casefile-merge-plan", str(case_dir),
+                    "--output", str(out_dir),
+                    "--write-validation-reports",
+                ])
+
+            self.assertEqual(1, status)
+            printed = stdout.getvalue()
+            self.assertIn("Report validazione creato:", printed)
+            json_path = out_dir / "fascicolo_merge_plan_validation.json"
+            md_path = out_dir / "fascicolo_merge_plan_validation.md"
+            self.assertTrue(json_path.is_file())
+            self.assertTrue(md_path.is_file())
+            payload = json.loads(json_path.read_text(encoding="utf-8"))
+            self.assertFalse(payload["ok"])
+            self.assertIn("Esito: ERRORE", md_path.read_text(encoding="utf-8"))
+            self.assertFalse((out_dir / "fascicolo_unico.pdf").exists())
+            self.assertFalse((out_dir / "fascicolo_unico_light.pdf").exists())
 
     def test_analyze_casefile_writes_json_and_markdown(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -485,6 +559,7 @@ class AppCasefileCliTest(unittest.TestCase):
         self.assertIn("--estimate-casefile-pdf", output.getvalue())
         self.assertIn("--validate-casefile-merge-plan", output.getvalue())
         self.assertIn("--write-estimate-reports", output.getvalue())
+        self.assertIn("--write-validation-reports", output.getvalue())
         self.assertIn("--pdf-optimize", output.getvalue())
 
     def test_write_estimate_reports_requires_estimate_mode(self) -> None:
@@ -495,6 +570,15 @@ class AppCasefileCliTest(unittest.TestCase):
 
         self.assertEqual(2, ctx.exception.code)
         self.assertIn("--estimate-casefile-pdf", error.getvalue())
+
+    def test_write_validation_reports_requires_validation_mode(self) -> None:
+        error = io.StringIO()
+
+        with redirect_stderr(error), self.assertRaises(SystemExit) as ctx:
+            app.main(["--write-validation-reports", "--output", "/tmp/out"])
+
+        self.assertEqual(2, ctx.exception.code)
+        self.assertIn("--validate-casefile-merge-plan", error.getvalue())
 
     def test_pdf_optimize_defaults_to_none_and_rejects_invalid_profile(self) -> None:
         self.assertEqual("none", app.parse_args([]).pdf_optimize)
