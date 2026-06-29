@@ -41,6 +41,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QScrollArea,
     QSpinBox,
+    QStackedLayout,
     QSystemTrayIcon,
     QTabWidget,
     QTableWidget,
@@ -155,9 +156,35 @@ _WARNING_ROW_MARKER_FOREGROUND_COLOR = QColor(WARNING_ROW_MARKER_FOREGROUND)
 _WARNING_CELL_MAX_TEXT_LENGTH = 96
 
 
-def _configure_progress_bar(progress_bar: QProgressBar) -> None:
-    progress_bar.setAlignment(Qt.AlignmentFlag.AlignCenter)
-    progress_bar.setTextVisible(True)
+def _create_overlay_progress_bar(
+    object_name: str,
+) -> tuple[QWidget, QProgressBar, QLabel]:
+    container = QWidget()
+    stack = QStackedLayout(container)
+    stack.setStackingMode(QStackedLayout.StackingMode.StackAll)
+    bar = QProgressBar()
+    bar.setObjectName(object_name)
+    bar.setRange(0, 100)
+    bar.setValue(0)
+    bar.setTextVisible(False)
+    label = QLabel("0%")
+    label.setObjectName(f"{object_name}Label")
+    label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+    label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+    label.setStyleSheet("background: transparent;")
+    stack.addWidget(bar)
+    stack.addWidget(label)
+    stack.setCurrentWidget(label)
+    label.raise_()
+    return container, bar, label
+
+
+def _set_progress_value(
+    bar: QProgressBar, label: QLabel, value: int,
+) -> None:
+    clamped = min(max(value, 0), 100)
+    bar.setValue(clamped)
+    label.setText(f"{clamped}%")
 
 
 def _casefile_merge_warning_count(plan: CaseFileMergePlan) -> int:
@@ -1126,13 +1153,11 @@ class MainWindow(QMainWindow):
         self.casefile_progress_label = QLabel("Analisi fascicolo: pronto")
         self.casefile_progress_label.setObjectName("casefileProgressLabel")
         casefile_progress_layout.addWidget(self.casefile_progress_label)
-        self.casefile_progress_bar = QProgressBar()
-        self.casefile_progress_bar.setObjectName("casefileProgressBar")
-        self.casefile_progress_bar.setRange(0, 100)
-        self.casefile_progress_bar.setValue(0)
-        self.casefile_progress_bar.setFormat("%p%")
-        _configure_progress_bar(self.casefile_progress_bar)
-        casefile_progress_layout.addWidget(self.casefile_progress_bar)
+        casefile_bar_container, self.casefile_progress_bar, \
+            self.casefile_progress_bar_label = _create_overlay_progress_bar(
+                "casefileProgressBar",
+            )
+        casefile_progress_layout.addWidget(casefile_bar_container)
         casefile_tab_layout.addWidget(casefile_progress_group)
 
         # --- Reviewable merge plan and explicit PDF generation ---
@@ -1284,13 +1309,11 @@ class MainWindow(QMainWindow):
         self.casefile_pdf_progress_label = QLabel("PDF unico: pronto")
         self.casefile_pdf_progress_label.setObjectName("casefilePdfProgressLabel")
         merge_review_layout.addWidget(self.casefile_pdf_progress_label)
-        self.casefile_pdf_progress_bar = QProgressBar()
-        self.casefile_pdf_progress_bar.setObjectName("casefilePdfProgressBar")
-        self.casefile_pdf_progress_bar.setRange(0, 100)
-        self.casefile_pdf_progress_bar.setValue(0)
-        self.casefile_pdf_progress_bar.setFormat("%p%")
-        _configure_progress_bar(self.casefile_pdf_progress_bar)
-        merge_review_layout.addWidget(self.casefile_pdf_progress_bar)
+        pdf_bar_container, self.casefile_pdf_progress_bar, \
+            self.casefile_pdf_progress_bar_label = _create_overlay_progress_bar(
+                "casefilePdfProgressBar",
+            )
+        merge_review_layout.addWidget(pdf_bar_container)
         self.casefile_merge_up_shortcut = QShortcut(
             QKeySequence("Alt+Up"), self.casefile_merge_table
         )
@@ -2143,7 +2166,9 @@ class MainWindow(QMainWindow):
         self._casefile_report_path = None
         self._update_casefile_report_buttons()
         self.casefile_progress_bar.setRange(0, 100)
-        self.casefile_progress_bar.setValue(0)
+        _set_progress_value(
+            self.casefile_progress_bar, self.casefile_progress_bar_label, 0,
+        )
         self.casefile_progress_label.setText("Analisi fascicolo: preparazione")
         self._append_casefile_log("Avvio analisi fascicolo…")
         self._append_casefile_log(f"  Input:  {input_dir}")
@@ -2173,7 +2198,10 @@ class MainWindow(QMainWindow):
         self.casefile_pdf_cancel_button.setEnabled(False)
         self.casefile_pdf_estimate_label.setText("Stima PDF unico: non disponibile")
         self.casefile_pdf_progress_label.setText("PDF unico: pronto")
-        self.casefile_pdf_progress_bar.setValue(0)
+        _set_progress_value(
+            self.casefile_pdf_progress_bar,
+            self.casefile_pdf_progress_bar_label, 0,
+        )
 
     def _load_casefile_merge_plan(self, path: Path) -> bool:
         """Load a generated plan into the review table without blocking the GUI."""
@@ -2589,7 +2617,10 @@ class MainWindow(QMainWindow):
             self._append_casefile_log("Generazione PDF unico non avviata.")
             return
         self._set_casefile_pdf_merge_running(True)
-        self.casefile_pdf_progress_bar.setValue(0)
+        _set_progress_value(
+            self.casefile_pdf_progress_bar,
+            self.casefile_pdf_progress_bar_label, 0,
+        )
         self.casefile_pdf_progress_label.setText("PDF unico: preparazione")
         self._append_casefile_log("Generazione PDF unico…")
         profile = str(self.casefile_pdf_profile_combo.currentData())
@@ -2644,7 +2675,10 @@ class MainWindow(QMainWindow):
             span = 5 if phase == "prepare" else 72
             start = 0 if phase == "prepare" else 10
             percent = start + int(min(current, total) * span / total)
-        self.casefile_pdf_progress_bar.setValue(min(max(percent, 0), 100))
+        _set_progress_value(
+            self.casefile_pdf_progress_bar,
+            self.casefile_pdf_progress_bar_label, percent,
+        )
         if phase == "merge" and total > 0:
             detail = f"PDF unico: atto {current}/{total}"
             if bookmark:
@@ -2688,7 +2722,10 @@ class MainWindow(QMainWindow):
         self._append_casefile_log(
             f"  Report Markdown: {result.report_markdown_path}"
         )
-        self.casefile_pdf_progress_bar.setValue(100)
+        _set_progress_value(
+            self.casefile_pdf_progress_bar,
+            self.casefile_pdf_progress_bar_label, 100,
+        )
         self.casefile_pdf_progress_label.setText("PDF unico: completato")
         self.casefile_open_merged_pdf_button.setEnabled(True)
         self.casefile_open_optimized_pdf_button.setEnabled(
@@ -2741,7 +2778,10 @@ class MainWindow(QMainWindow):
         else:
             percent = end or start
         self.casefile_progress_bar.setRange(0, 100)
-        self.casefile_progress_bar.setValue(min(max(percent, 0), 100))
+        _set_progress_value(
+            self.casefile_progress_bar,
+            self.casefile_progress_bar_label, percent,
+        )
         phase_label = {
             "prepare": "preparazione",
             "scan": "scansione cartella",
@@ -2761,7 +2801,10 @@ class MainWindow(QMainWindow):
             self._casefile_last_progress_log_key = log_key
 
     def _casefile_completed(self, result: CasefileGuiResult) -> None:
-        self.casefile_progress_bar.setValue(100)
+        _set_progress_value(
+            self.casefile_progress_bar,
+            self.casefile_progress_bar_label, 100,
+        )
         self.casefile_progress_label.setText("Analisi fascicolo: completata")
         self._append_casefile_log("Analisi fascicolo completata.")
         self._append_casefile_log(f"File: {result.total_files}")
@@ -2836,7 +2879,10 @@ class MainWindow(QMainWindow):
 
     def _casefile_failed(self, message: str) -> None:
         self.casefile_progress_bar.setRange(0, 100)
-        self.casefile_progress_bar.setValue(0)
+        _set_progress_value(
+            self.casefile_progress_bar,
+            self.casefile_progress_bar_label, 0,
+        )
         self.casefile_progress_label.setText("Analisi fascicolo: errore")
         self._append_casefile_log(f"Errore analisi fascicolo: {message}")
         QMessageBox.critical(

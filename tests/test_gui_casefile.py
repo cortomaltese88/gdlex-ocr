@@ -16,8 +16,10 @@ from PySide6.QtGui import QKeySequence
 from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
+    QLabel,
     QProgressBar,
     QScrollArea,
+    QStackedLayout,
     QTabWidget,
     QTableWidget,
 )
@@ -1384,21 +1386,65 @@ class CasefileGuiControlsTest(unittest.TestCase):
         self.assertIn("Base", labels)
         self.assertIn("Backend OCR", labels)
 
-    def test_casefile_progress_bars_centered_alignment(self) -> None:
-        for bar in (
-            self.window.casefile_progress_bar,
-            self.window.casefile_pdf_progress_bar,
+    def test_casefile_progress_bars_use_overlay_labels(self) -> None:
+        for bar, label in (
+            (self.window.casefile_progress_bar,
+             self.window.casefile_progress_bar_label),
+            (self.window.casefile_pdf_progress_bar,
+             self.window.casefile_pdf_progress_bar_label),
         ):
             self.assertIsInstance(bar, QProgressBar)
+            self.assertIsInstance(label, QLabel)
+            self.assertFalse(
+                bar.isTextVisible(),
+                f"{bar.objectName()} native text should be hidden",
+            )
             self.assertEqual(
                 Qt.AlignmentFlag.AlignCenter,
-                bar.alignment(),
-                f"{bar.objectName()} alignment is not centered",
+                label.alignment(),
+                f"{label.objectName()} alignment is not centered",
             )
-            self.assertTrue(
-                bar.isTextVisible(),
-                f"{bar.objectName()} text is not visible",
+            self.assertEqual("0%", label.text())
+            self.assertFalse(
+                label.isHidden(),
+                f"{label.objectName()} must not be hidden at startup",
             )
+            stack = label.parent().layout()
+            self.assertIsInstance(stack, QStackedLayout)
+            self.assertIs(
+                label,
+                stack.currentWidget(),
+                f"{label.objectName()} must be currentWidget of stacked layout",
+            )
+
+    def test_casefile_analysis_progress_updates_overlay_label(self) -> None:
+        self.window._casefile_analysis_progress({
+            "phase": "hash",
+            "current": 42,
+            "total": 100,
+            "message": "Calcolo impronta 42/100",
+        })
+        label = self.window.casefile_progress_bar_label
+        bar = self.window.casefile_progress_bar
+        self.assertEqual(label.text(), f"{bar.value()}%")
+        self.assertGreater(bar.value(), 0)
+
+    def test_casefile_pdf_progress_updates_overlay_label(self) -> None:
+        worker = MagicMock()
+        worker.isRunning.return_value = True
+        self.window._casefile_pdf_merge_worker = worker
+        self.window._casefile_pdf_merge_progress({
+            "phase": "merge",
+            "current": 73,
+            "total": 100,
+            "source_pdf": "700/700.pdf",
+            "bookmark_label": "073 - Atto",
+            "message": "Aggiunta unità 73/100",
+        })
+        label = self.window.casefile_pdf_progress_bar_label
+        bar = self.window.casefile_pdf_progress_bar
+        self.assertEqual(label.text(), f"{bar.value()}%")
+        self.assertGreater(bar.value(), 0)
 
     def test_key_widgets_still_exist(self) -> None:
         self.assertIsNotNone(self.window.casefile_tab)
