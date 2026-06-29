@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import json
 import os
+import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -127,6 +129,7 @@ from gdlex_ocr.tray import GdlexOcrTray
 from gdlex_ocr.version import (
     APP_NAME,
     APP_SUBTITLE,
+    APP_VERSION,
     APP_VERSION_LABEL,
 )
 from gdlex_ocr.worker import OcrWorker
@@ -551,6 +554,43 @@ class CasefilePdfMergeWorker(QThread):
             self.cancelled.emit(str(exc))
         except Exception as exc:
             self.failed.emit(str(exc))
+
+
+_GITHUB_RELEASES_URL = (
+    "https://api.github.com/repos/cortomaltese88/gdlex-ocr/releases/latest"
+)
+
+
+def _parse_version_tuple(version: str) -> tuple[int, ...]:
+    return tuple(int(x) for x in version.split("."))
+
+
+def _is_remote_version_newer(local: str, remote: str) -> bool:
+    return _parse_version_tuple(remote) > _parse_version_tuple(local)
+
+
+def _build_deb_download_url(version: str) -> str:
+    return (
+        f"https://github.com/cortomaltese88/gdlex-ocr/releases/download/"
+        f"v{version}/gdlex-ocr_{version}_all.deb"
+    )
+
+
+def _find_deb_asset(release_json: dict) -> str | None:
+    for asset in release_json.get("assets", []):
+        name = asset.get("name", "")
+        if name.endswith(".deb"):
+            return asset.get("browser_download_url", "")
+    return None
+
+
+def _fetch_latest_release_info(timeout: float = 5.0) -> dict:
+    req = urllib.request.Request(
+        _GITHUB_RELEASES_URL,
+        headers={"Accept": "application/vnd.github+json"},
+    )
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        return json.loads(resp.read())
 
 
 class AboutDialog(QDialog):
@@ -1479,6 +1519,10 @@ class MainWindow(QMainWindow):
             self._theme_actions[name] = action
 
         help_menu = self.menuBar().addMenu("Aiuto")
+        update_action = QAction("Controlla aggiornamenti…", self)
+        update_action.triggered.connect(self._check_for_updates)
+        help_menu.addAction(update_action)
+        help_menu.addSeparator()
         about_action = QAction(f"Informazioni su {APP_NAME}...", self)
         about_action.setShortcut("F1")
         about_action.triggered.connect(self._show_about)
@@ -1493,6 +1537,70 @@ class MainWindow(QMainWindow):
         for theme_name, action in self._theme_actions.items():
             action.setChecked(theme_name == name)
         self.status_label.setText(f"Tema applicato: {name}")
+
+    def _check_for_updates(self) -> None:
+        try:
+            release = _fetch_latest_release_info()
+        except Exception:
+            QMessageBox.information(
+                self,
+                "Controlla aggiornamenti",
+                "Impossibile controllare gli aggiornamenti.\n\n"
+                "Puoi verificare manualmente qui:\n"
+                "https://github.com/cortomaltese88/gdlex-ocr/releases/latest",
+            )
+            return
+        remote_version = release.get("tag_name", "").lstrip("v")
+        if not remote_version:
+            QMessageBox.information(
+                self,
+                "Controlla aggiornamenti",
+                "Impossibile controllare gli aggiornamenti.\n\n"
+                "Puoi verificare manualmente qui:\n"
+                "https://github.com/cortomaltese88/gdlex-ocr/releases/latest",
+            )
+            return
+        if not _is_remote_version_newer(APP_VERSION, remote_version):
+            QMessageBox.information(
+                self,
+                "Controlla aggiornamenti",
+                f"{APP_NAME} è aggiornato.\n\n"
+                f"Versione installata: {APP_VERSION}\n"
+                f"Ultima versione disponibile: {remote_version}",
+            )
+            return
+        deb_url = _find_deb_asset(release)
+        if deb_url:
+            answer = QMessageBox.question(
+                self,
+                "Controlla aggiornamenti",
+                f"È disponibile {APP_NAME} {remote_version}.\n\n"
+                f"Versione installata: {APP_VERSION}\n"
+                f"Ultima versione disponibile: {remote_version}\n\n"
+                f"Pacchetto Debian:\n{deb_url}\n\n"
+                "Aprire il link nel browser?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.Yes,
+            )
+            if answer == QMessageBox.StandardButton.Yes:
+                QDesktopServices.openUrl(QUrl(deb_url))
+        else:
+            release_url = release.get(
+                "html_url",
+                "https://github.com/cortomaltese88/gdlex-ocr/releases/latest",
+            )
+            answer = QMessageBox.question(
+                self,
+                "Controlla aggiornamenti",
+                "È disponibile una nuova release, ma non ho trovato "
+                "il pacchetto .deb tra gli asset.\n\n"
+                f"Pagina release:\n{release_url}\n\n"
+                "Aprire la pagina nel browser?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.Yes,
+            )
+            if answer == QMessageBox.StandardButton.Yes:
+                QDesktopServices.openUrl(QUrl(release_url))
 
     def _show_about(self) -> None:
         AboutDialog(self).exec()
