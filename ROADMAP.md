@@ -26,11 +26,8 @@ flusso esistente, non una promessa di nuove funzioni o date.
 
 ## v0.6.0 - UX e robustezza (candidati)
 
-- Progress bar e annullamento durante il merge PDF.
-- Scelta esplicita tra PDF originale e light per l'invio a OCR.
-- Evidenziazione delle date anomale.
-- Modalità `--dry-run` per il merge.
-- Segnalazione avanzamento del `CasefileWorker`.
+- Stima dry-run del PDF unico da CLI e GUI, senza generazione PDF.
+- Rifiniture incrementali del flusso fascicolo e dei messaggi utente.
 - Riduzione della dimensione minima della finestra GUI.
 
 ## Direzione verso v1.0

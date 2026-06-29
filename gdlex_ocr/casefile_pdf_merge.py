@@ -86,6 +86,87 @@ class CaseFilePdfMergeSizeEstimate:
     estimated_output_size_bytes: int
 
 
+def estimate_casefile_pdf_merge(
+    casefile_root: Path, output_dir: Path
+) -> dict[str, object]:
+    """Dry-run the case-file PDF merge without writing PDFs or reports."""
+    job = build_casefile_pdf_merge_job(casefile_root, output_dir)
+    included = sorted(
+        (item for item in job.plan.items if item.include_in_merged_pdf),
+        key=lambda item: (
+            item.final_order is None,
+            item.final_order if item.final_order is not None else 999_999,
+        ),
+    )
+    excluded_plan_items = [
+        item for item in job.plan.items if not item.include_in_merged_pdf
+    ]
+    items: list[dict[str, object]] = []
+    excluded: list[dict[str, object]] = []
+    warnings: list[str] = []
+    total_size = 0
+    total_pages = 0
+
+    for item in included:
+        source = resolve_safe_source_pdf(job.casefile_root, item.source_pdf)
+        size = source.stat().st_size
+        pages = item.total_pages
+        if pages is None:
+            try:
+                reader = PdfReader(source)
+                if reader.is_encrypted:
+                    raise CaseFilePdfMergeError(
+                        "PDF non leggibile o protetto da password: "
+                        f"{item.source_pdf}"
+                    )
+                pages = len(reader.pages)
+            except Exception as exc:
+                if isinstance(exc, CaseFilePdfMergeError):
+                    raise
+                raise CaseFilePdfMergeError(
+                    f"PDF sorgente non leggibile: {item.source_pdf}: {exc}"
+                ) from exc
+        if pages < 1:
+            raise CaseFilePdfMergeError(f"PDF sorgente senza pagine: {item.source_pdf}")
+        total_size += size
+        total_pages += pages
+        item_warnings = _merge_plan_item_warning_messages(item)
+        warnings.extend(item_warnings)
+        items.append({
+            "final_order": item.final_order,
+            "unit_id": item.unit_id,
+            "source_pdf": _safe_report_path(item.source_pdf),
+            "bookmark_label": item.bookmark_label,
+            "estimated_pages": pages,
+            "source_size_bytes": size,
+            "source_size_human": format_bytes(size),
+            "warnings": item_warnings,
+        })
+
+    for item in excluded_plan_items:
+        item_warnings = _merge_plan_item_warning_messages(item)
+        warnings.extend(item_warnings)
+        excluded.append({
+            "unit_id": item.unit_id,
+            "source_pdf": _safe_report_path(item.source_pdf),
+            "exclude_reason": item.exclude_reason or "escluso",
+            "warnings": item_warnings,
+        })
+
+    return {
+        "source_plan": job.source_plan.name,
+        "total_items": job.plan.total_items,
+        "included_items": len(included),
+        "excluded_items": len(excluded),
+        "estimated_pages": total_pages,
+        "estimated_source_size_bytes": total_size,
+        "estimated_source_size_human": format_bytes(total_size),
+        "warnings": warnings,
+        "items": items,
+        "excluded": excluded,
+    }
+
+
 def default_casefile_merged_pdf_path(output_dir: Path) -> Path:
     return Path(output_dir) / MERGED_PDF_FILENAME
 
@@ -603,6 +684,18 @@ def _safe_report_path(value: str) -> str:
     if path.is_absolute() or ".." in path.parts:
         raise CaseFilePdfMergeError("Path non sicuro nel report di merge.")
     return str(path).removeprefix("./")
+
+
+def _merge_plan_item_warning_messages(item: CaseFileMergePlanItem) -> list[str]:
+    messages: list[str] = []
+    for warning in item.warnings:
+        code = str(warning.code or "warning").strip()
+        message = str(warning.message or "").strip()
+        if message:
+            messages.append(f"{code}: {message}" if code else message)
+        elif code:
+            messages.append(code)
+    return messages
 
 
 def _atomic_write_text(path: Path, content: str) -> None:

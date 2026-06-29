@@ -134,6 +134,10 @@ class CasefileGuiControlsTest(unittest.TestCase):
         )
         self.assertFalse(self.window.casefile_merge_generate_button.isEnabled())
         self.assertEqual(
+            "Stima PDF unico", self.window.casefile_merge_estimate_button.text()
+        )
+        self.assertFalse(self.window.casefile_merge_estimate_button.isEnabled())
+        self.assertEqual(
             "Apri PDF unico", self.window.casefile_open_merged_pdf_button.text()
         )
         self.assertFalse(self.window.casefile_open_merged_pdf_button.isEnabled())
@@ -314,6 +318,55 @@ class CasefileGuiControlsTest(unittest.TestCase):
             )
             self.assertEqual(3, revised.total_items)
             self.assertEqual(1, sum(len(item.warnings) for item in revised.items))
+
+    def test_estimate_pdf_button_logs_dry_run_without_enabling_open(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            input_dir = Path(tmpdir) / "input"
+            output_dir = Path(tmpdir) / "output"
+            output_dir.mkdir()
+            plan = CaseFileMergePlan(items=(
+                _synthetic_merge_item("100", 1),
+            ))
+            plan_path = write_casefile_merge_plan_json(
+                plan, output_dir / "fascicolo_merge_plan.json"
+            )
+            self.window.casefile_input_edit.setText(str(input_dir))
+            self.window.casefile_output_edit.setText(str(output_dir))
+            self.assertTrue(self.window._load_casefile_merge_plan(plan_path))
+
+            estimate = {
+                "source_plan": "fascicolo_merge_plan.json",
+                "total_items": 1,
+                "included_items": 1,
+                "excluded_items": 0,
+                "estimated_pages": 3,
+                "estimated_source_size_bytes": 4096,
+                "estimated_source_size_human": "4.0 KB",
+                "warnings": ["synthetic warning"],
+                "items": [],
+                "excluded": [],
+            }
+            with patch(
+                "gdlex_ocr.gui.estimate_casefile_pdf_merge",
+                return_value=estimate,
+            ) as helper:
+                self.window.casefile_merge_estimate_button.click()
+
+            helper.assert_called_once_with(input_dir, output_dir)
+            log = self.window.casefile_log_view.toPlainText()
+            for text in (
+                "Piano usato: fascicolo_merge_plan.json",
+                "Atti inclusi: 1",
+                "Atti esclusi: 0",
+                "Pagine stimate: 3",
+                "Dimensione stimata: 4.0 KB",
+                "Warning: 1",
+                "Nessun PDF generato.",
+            ):
+                self.assertIn(text, log)
+            self.assertFalse(self.window.casefile_open_merged_pdf_button.isEnabled())
+            self.assertFalse(self.window.casefile_open_optimized_pdf_button.isEnabled())
+            self.assertFalse(self.window.casefile_send_pdf_to_ocr_button.isEnabled())
 
     def test_double_click_opens_safe_source_pdf_without_changing_plan(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

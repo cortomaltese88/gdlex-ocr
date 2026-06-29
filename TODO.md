@@ -14,10 +14,7 @@ reali o sensibili non vanno salvati nel repository.
 
 ## UX
 
-- [ ] Aggiungere progress bar e annullamento al merge PDF.
-- [ ] Consentire la scelta originale/light per l'invio del fascicolo a OCR.
-- [ ] Evidenziare in GUI le date anomale rilevate nei fascicoli.
-- [ ] Aggiungere `--dry-run` al merge e progress al `CasefileWorker`.
+- [ ] Ridurre rumore e duplicazione nei messaggi di stato del flusso fascicolo.
 - [ ] Ridurre, dopo verifica dei layout, la dimensione minima della GUI.
 - [ ] Valutare un'anteprima Markdown locale in sola lettura.
 

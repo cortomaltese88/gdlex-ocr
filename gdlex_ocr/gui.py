@@ -87,6 +87,7 @@ from gdlex_ocr.casefile_pdf_merge import (
     build_casefile_pdf_merge_job,
     default_casefile_merged_pdf_path,
     default_casefile_optimized_pdf_path,
+    estimate_casefile_pdf_merge,
     estimate_casefile_pdf_merge_size,
     format_bytes,
     merge_casefile_pdfs,
@@ -1220,6 +1221,15 @@ class MainWindow(QMainWindow):
             self._generate_casefile_pdf
         )
         merge_buttons.addWidget(self.casefile_merge_generate_button)
+        self.casefile_merge_estimate_button = QPushButton("Stima PDF unico")
+        self.casefile_merge_estimate_button.setObjectName(
+            "casefileMergeEstimateButton"
+        )
+        self.casefile_merge_estimate_button.setEnabled(False)
+        self.casefile_merge_estimate_button.clicked.connect(
+            self._estimate_casefile_pdf
+        )
+        merge_buttons.addWidget(self.casefile_merge_estimate_button)
         self.casefile_pdf_cancel_button = QPushButton("Annulla generazione PDF")
         self.casefile_pdf_cancel_button.setObjectName("casefilePdfCancelButton")
         self.casefile_pdf_cancel_button.setEnabled(False)
@@ -2033,6 +2043,7 @@ class MainWindow(QMainWindow):
         self.casefile_merge_down_button.setEnabled(False)
         self.casefile_merge_save_button.setEnabled(False)
         self.casefile_merge_generate_button.setEnabled(False)
+        self.casefile_merge_estimate_button.setEnabled(False)
         self.casefile_pdf_cancel_button.setEnabled(False)
         self.casefile_pdf_estimate_label.setText("Stima PDF unico: non disponibile")
         self.casefile_pdf_progress_label.setText("PDF unico: pronto")
@@ -2167,6 +2178,9 @@ class MainWindow(QMainWindow):
         self.casefile_merge_generate_button.setEnabled(
             plan is not None and controls_available
         )
+        self.casefile_merge_estimate_button.setEnabled(
+            plan is not None and controls_available
+        )
         if selected_row is not None and plan and plan.total_items:
             row = min(max(selected_row, 0), plan.total_items - 1)
             self.casefile_merge_table.selectRow(row)
@@ -2270,6 +2284,41 @@ class MainWindow(QMainWindow):
         self._append_casefile_log(f"  CSV revisionato: {csv_path}")
         if markdown_path is not None:
             self._append_casefile_log(f"  Markdown revisionato: {markdown_path}")
+
+    def _estimate_casefile_pdf(self) -> None:
+        input_text = self.casefile_input_edit.text().strip()
+        output_text = self.casefile_output_edit.text().strip()
+        if not input_text or not output_text:
+            QMessageBox.warning(
+                self, "Dati mancanti",
+                "Selezionare cartella fascicolo e cartella output.",
+            )
+            return
+        root = Path(os.path.expanduser(os.path.expandvars(input_text)))
+        output = Path(os.path.expanduser(os.path.expandvars(output_text)))
+        try:
+            estimate = estimate_casefile_pdf_merge(root, output)
+        except (CaseFilePdfMergeError, OSError) as exc:
+            self._append_casefile_log(f"Stima PDF unico non disponibile: {exc}")
+            QMessageBox.critical(
+                self, "Stima PDF unico",
+                f"Impossibile stimare il PDF unico:\n{exc}",
+            )
+            return
+        self._append_casefile_log(f"Piano usato: {estimate['source_plan']}")
+        self._append_casefile_log(f"  Atti inclusi: {estimate['included_items']}")
+        self._append_casefile_log(f"  Atti esclusi: {estimate['excluded_items']}")
+        self._append_casefile_log(f"  Pagine stimate: {estimate['estimated_pages']}")
+        self._append_casefile_log(
+            f"  Dimensione stimata: {estimate['estimated_source_size_human']}"
+        )
+        self._append_casefile_log(f"Warning: {len(estimate['warnings'])}")
+        self._append_casefile_log("Nessun PDF generato.")
+        self.casefile_pdf_estimate_label.setText(
+            "Stima PDF unico: circa "
+            f"{estimate['estimated_source_size_human']}"
+        )
+        self._refresh_casefile_pdf_actions()
 
     def _generate_casefile_pdf(self) -> None:
         input_text = self.casefile_input_edit.text().strip()
@@ -2623,6 +2672,9 @@ class MainWindow(QMainWindow):
         self.casefile_merge_down_button.setEnabled(has_rows and controls_available)
         self.casefile_merge_save_button.setEnabled(has_plan and controls_available)
         self.casefile_merge_generate_button.setEnabled(has_plan and controls_available)
+        self.casefile_merge_estimate_button.setEnabled(
+            has_plan and controls_available
+        )
         self.casefile_pdf_profile_combo.setEnabled(controls_available)
         if running:
             self.casefile_open_merged_pdf_button.setEnabled(False)
@@ -2647,6 +2699,7 @@ class MainWindow(QMainWindow):
         self.casefile_merge_down_button.setEnabled(has_rows and not running)
         self.casefile_merge_save_button.setEnabled(has_plan and not running)
         self.casefile_merge_generate_button.setEnabled(has_plan and not running)
+        self.casefile_merge_estimate_button.setEnabled(has_plan and not running)
         self.casefile_pdf_profile_combo.setEnabled(not running)
         self.casefile_pdf_cancel_button.setEnabled(running)
         if running:

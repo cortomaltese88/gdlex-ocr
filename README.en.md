@@ -161,7 +161,16 @@ The reviewed documents can be merged locally from the GUI or CLI:
 gdlex-ocr --merge-casefile-pdf casefile_folder/ --output output/
 ```
 
-The revised plan is preferred when present, with the original plan as a
+The CLI and GUI can estimate the size and page count of the single casefile PDF
+before generation:
+
+```bash
+gdlex-ocr --estimate-casefile-pdf casefile_folder/ --output output/
+```
+
+The estimate prefers `fascicolo_merge_plan_revised.json` when present and falls
+back to `fascicolo_merge_plan.json`, without creating final PDFs or reports.
+The revised plan is preferred for the merge too, with the original plan as a
 fallback. The command creates `fascicolo_unico.pdf`, document bookmarks and
 privacy-safe JSON/Markdown reports. `--pdf-optimize balanced` (or `small` or
 `screen`) optionally asks locally installed Ghostscript (`gs`) to create

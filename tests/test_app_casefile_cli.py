@@ -29,6 +29,30 @@ def _make_synthetic_casefile(root: Path) -> None:
     )
 
 
+def _write_synthetic_pdf(path: Path, pages: int = 1) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    writer = PdfWriter()
+    for _ in range(pages):
+        writer.add_blank_page(width=100, height=100)
+    with path.open("wb") as stream:
+        writer.write(stream)
+
+
+def _write_merge_plan(path: Path, items: list[dict[str, object]]) -> None:
+    defaults = {
+        "exclude_reason": None, "merge_candidate": True,
+        "bookmark_title": "Atto", "act_title": None, "act_number": None,
+        "act_category": None, "suggested_order": None, "sort_group": None,
+        "sort_priority": None, "faldone_number": None, "index_date": None,
+        "pg_progressive": None, "total_pages": None, "warnings": [],
+    }
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps({"items": [{**defaults, **item} for item in items]}),
+        encoding="utf-8",
+    )
+
+
 class AppCasefileCliTest(unittest.TestCase):
     def test_merge_casefile_pdf_generates_pdf_and_reports_from_revised_plan(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -128,6 +152,56 @@ class AppCasefileCliTest(unittest.TestCase):
             with redirect_stderr(error):
                 status = app.main([
                     "--merge-casefile-pdf", str(case_dir),
+                    "--output", str(out_dir),
+                ])
+            self.assertEqual(1, status)
+            self.assertIn("Merge plan non trovato", error.getvalue())
+
+    def test_estimate_casefile_pdf_prints_summary_and_does_not_generate_pdf(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            case_dir = Path(temp_dir) / "fascicolo"
+            out_dir = Path(temp_dir) / "output"
+            _write_synthetic_pdf(case_dir / "one.pdf", 2)
+            _write_synthetic_pdf(case_dir / "two.pdf", 1)
+            _write_merge_plan(out_dir / "fascicolo_merge_plan.json", [
+                {"final_order": 1, "unit_id": "one", "source_pdf": "one.pdf",
+                 "include_in_merged_pdf": True, "bookmark_label": "One"},
+                {"final_order": None, "unit_id": "two", "source_pdf": "two.pdf",
+                 "include_in_merged_pdf": False, "bookmark_label": "Two",
+                 "exclude_reason": "duplicato"},
+            ])
+
+            stdout = io.StringIO()
+            with redirect_stdout(stdout), patch(
+                "app.QApplication", side_effect=AssertionError("GUI should not start")
+            ):
+                status = app.main([
+                    "--estimate-casefile-pdf", str(case_dir),
+                    "--output", str(out_dir),
+                ])
+
+            self.assertEqual(0, status)
+            printed = stdout.getvalue()
+            self.assertIn("Piano usato: fascicolo_merge_plan.json", printed)
+            self.assertIn("Atti inclusi: 1", printed)
+            self.assertIn("Atti esclusi: 1", printed)
+            self.assertIn("Pagine stimate: 2", printed)
+            self.assertIn("Dimensione stimata:", printed)
+            self.assertIn("Nessun PDF generato.", printed)
+            self.assertFalse((out_dir / "fascicolo_unico.pdf").exists())
+            self.assertFalse((out_dir / "fascicolo_unico_light.pdf").exists())
+            self.assertFalse((out_dir / "fascicolo_unico_report.json").exists())
+
+    def test_estimate_casefile_pdf_reports_missing_plan(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            case_dir = Path(temp_dir) / "fascicolo"
+            out_dir = Path(temp_dir) / "output"
+            case_dir.mkdir()
+            out_dir.mkdir()
+            error = io.StringIO()
+            with redirect_stderr(error):
+                status = app.main([
+                    "--estimate-casefile-pdf", str(case_dir),
                     "--output", str(out_dir),
                 ])
             self.assertEqual(1, status)
@@ -305,6 +379,7 @@ class AppCasefileCliTest(unittest.TestCase):
         self.assertEqual(0, ctx.exception.code)
         self.assertIn("--analyze-casefile", output.getvalue())
         self.assertIn("--merge-casefile-pdf", output.getvalue())
+        self.assertIn("--estimate-casefile-pdf", output.getvalue())
         self.assertIn("--pdf-optimize", output.getvalue())
 
     def test_pdf_optimize_defaults_to_none_and_rejects_invalid_profile(self) -> None:

@@ -14,6 +14,7 @@ from gdlex_ocr.casefile_pdf_merge import (
     CaseFilePdfMergeCancelled,
     CaseFilePdfMergeError,
     build_casefile_pdf_merge_job,
+    estimate_casefile_pdf_merge,
     estimate_casefile_pdf_merge_size,
     format_bytes,
     merge_casefile_pdfs,
@@ -146,6 +147,71 @@ class CaseFilePdfMergeTest(unittest.TestCase):
             self.assertEqual(1, estimate.excluded_pdf_count)
             self.assertEqual(3, estimate.estimated_page_count)
             self.assertEqual(expected / 3, estimate.average_bytes_per_page)
+
+    def test_dry_run_uses_revised_plan_counts_and_does_not_write_outputs(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root, output = Path(tmp) / "root", Path(tmp) / "output"
+            _pdf(root / "included.pdf", 2)
+            _pdf(root / "excluded.pdf", 4)
+            existing_report = output / "fascicolo_unico_report.json"
+            existing_report.parent.mkdir(parents=True, exist_ok=True)
+            existing_report.write_text("existing report", encoding="utf-8")
+            _plan(output / "fascicolo_merge_plan.json", [
+                {"final_order": 1, "unit_id": "old", "source_pdf": "excluded.pdf",
+                 "include_in_merged_pdf": True, "bookmark_label": "Old"},
+            ])
+            _plan(output / "fascicolo_merge_plan_revised.json", [
+                {"final_order": 1, "unit_id": "new", "source_pdf": "included.pdf",
+                 "include_in_merged_pdf": True, "bookmark_label": "Included",
+                 "warnings": [{"code": "synthetic", "message": "warning test"}]},
+                {"final_order": None, "unit_id": "skip", "source_pdf": "excluded.pdf",
+                 "include_in_merged_pdf": False, "bookmark_label": "Excluded",
+                 "exclude_reason": "duplicato", "total_pages": 4},
+            ])
+
+            result = estimate_casefile_pdf_merge(root, output)
+
+            self.assertEqual("fascicolo_merge_plan_revised.json", result["source_plan"])
+            self.assertEqual(2, result["total_items"])
+            self.assertEqual(1, result["included_items"])
+            self.assertEqual(1, result["excluded_items"])
+            self.assertEqual(2, result["estimated_pages"])
+            self.assertEqual((root / "included.pdf").stat().st_size,
+                             result["estimated_source_size_bytes"])
+            self.assertIn("synthetic: warning test", result["warnings"])
+            self.assertEqual("duplicato", result["excluded"][0]["exclude_reason"])
+            self.assertFalse((output / "fascicolo_unico.pdf").exists())
+            self.assertFalse((output / "fascicolo_unico_light.pdf").exists())
+            self.assertEqual(
+                "existing report", existing_report.read_text(encoding="utf-8")
+            )
+
+    def test_dry_run_falls_back_to_original_and_is_privacy_safe(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root, output = Path(tmp) / "root", Path(tmp) / "output"
+            _pdf(root / "nested" / "source.pdf", 1)
+            _plan(output / "fascicolo_merge_plan.json", [
+                {"final_order": 1, "unit_id": "unit", "source_pdf": "nested/source.pdf",
+                 "include_in_merged_pdf": True, "bookmark_label": "Synthetic",
+                 "total_pages": 1},
+            ])
+
+            result = estimate_casefile_pdf_merge(root, output)
+            text = json.dumps(result, ensure_ascii=False)
+
+            self.assertEqual("fascicolo_merge_plan.json", result["source_plan"])
+            self.assertEqual(1, result["included_items"])
+            self.assertIn("nested/source.pdf", text)
+            self.assertNotIn(str(root), text)
+            self.assertNotIn(str(output), text)
+
+    def test_dry_run_reports_missing_plan(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root, output = Path(tmp) / "root", Path(tmp) / "output"
+            root.mkdir()
+            output.mkdir()
+            with self.assertRaisesRegex(CaseFilePdfMergeError, "Merge plan non trovato"):
+                estimate_casefile_pdf_merge(root, output)
 
     def test_optimization_requires_ghostscript_and_preserves_original(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
