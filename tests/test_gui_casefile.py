@@ -12,7 +12,13 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtCore import QSettings, Qt
 from PySide6.QtGui import QKeySequence
-from PySide6.QtWidgets import QApplication, QScrollArea, QTabWidget, QTableWidget
+from PySide6.QtWidgets import (
+    QApplication,
+    QComboBox,
+    QScrollArea,
+    QTabWidget,
+    QTableWidget,
+)
 
 from gdlex_ocr.casefile import ExtractionWarning
 from gdlex_ocr.casefile_merge_plan_export import (
@@ -148,6 +154,17 @@ class CasefileGuiControlsTest(unittest.TestCase):
         self.assertEqual(
             "Invia PDF unico a OCR",
             self.window.casefile_send_pdf_to_ocr_button.text(),
+        )
+        self.assertEqual(
+            "PDF per OCR:",
+            self.window.casefile_ocr_pdf_mode_label.text(),
+        )
+        self.assertIsInstance(self.window.casefile_ocr_pdf_mode_combo, QComboBox)
+        self.assertEqual("Automatico", self.window.casefile_ocr_pdf_mode_combo.currentText())
+        self.assertEqual("auto", self.window.casefile_ocr_pdf_mode_combo.currentData())
+        self.assertEqual(
+            "casefileOcrPdfModeCombo",
+            self.window.casefile_ocr_pdf_mode_combo.objectName(),
         )
         self.assertEqual(
             "casefileSendPdfToOcrButton",
@@ -451,7 +468,7 @@ class CasefileGuiControlsTest(unittest.TestCase):
         self.assertTrue(self.window.casefile_open_optimized_pdf_button.isEnabled())
         self.assertTrue(self.window.casefile_send_pdf_to_ocr_button.isEnabled())
 
-    def test_send_merged_pdf_to_ocr_prefers_light_and_switches_tab(self) -> None:
+    def test_send_merged_pdf_to_ocr_auto_prefers_light_and_switches_tab(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             output = Path(tmpdir)
             (output / "fascicolo_unico.pdf").write_bytes(b"synthetic-original")
@@ -468,11 +485,107 @@ class CasefileGuiControlsTest(unittest.TestCase):
                 self.window.main_tabs.currentIndex()
             ))
             self.assertIn(
-                f"PDF unico inviato alla scheda OCR: {light}",
+                f"PDF leggero inviato alla scheda OCR: {light}",
                 self.window.casefile_log_view.toPlainText(),
             )
 
-    def test_send_merged_pdf_to_ocr_falls_back_and_missing_is_clear(self) -> None:
+    def test_send_merged_pdf_to_ocr_auto_falls_back_to_original(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output = Path(tmpdir)
+            original = output / "fascicolo_unico.pdf"
+            original.write_bytes(b"synthetic-original")
+            self.window.casefile_output_edit.setText(str(output))
+            self.window._refresh_casefile_pdf_actions()
+
+            self.assertTrue(self.window.casefile_send_pdf_to_ocr_button.isEnabled())
+            self.window._send_casefile_pdf_to_ocr()
+            self.assertEqual(str(original), self.window.pdf_edit.text())
+            self.assertIn(
+                f"PDF originale inviato alla scheda OCR: {original}",
+                self.window.casefile_log_view.toPlainText(),
+            )
+
+    def test_send_merged_pdf_to_ocr_explicit_original_ignores_light(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output = Path(tmpdir)
+            original = output / "fascicolo_unico.pdf"
+            light = output / "fascicolo_unico_light.pdf"
+            original.write_bytes(b"synthetic-original")
+            light.write_bytes(b"synthetic-light")
+            self.window.casefile_output_edit.setText(str(output))
+            self.window.casefile_ocr_pdf_mode_combo.setCurrentIndex(
+                self.window.casefile_ocr_pdf_mode_combo.findData("original")
+            )
+
+            self.window._send_casefile_pdf_to_ocr()
+
+            self.assertEqual(str(original), self.window.pdf_edit.text())
+            self.assertIn(
+                f"PDF originale inviato alla scheda OCR: {original}",
+                self.window.casefile_log_view.toPlainText(),
+            )
+
+    def test_send_merged_pdf_to_ocr_explicit_light_uses_light(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output = Path(tmpdir)
+            (output / "fascicolo_unico.pdf").write_bytes(b"synthetic-original")
+            light = output / "fascicolo_unico_light.pdf"
+            light.write_bytes(b"synthetic-light")
+            self.window.casefile_output_edit.setText(str(output))
+            self.window.casefile_ocr_pdf_mode_combo.setCurrentIndex(
+                self.window.casefile_ocr_pdf_mode_combo.findData("light")
+            )
+
+            self.window._send_casefile_pdf_to_ocr()
+
+            self.assertEqual(str(light), self.window.pdf_edit.text())
+            self.assertIn(
+                f"PDF leggero inviato alla scheda OCR: {light}",
+                self.window.casefile_log_view.toPlainText(),
+            )
+
+    def test_send_merged_pdf_to_ocr_explicit_light_missing_does_not_switch_tab(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output = Path(tmpdir)
+            original = output / "fascicolo_unico.pdf"
+            original.write_bytes(b"synthetic-original")
+            self.window.casefile_output_edit.setText(str(output))
+            self.window.casefile_ocr_pdf_mode_combo.setCurrentIndex(
+                self.window.casefile_ocr_pdf_mode_combo.findData("light")
+            )
+            self.window.main_tabs.setCurrentIndex(1)
+
+            self.window._send_casefile_pdf_to_ocr()
+
+            self.assertEqual("", self.window.pdf_edit.text())
+            self.assertEqual(1, self.window.main_tabs.currentIndex())
+            self.assertIn(
+                "PDF leggero non disponibile. Generarlo prima oppure "
+                "scegliere PDF originale.",
+                self.window.casefile_log_view.toPlainText(),
+            )
+
+    def test_send_merged_pdf_to_ocr_explicit_original_missing_is_clear(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output = Path(tmpdir)
+            light = output / "fascicolo_unico_light.pdf"
+            light.write_bytes(b"synthetic-light")
+            self.window.casefile_output_edit.setText(str(output))
+            self.window.casefile_ocr_pdf_mode_combo.setCurrentIndex(
+                self.window.casefile_ocr_pdf_mode_combo.findData("original")
+            )
+            self.window.main_tabs.setCurrentIndex(1)
+
+            self.window._send_casefile_pdf_to_ocr()
+
+            self.assertEqual("", self.window.pdf_edit.text())
+            self.assertEqual(1, self.window.main_tabs.currentIndex())
+            self.assertIn(
+                "PDF unico originale non disponibile. Generare prima il PDF unico.",
+                self.window.casefile_log_view.toPlainText(),
+            )
+
+    def test_send_merged_pdf_to_ocr_missing_auto_is_clear(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             output = Path(tmpdir)
             self.window.casefile_output_edit.setText(str(output))
@@ -483,12 +596,18 @@ class CasefileGuiControlsTest(unittest.TestCase):
                 self.window.casefile_log_view.toPlainText(),
             )
 
+    def test_send_merged_pdf_to_ocr_does_not_start_ocr_automatically(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output = Path(tmpdir)
             original = output / "fascicolo_unico.pdf"
             original.write_bytes(b"synthetic-original")
-            self.window._refresh_casefile_pdf_actions()
-            self.assertTrue(self.window.casefile_send_pdf_to_ocr_button.isEnabled())
-            self.window._send_casefile_pdf_to_ocr()
-            self.assertEqual(str(original), self.window.pdf_edit.text())
+            self.window.casefile_output_edit.setText(str(output))
+
+            with patch.object(self.window, "_start") as start:
+                self.window._send_casefile_pdf_to_ocr()
+
+            start.assert_not_called()
+            self.assertTrue(self.window.start_button.isEnabled())
 
     def test_casefile_gui_rejects_missing_input(self) -> None:
         self.window.casefile_input_edit.setText("")

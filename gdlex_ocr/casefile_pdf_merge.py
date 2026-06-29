@@ -95,7 +95,10 @@ def default_casefile_optimized_pdf_path(output_dir: Path) -> Path:
 
 
 def select_casefile_pdf_for_ocr(
-    output_dir: Path, prefer_light: bool = True
+    output_dir: Path,
+    mode: str | bool = "auto",
+    *,
+    prefer_light: bool | None = None,
 ) -> Path | None:
     """Select an existing merged PDF for OCR without opening or creating it."""
     output = Path(output_dir)
@@ -103,9 +106,22 @@ def select_casefile_pdf_for_ocr(
         raise CaseFilePdfMergeError(
             f"Cartella output del fascicolo non trovata: {output}"
         )
+    if prefer_light is not None:
+        mode = "auto" if prefer_light else "original"
+    elif isinstance(mode, bool):
+        mode = "auto" if mode else "original"
+    mode = str(mode).strip().lower()
+    if mode not in {"auto", "light", "original"}:
+        raise CaseFilePdfMergeError(
+            f"Modalità PDF per OCR non valida: {mode or '<vuota>'}"
+        )
     optimized = default_casefile_optimized_pdf_path(output)
     original = default_casefile_merged_pdf_path(output)
-    if prefer_light and optimized.is_file():
+    if mode == "light":
+        return optimized if optimized.is_file() else None
+    if mode == "original":
+        return original if original.is_file() else None
+    if optimized.is_file():
         return optimized
     if original.is_file():
         return original

@@ -47,18 +47,59 @@ def _plan(path: Path, items: list[dict[str, object]]) -> None:
 
 
 class CaseFilePdfMergeTest(unittest.TestCase):
-    def test_ocr_pdf_selection_prefers_light_and_falls_back_to_original(self) -> None:
+    def test_ocr_pdf_selection_auto_prefers_light_and_falls_back_to_original(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             output = Path(tmp)
             original = output / "fascicolo_unico.pdf"
             light = output / "fascicolo_unico_light.pdf"
             original.write_bytes(b"not-opened-original")
-            self.assertEqual(original, select_casefile_pdf_for_ocr(output))
+            self.assertEqual(original, select_casefile_pdf_for_ocr(output, mode="auto"))
             light.write_bytes(b"not-opened-light")
+            self.assertEqual(light, select_casefile_pdf_for_ocr(output, mode="auto"))
+
+    def test_ocr_pdf_selection_explicit_light_and_original_modes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp)
+            original = output / "fascicolo_unico.pdf"
+            light = output / "fascicolo_unico_light.pdf"
+            original.write_bytes(b"not-opened-original")
+            light.write_bytes(b"not-opened-light")
+
+            self.assertEqual(light, select_casefile_pdf_for_ocr(output, mode="light"))
+            self.assertEqual(
+                original, select_casefile_pdf_for_ocr(output, mode="original")
+            )
+
+    def test_ocr_pdf_selection_explicit_modes_return_none_when_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp)
+            original = output / "fascicolo_unico.pdf"
+            light = output / "fascicolo_unico_light.pdf"
+
+            original.write_bytes(b"not-opened-original")
+            self.assertIsNone(select_casefile_pdf_for_ocr(output, mode="light"))
+            self.assertEqual(
+                original, select_casefile_pdf_for_ocr(output, mode="original")
+            )
+
+            original.unlink()
+            light.write_bytes(b"not-opened-light")
+            self.assertEqual(light, select_casefile_pdf_for_ocr(output, mode="light"))
+            self.assertIsNone(select_casefile_pdf_for_ocr(output, mode="original"))
+
+    def test_ocr_pdf_selection_keeps_prefer_light_compatibility(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp)
+            original = output / "fascicolo_unico.pdf"
+            light = output / "fascicolo_unico_light.pdf"
+            original.write_bytes(b"not-opened-original")
+            light.write_bytes(b"not-opened-light")
+
             self.assertEqual(light, select_casefile_pdf_for_ocr(output))
             self.assertEqual(
                 original, select_casefile_pdf_for_ocr(output, prefer_light=False)
             )
+            self.assertEqual(original, select_casefile_pdf_for_ocr(output, False))
 
     def test_ocr_pdf_selection_handles_missing_outputs_clearly(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -67,6 +108,13 @@ class CaseFilePdfMergeTest(unittest.TestCase):
             CaseFilePdfMergeError, "Cartella output del fascicolo non trovata"
         ):
             select_casefile_pdf_for_ocr(Path("/tmp/nonexistent-casefile-output"))
+
+    def test_ocr_pdf_selection_rejects_unknown_mode(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaisesRegex(
+                CaseFilePdfMergeError, "Modalità PDF per OCR non valida"
+            ):
+                select_casefile_pdf_for_ocr(Path(tmp), mode="missing")
 
     def test_format_bytes(self) -> None:
         self.assertEqual("499 MB", format_bytes(499 * 1024 * 1024))

@@ -138,6 +138,11 @@ _OCR_BACKENDS = [
     ("OCRmyPDF", "ocrmypdf"),
     ("Comando esterno", "external"),
 ]
+_CASEFILE_OCR_PDF_MODES = [
+    ("Automatico", "auto"),
+    ("PDF leggero", "light"),
+    ("PDF originale", "original"),
+]
 _WARNING_BADGE = "⚠"
 _WARNING_CELL_BACKGROUND_COLOR = QColor(WARNING_CELL_BACKGROUND)
 _WARNING_CELL_FOREGROUND_COLOR = QColor(WARNING_CELL_FOREGROUND)
@@ -217,6 +222,7 @@ _SETTINGS_KEYS = {
     "ocr_timeout": "ocr/timeoutSeconds",
     "ocr_jobs": "ocr/jobs",
     "external_ocr_command": "ocr/externalCommand",
+    "casefile_ocr_pdf_mode": "casefile/ocrPdfMode",
 }
 
 
@@ -1303,6 +1309,17 @@ class MainWindow(QMainWindow):
             self._open_casefile_optimized_pdf
         )
         casefile_buttons_row.addWidget(self.casefile_open_optimized_pdf_button)
+        self.casefile_ocr_pdf_mode_label = QLabel("PDF per OCR:")
+        self.casefile_ocr_pdf_mode_label.setObjectName("sectionHint")
+        casefile_buttons_row.addWidget(self.casefile_ocr_pdf_mode_label)
+        self.casefile_ocr_pdf_mode_combo = QComboBox()
+        self.casefile_ocr_pdf_mode_combo.setObjectName(
+            "casefileOcrPdfModeCombo"
+        )
+        for label, mode in _CASEFILE_OCR_PDF_MODES:
+            self.casefile_ocr_pdf_mode_combo.addItem(label, mode)
+        self.casefile_ocr_pdf_mode_combo.setCurrentIndex(0)
+        casefile_buttons_row.addWidget(self.casefile_ocr_pdf_mode_combo)
         self.casefile_send_pdf_to_ocr_button = QPushButton(
             "Invia PDF unico a OCR"
         )
@@ -1539,6 +1556,10 @@ class MainWindow(QMainWindow):
             self.external_ocr_command_edit.setText(
                 self._settings_text(_SETTINGS_KEYS["external_ocr_command"])
             )
+            self._set_combo_data(
+                self.casefile_ocr_pdf_mode_combo,
+                self._settings_text(_SETTINGS_KEYS["casefile_ocr_pdf_mode"]),
+            )
             self._on_searchable_changed(self.searchable_checkbox.isChecked())
             self._on_ocr_backend_changed()
         finally:
@@ -1558,6 +1579,9 @@ class MainWindow(QMainWindow):
         )
         self.ocr_timeout_spin.valueChanged.connect(self._update_ocr_runtime_options)
         self.ocr_jobs_edit.textChanged.connect(self._update_ocr_runtime_options)
+        self.casefile_ocr_pdf_mode_combo.currentIndexChanged.connect(
+            self._save_gui_settings
+        )
 
     def _save_gui_settings(self, *args: object) -> None:
         if self._settings is None or self._loading_settings:
@@ -1618,6 +1642,10 @@ class MainWindow(QMainWindow):
             )
         else:
             self._settings.remove(_SETTINGS_KEYS["external_ocr_command"])
+        self._settings.setValue(
+            _SETTINGS_KEYS["casefile_ocr_pdf_mode"],
+            self.casefile_ocr_pdf_mode_combo.currentData() or "auto",
+        )
         self._settings.sync()
 
     # ------------------------------------------------------------------
@@ -1869,17 +1897,13 @@ class MainWindow(QMainWindow):
             self.casefile_open_merged_pdf_button.setEnabled(False)
             self.casefile_open_optimized_pdf_button.setEnabled(False)
             self.casefile_send_pdf_to_ocr_button.setEnabled(False)
+            self.casefile_ocr_pdf_mode_combo.setEnabled(False)
             return
         output_text = self.casefile_output_edit.text().strip()
-        selected: Path | None = None
         original: Path | None = None
         optimized: Path | None = None
         if output_text:
             output = Path(os.path.expanduser(os.path.expandvars(output_text)))
-            try:
-                selected = select_casefile_pdf_for_ocr(output)
-            except CaseFilePdfMergeError:
-                pass
             if output.is_dir():
                 original_candidate = default_casefile_merged_pdf_path(output)
                 optimized_candidate = default_casefile_optimized_pdf_path(output)
@@ -1889,7 +1913,9 @@ class MainWindow(QMainWindow):
         self._casefile_optimized_pdf_path = str(optimized) if optimized else None
         self.casefile_open_merged_pdf_button.setEnabled(original is not None)
         self.casefile_open_optimized_pdf_button.setEnabled(optimized is not None)
-        self.casefile_send_pdf_to_ocr_button.setEnabled(selected is not None)
+        has_pdf = original is not None or optimized is not None
+        self.casefile_send_pdf_to_ocr_button.setEnabled(has_pdf)
+        self.casefile_ocr_pdf_mode_combo.setEnabled(has_pdf)
 
     def _set_ocr_input_pdf(self, path: Path) -> None:
         self.pdf_edit.setText(str(path))
@@ -1907,18 +1933,36 @@ class MainWindow(QMainWindow):
             self._append_casefile_log("Genera prima il PDF unico del fascicolo.")
             return
         output = Path(os.path.expanduser(os.path.expandvars(output_text)))
+        mode = str(self.casefile_ocr_pdf_mode_combo.currentData() or "auto")
         try:
-            selected = select_casefile_pdf_for_ocr(output)
-        except CaseFilePdfMergeError:
+            selected = select_casefile_pdf_for_ocr(output, mode=mode)
+        except CaseFilePdfMergeError as exc:
             selected = None
+            self._append_casefile_log(f"PDF non inviato alla scheda OCR: {exc}")
         if selected is None:
             self._refresh_casefile_pdf_actions()
-            self._append_casefile_log("Genera prima il PDF unico del fascicolo.")
+            if mode == "light":
+                self._append_casefile_log(
+                    "PDF leggero non disponibile. Generarlo prima oppure "
+                    "scegliere PDF originale."
+                )
+            elif mode == "original":
+                self._append_casefile_log(
+                    "PDF unico originale non disponibile. Generare prima il "
+                    "PDF unico."
+                )
+            else:
+                self._append_casefile_log("Genera prima il PDF unico del fascicolo.")
             return
         self._set_ocr_input_pdf(selected)
         self._switch_to_ocr_tab()
+        selected_kind = (
+            "leggero"
+            if selected.name == default_casefile_optimized_pdf_path(output).name
+            else "originale"
+        )
         self._append_casefile_log(
-            f"PDF unico inviato alla scheda OCR: {selected}"
+            f"PDF {selected_kind} inviato alla scheda OCR: {selected}"
         )
 
     def _start_casefile_analysis(self) -> None:
@@ -2584,6 +2628,7 @@ class MainWindow(QMainWindow):
             self.casefile_open_merged_pdf_button.setEnabled(False)
             self.casefile_open_optimized_pdf_button.setEnabled(False)
             self.casefile_send_pdf_to_ocr_button.setEnabled(False)
+            self.casefile_ocr_pdf_mode_combo.setEnabled(False)
         elif not self._casefile_pdf_merge_running:
             self._refresh_casefile_pdf_actions()
 
@@ -2608,6 +2653,7 @@ class MainWindow(QMainWindow):
             self.casefile_open_merged_pdf_button.setEnabled(False)
             self.casefile_open_optimized_pdf_button.setEnabled(False)
             self.casefile_send_pdf_to_ocr_button.setEnabled(False)
+            self.casefile_ocr_pdf_mode_combo.setEnabled(False)
         else:
             self._refresh_casefile_pdf_actions()
 

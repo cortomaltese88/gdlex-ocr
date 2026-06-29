@@ -46,6 +46,7 @@ class GuiSettingsPersistenceTest(unittest.TestCase):
             settings.setValue("ocr/backend", "external")
             settings.setValue("ocr/timeoutSeconds", 45)
             settings.setValue("ocr/jobs", 3)
+            settings.setValue("casefile/ocrPdfMode", "original")
             settings.setValue(
                 "ocr/externalCommand",
                 "local-ocr {input} {output} --lang {language}",
@@ -69,6 +70,7 @@ class GuiSettingsPersistenceTest(unittest.TestCase):
             self.assertEqual(45, window._ocr_timeout_seconds)
             self.assertEqual("3", window.ocr_jobs_edit.text())
             self.assertEqual(3, window._ocr_jobs)
+            self.assertEqual("original", window.casefile_ocr_pdf_mode_combo.currentData())
             self.assertTrue(window.external_ocr_command_edit.isEnabled())
             self.assertEqual(
                 "local-ocr {input} {output} --lang {language}",
@@ -102,6 +104,9 @@ class GuiSettingsPersistenceTest(unittest.TestCase):
             )
             window.ocr_timeout_spin.setValue(90)
             window.ocr_jobs_edit.setText("2")
+            window.casefile_ocr_pdf_mode_combo.setCurrentIndex(
+                window.casefile_ocr_pdf_mode_combo.findData("light")
+            )
             window.external_ocr_command_edit.setText("")
             window.close()
             settings.sync()
@@ -123,6 +128,7 @@ class GuiSettingsPersistenceTest(unittest.TestCase):
             self.assertEqual("ocrmypdf", saved.value("ocr/backend"))
             self.assertEqual(90, int(saved.value("ocr/timeoutSeconds")))
             self.assertEqual(2, int(saved.value("ocr/jobs")))
+            self.assertEqual("light", saved.value("casefile/ocrPdfMode"))
             self.assertFalse(saved.contains("paths/inputPdf"))
             self.assertNotIn(
                 "fascicolo.pdf",
@@ -205,6 +211,7 @@ class GuiSettingsPersistenceTest(unittest.TestCase):
             settings.setValue("ocr/backend", "removed-backend")
             settings.setValue("ocr/timeoutSeconds", "not-an-integer")
             settings.setValue("ocr/jobs", -2)
+            settings.setValue("casefile/ocrPdfMode", "removed-mode")
             settings.sync()
 
             window = MainWindow(settings=self._settings(settings_path))
@@ -225,6 +232,7 @@ class GuiSettingsPersistenceTest(unittest.TestCase):
             )
             self.assertEqual("", window.ocr_jobs_edit.text())
             self.assertIsNone(window._ocr_jobs)
+            self.assertEqual("auto", window.casefile_ocr_pdf_mode_combo.currentData())
 
             self._close_window(window)
 
