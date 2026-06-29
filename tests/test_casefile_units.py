@@ -18,7 +18,7 @@ from gdlex_ocr.casefile_export import (
 
 
 def _create_ministerial_fixture(root: Path) -> None:
-    for unit_id in ("711273", "711274"):
+    for unit_id in ("999001", "999002"):
         unit_dir = root / unit_id
         unit_dir.mkdir()
         (unit_dir / f"{unit_id}.pdf").write_bytes(b"%PDF-synthetic")
@@ -39,7 +39,7 @@ class CaseFileUnitsTest(unittest.TestCase):
 
             self.assertEqual(2, len(analysis.units))
             self.assertEqual(
-                ["711273", "711274"],
+                ["999001", "999002"],
                 [u.unit_id for u in analysis.units],
             )
 
@@ -50,13 +50,13 @@ class CaseFileUnitsTest(unittest.TestCase):
 
             analysis = analyze_case_folder(root)
 
-            unit = next(u for u in analysis.units if u.unit_id == "711273")
-            self.assertEqual("711273/711273.pdf", unit.main_pdf_path)
+            unit = next(u for u in analysis.units if u.unit_id == "999001")
+            self.assertEqual("999001/999001.pdf", unit.main_pdf_path)
             self.assertEqual(
-                "711273/ListaAllegati.html",
+                "999001/ListaAllegati.html",
                 unit.attachment_index_path,
             )
-            self.assertEqual("711273/COMPLETE", unit.complete_marker_path)
+            self.assertEqual("999001/COMPLETE", unit.complete_marker_path)
             self.assertIsNotNone(unit.main_document_id)
 
     def test_lista_allegati_detected_as_index(self) -> None:
@@ -120,8 +120,8 @@ class CaseFileUnitsTest(unittest.TestCase):
             self.assertIn("units", payload)
             self.assertEqual(2, payload["summary"]["total_units"])
             unit_ids = [u["unit_id"] for u in payload["units"]]
-            self.assertIn("711273", unit_ids)
-            self.assertIn("711274", unit_ids)
+            self.assertIn("999001", unit_ids)
+            self.assertIn("999002", unit_ids)
             json.dumps(payload, ensure_ascii=False)
 
     def test_casefile_markdown_prioritizes_units(self) -> None:
@@ -133,7 +133,7 @@ class CaseFileUnitsTest(unittest.TestCase):
             markdown = format_casefile_analysis_markdown(analysis)
 
             self.assertIn("## Unità documentali PDP/TIAP", markdown)
-            self.assertIn("711273", markdown)
+            self.assertIn("999001", markdown)
             self.assertIn("ListaAllegati.html", markdown)
             units_pos = markdown.index("## Unità documentali PDP/TIAP")
             docs_pos = markdown.index("## Documenti")

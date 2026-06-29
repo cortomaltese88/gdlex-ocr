@@ -486,7 +486,7 @@ class CaseFileIndexTest(unittest.TestCase):
     def test_multiple_lista_allegati_in_numeric_dirs_do_not_warn(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             root = Path(temporary_directory)
-            for unit_id in ("711273", "711274"):
+            for unit_id in ("999001", "999002"):
                 unit_dir = root / unit_id
                 unit_dir.mkdir()
                 (unit_dir / f"{unit_id}.pdf").write_bytes(b"synthetic pdf")
