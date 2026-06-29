@@ -222,7 +222,7 @@ class OutputPathGuiTest(unittest.TestCase):
 
         self.assertGreaterEqual(minimum.width(), 900)
         self.assertLessEqual(minimum.width(), 1100)
-        self.assertGreaterEqual(minimum.height(), 700)
+        self.assertGreaterEqual(minimum.height(), 600)
         self.assertLessEqual(minimum.height(), 900)
 
     def test_pdf_output_controls_keep_running_state_behavior(self) -> None:

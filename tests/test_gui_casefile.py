@@ -1218,8 +1218,6 @@ class CasefileGuiControlsTest(unittest.TestCase):
             self.window.block_size_spin,
             self.window.searchable_checkbox,
             self.window.judgment_analysis_checkbox,
-            self.window.start_button,
-            self.window.cancel_button,
             self.window.progress_bar,
             self.window.log_view,
         ):
@@ -1231,6 +1229,17 @@ class CasefileGuiControlsTest(unittest.TestCase):
                 ocr_tab,
                 f"{widget.objectName() or type(widget).__name__} "
                 f"is not inside ocr_tab",
+            )
+        ocr_container = self.window.main_tabs.widget(0)
+        for widget in (self.window.start_button, self.window.cancel_button):
+            ancestor = widget.parent()
+            while ancestor is not None and ancestor is not ocr_container:
+                ancestor = ancestor.parent()
+            self.assertIs(
+                ancestor,
+                ocr_container,
+                f"{widget.objectName() or type(widget).__name__} "
+                f"is not inside ocr tab container",
             )
 
     def test_casefile_controls_are_in_casefile_tab(self) -> None:
@@ -1358,12 +1367,13 @@ class CasefileGuiControlsTest(unittest.TestCase):
     def test_tabs_use_scroll_areas(self) -> None:
         tabs = self.window.main_tabs
         for i in range(tabs.count()):
-            widget = tabs.widget(i)
-            self.assertIsInstance(
-                widget,
-                QScrollArea,
-                f"Tab {i} ({tabs.tabText(i)}) is not wrapped in QScrollArea",
+            container = tabs.widget(i)
+            scroll = container.findChild(QScrollArea)
+            self.assertIsNotNone(
+                scroll,
+                f"Tab {i} ({tabs.tabText(i)}) has no QScrollArea child",
             )
+            self.assertTrue(scroll.widgetResizable())
 
     # ------------------------------------------------------------------
     # Tab styling tests
@@ -1514,6 +1524,66 @@ class CasefileAnalysisHelperTest(unittest.TestCase):
 
             with self.assertRaises(FileNotFoundError):
                 run_casefile_analysis(missing, output_dir)
+
+
+class GuiLayoutRegressionTest(unittest.TestCase):
+    """Structural tests to prevent action buttons from being hidden."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.app = QApplication.instance() or QApplication([])
+
+    def setUp(self) -> None:
+        self.window = MainWindow()
+
+    def tearDown(self) -> None:
+        self.window.close()
+        self.window.deleteLater()
+        self.app.processEvents()
+
+    def test_ocr_action_buttons_exist(self) -> None:
+        for attr in (
+            "start_button",
+            "cancel_button",
+            "open_folder_button",
+            "open_pdf_button",
+        ):
+            btn = getattr(self.window, attr, None)
+            self.assertIsNotNone(btn, f"{attr} missing")
+
+    def test_ocr_buttons_outside_scroll_area(self) -> None:
+        scroll = self.window.ocr_tab.parent()
+        self.assertIsInstance(scroll.parent(), QScrollArea)
+        start_parent = self.window.start_button.parentWidget()
+        while start_parent is not None:
+            self.assertNotIsInstance(
+                start_parent,
+                QScrollArea,
+                "start_button must not be inside a QScrollArea",
+            )
+            start_parent = start_parent.parentWidget()
+
+    def test_casefile_buttons_outside_scroll_area(self) -> None:
+        btn = self.window.casefile_open_folder_button
+        parent = btn.parentWidget()
+        while parent is not None:
+            self.assertNotIsInstance(
+                parent,
+                QScrollArea,
+                "casefile_open_folder_button must not be inside a QScrollArea",
+            )
+            parent = parent.parentWidget()
+
+    def test_tabs_created(self) -> None:
+        tabs = self.window.main_tabs
+        labels = [tabs.tabText(i) for i in range(tabs.count())]
+        self.assertIn("OCR documento", labels)
+        self.assertIn("Fascicolo", labels)
+
+    def test_window_resizable(self) -> None:
+        self.window.resize(1020, 680)
+        self.app.processEvents()
+        self.assertEqual(self.window.width(), 1020)
 
 
 if __name__ == "__main__":

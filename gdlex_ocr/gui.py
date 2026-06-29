@@ -685,7 +685,7 @@ class MainWindow(QMainWindow):
         app = QApplication.instance()
         if app is not None and not app.windowIcon().isNull():
             self.setWindowIcon(app.windowIcon())
-        self.setMinimumSize(1020, 900)
+        self.setMinimumSize(1020, 680)
         self.resize(1100, 920)
         self._build_menu_bar()
 
@@ -756,7 +756,12 @@ class MainWindow(QMainWindow):
         ocr_scroll.setWidgetResizable(True)
         ocr_scroll.setFrameShape(QFrame.Shape.NoFrame)
         ocr_scroll.setWidget(self.ocr_tab)
-        self.main_tabs.addTab(ocr_scroll, "OCR documento")
+        ocr_container = QWidget()
+        ocr_container_layout = QVBoxLayout(ocr_container)
+        ocr_container_layout.setContentsMargins(0, 0, 0, 0)
+        ocr_container_layout.setSpacing(4)
+        ocr_container_layout.addWidget(ocr_scroll, 1)
+        self.main_tabs.addTab(ocr_container, "OCR documento")
 
         ocr_layout = QVBoxLayout(self.ocr_tab)
         ocr_layout.setContentsMargins(0, 6, 0, 0)
@@ -1107,7 +1112,7 @@ class MainWindow(QMainWindow):
         run_buttons_row.addWidget(self.cancel_button)
 
         actions_layout.addLayout(run_buttons_row)
-        ocr_layout.addLayout(actions_layout)
+        ocr_container_layout.addLayout(actions_layout)
 
         # ----------------------------------------------------------
         # Tab: Fascicolo
@@ -1118,7 +1123,12 @@ class MainWindow(QMainWindow):
         casefile_scroll.setWidgetResizable(True)
         casefile_scroll.setFrameShape(QFrame.Shape.NoFrame)
         casefile_scroll.setWidget(self.casefile_tab)
-        self.main_tabs.addTab(casefile_scroll, "Fascicolo")
+        casefile_container = QWidget()
+        casefile_container_layout = QVBoxLayout(casefile_container)
+        casefile_container_layout.setContentsMargins(0, 0, 0, 0)
+        casefile_container_layout.setSpacing(4)
+        casefile_container_layout.addWidget(casefile_scroll, 1)
+        self.main_tabs.addTab(casefile_container, "Fascicolo")
 
         casefile_tab_layout = QVBoxLayout(self.casefile_tab)
         casefile_tab_layout.setContentsMargins(0, 6, 0, 0)
@@ -1478,7 +1488,7 @@ class MainWindow(QMainWindow):
         )
         casefile_buttons_row.addWidget(self.casefile_send_pdf_to_ocr_button)
         casefile_buttons_row.addStretch(1)
-        casefile_tab_layout.addLayout(casefile_buttons_row)
+        casefile_container_layout.addLayout(casefile_buttons_row)
 
         self._casefile_output_dir: str | None = None
         self._casefile_report_path: str | None = None
