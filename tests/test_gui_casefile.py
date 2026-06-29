@@ -16,6 +16,7 @@ from PySide6.QtGui import QKeySequence
 from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
+    QProgressBar,
     QScrollArea,
     QTabWidget,
     QTableWidget,
@@ -1382,6 +1383,22 @@ class CasefileGuiControlsTest(unittest.TestCase):
         labels = [tabs.tabText(i) for i in range(tabs.count())]
         self.assertIn("Base", labels)
         self.assertIn("Backend OCR", labels)
+
+    def test_casefile_progress_bars_centered_alignment(self) -> None:
+        for bar in (
+            self.window.casefile_progress_bar,
+            self.window.casefile_pdf_progress_bar,
+        ):
+            self.assertIsInstance(bar, QProgressBar)
+            self.assertEqual(
+                Qt.AlignmentFlag.AlignCenter,
+                bar.alignment(),
+                f"{bar.objectName()} alignment is not centered",
+            )
+            self.assertTrue(
+                bar.isTextVisible(),
+                f"{bar.objectName()} text is not visible",
+            )
 
     def test_key_widgets_still_exist(self) -> None:
         self.assertIsNotNone(self.window.casefile_tab)

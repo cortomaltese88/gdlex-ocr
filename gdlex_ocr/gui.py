@@ -155,6 +155,11 @@ _WARNING_ROW_MARKER_FOREGROUND_COLOR = QColor(WARNING_ROW_MARKER_FOREGROUND)
 _WARNING_CELL_MAX_TEXT_LENGTH = 96
 
 
+def _configure_progress_bar(progress_bar: QProgressBar) -> None:
+    progress_bar.setAlignment(Qt.AlignmentFlag.AlignCenter)
+    progress_bar.setTextVisible(True)
+
+
 def _casefile_merge_warning_count(plan: CaseFileMergePlan) -> int:
     return sum(len(item.warnings) for item in plan.items)
 
@@ -1126,6 +1131,7 @@ class MainWindow(QMainWindow):
         self.casefile_progress_bar.setRange(0, 100)
         self.casefile_progress_bar.setValue(0)
         self.casefile_progress_bar.setFormat("%p%")
+        _configure_progress_bar(self.casefile_progress_bar)
         casefile_progress_layout.addWidget(self.casefile_progress_bar)
         casefile_tab_layout.addWidget(casefile_progress_group)
 
@@ -1283,6 +1289,7 @@ class MainWindow(QMainWindow):
         self.casefile_pdf_progress_bar.setRange(0, 100)
         self.casefile_pdf_progress_bar.setValue(0)
         self.casefile_pdf_progress_bar.setFormat("%p%")
+        _configure_progress_bar(self.casefile_pdf_progress_bar)
         merge_review_layout.addWidget(self.casefile_pdf_progress_bar)
         self.casefile_merge_up_shortcut = QShortcut(
             QKeySequence("Alt+Up"), self.casefile_merge_table
