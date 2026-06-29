@@ -170,6 +170,8 @@ gdlex-ocr --estimate-casefile-pdf casefile_folder/ --output output/
 
 The estimate prefers `fascicolo_merge_plan_revised.json` when present and falls
 back to `fascicolo_merge_plan.json`, without creating final PDFs or reports.
+`--write-estimate-reports` exports the single-PDF estimate as JSON, Markdown and
+CSV without generating the PDF.
 The revised plan is preferred for the merge too, with the original plan as a
 fallback. The command creates `fascicolo_unico.pdf`, document bookmarks and
 privacy-safe JSON/Markdown reports. `--pdf-optimize balanced` (or `small` or

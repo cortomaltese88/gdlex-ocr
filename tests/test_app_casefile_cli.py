@@ -191,6 +191,54 @@ class AppCasefileCliTest(unittest.TestCase):
             self.assertFalse((out_dir / "fascicolo_unico.pdf").exists())
             self.assertFalse((out_dir / "fascicolo_unico_light.pdf").exists())
             self.assertFalse((out_dir / "fascicolo_unico_report.json").exists())
+            self.assertFalse((out_dir / "fascicolo_pdf_estimate.json").exists())
+            self.assertFalse((out_dir / "fascicolo_pdf_estimate.md").exists())
+            self.assertFalse((out_dir / "fascicolo_pdf_estimate.csv").exists())
+
+    def test_estimate_casefile_pdf_writes_reports_with_flag(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            case_dir = Path(temp_dir) / "fascicolo"
+            out_dir = Path(temp_dir) / "output"
+            _write_synthetic_pdf(case_dir / "uno.pdf", 2)
+            _write_synthetic_pdf(case_dir / "due.pdf", 1)
+            _write_merge_plan(out_dir / "fascicolo_merge_plan.json", [
+                {"final_order": 1, "unit_id": "uno", "source_pdf": "uno.pdf",
+                 "include_in_merged_pdf": True, "bookmark_label": "Uno"},
+                {"final_order": None, "unit_id": "due", "source_pdf": "due.pdf",
+                 "include_in_merged_pdf": False, "bookmark_label": "Due",
+                 "exclude_reason": "duplicato"},
+            ])
+
+            stdout = io.StringIO()
+            with redirect_stdout(stdout), patch(
+                "app.QApplication", side_effect=AssertionError("GUI should not start")
+            ):
+                status = app.main([
+                    "--estimate-casefile-pdf", str(case_dir),
+                    "--output", str(out_dir),
+                    "--write-estimate-reports",
+                ])
+
+            self.assertEqual(0, status)
+            printed = stdout.getvalue()
+            self.assertIn("Report stima creato:", printed)
+            self.assertIn("fascicolo_pdf_estimate.json", printed)
+            self.assertIn("fascicolo_pdf_estimate.md", printed)
+            self.assertIn("fascicolo_pdf_estimate.csv", printed)
+            self.assertTrue((out_dir / "fascicolo_pdf_estimate.json").is_file())
+            self.assertTrue((out_dir / "fascicolo_pdf_estimate.md").is_file())
+            self.assertTrue((out_dir / "fascicolo_pdf_estimate.csv").is_file())
+            payload = json.loads(
+                (out_dir / "fascicolo_pdf_estimate.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            self.assertEqual(1, payload["included_items"])
+            self.assertEqual(1, payload["excluded_items"])
+            self.assertFalse((out_dir / "fascicolo_unico.pdf").exists())
+            self.assertFalse((out_dir / "fascicolo_unico_light.pdf").exists())
+            self.assertFalse((out_dir / "fascicolo_unico_report.json").exists())
+            self.assertFalse((out_dir / "fascicolo_unico_report.md").exists())
 
     def test_estimate_casefile_pdf_reports_missing_plan(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -380,7 +428,17 @@ class AppCasefileCliTest(unittest.TestCase):
         self.assertIn("--analyze-casefile", output.getvalue())
         self.assertIn("--merge-casefile-pdf", output.getvalue())
         self.assertIn("--estimate-casefile-pdf", output.getvalue())
+        self.assertIn("--write-estimate-reports", output.getvalue())
         self.assertIn("--pdf-optimize", output.getvalue())
+
+    def test_write_estimate_reports_requires_estimate_mode(self) -> None:
+        error = io.StringIO()
+
+        with redirect_stderr(error), self.assertRaises(SystemExit) as ctx:
+            app.main(["--write-estimate-reports", "--output", "/tmp/out"])
+
+        self.assertEqual(2, ctx.exception.code)
+        self.assertIn("--estimate-casefile-pdf", error.getvalue())
 
     def test_pdf_optimize_defaults_to_none_and_rejects_invalid_profile(self) -> None:
         self.assertEqual("none", app.parse_args([]).pdf_optimize)

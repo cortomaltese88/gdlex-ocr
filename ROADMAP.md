@@ -26,7 +26,8 @@ flusso esistente, non una promessa di nuove funzioni o date.
 
 ## v0.6.0 - UX e robustezza (candidati)
 
-- Stima dry-run del PDF unico da CLI e GUI, senza generazione PDF.
+- Stima dry-run del PDF unico da CLI e GUI, esportabile in JSON, Markdown e CSV
+  senza generazione PDF.
 - Rifiniture incrementali del flusso fascicolo e dei messaggi utente.
 - Riduzione della dimensione minima della finestra GUI.
 

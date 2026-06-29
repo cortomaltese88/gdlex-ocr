@@ -92,6 +92,7 @@ from gdlex_ocr.casefile_pdf_merge import (
     format_bytes,
     merge_casefile_pdfs,
     select_casefile_pdf_for_ocr,
+    write_casefile_pdf_estimate_reports,
 )
 from gdlex_ocr.icons import tray_icon
 from gdlex_ocr.manifest import (
@@ -1230,6 +1231,17 @@ class MainWindow(QMainWindow):
             self._estimate_casefile_pdf
         )
         merge_buttons.addWidget(self.casefile_merge_estimate_button)
+        self.casefile_merge_export_estimate_button = QPushButton(
+            "Esporta stima PDF"
+        )
+        self.casefile_merge_export_estimate_button.setObjectName(
+            "casefileMergeExportEstimateButton"
+        )
+        self.casefile_merge_export_estimate_button.setEnabled(False)
+        self.casefile_merge_export_estimate_button.clicked.connect(
+            self._export_casefile_pdf_estimate
+        )
+        merge_buttons.addWidget(self.casefile_merge_export_estimate_button)
         self.casefile_pdf_cancel_button = QPushButton("Annulla generazione PDF")
         self.casefile_pdf_cancel_button.setObjectName("casefilePdfCancelButton")
         self.casefile_pdf_cancel_button.setEnabled(False)
@@ -2044,6 +2056,7 @@ class MainWindow(QMainWindow):
         self.casefile_merge_save_button.setEnabled(False)
         self.casefile_merge_generate_button.setEnabled(False)
         self.casefile_merge_estimate_button.setEnabled(False)
+        self.casefile_merge_export_estimate_button.setEnabled(False)
         self.casefile_pdf_cancel_button.setEnabled(False)
         self.casefile_pdf_estimate_label.setText("Stima PDF unico: non disponibile")
         self.casefile_pdf_progress_label.setText("PDF unico: pronto")
@@ -2181,6 +2194,9 @@ class MainWindow(QMainWindow):
         self.casefile_merge_estimate_button.setEnabled(
             plan is not None and controls_available
         )
+        self.casefile_merge_export_estimate_button.setEnabled(
+            plan is not None and controls_available
+        )
         if selected_row is not None and plan and plan.total_items:
             row = min(max(selected_row, 0), plan.total_items - 1)
             self.casefile_merge_table.selectRow(row)
@@ -2313,6 +2329,39 @@ class MainWindow(QMainWindow):
             f"  Dimensione stimata: {estimate['estimated_source_size_human']}"
         )
         self._append_casefile_log(f"Warning: {len(estimate['warnings'])}")
+        self._append_casefile_log("Nessun PDF generato.")
+        self.casefile_pdf_estimate_label.setText(
+            "Stima PDF unico: circa "
+            f"{estimate['estimated_source_size_human']}"
+        )
+        self._refresh_casefile_pdf_actions()
+
+    def _export_casefile_pdf_estimate(self) -> None:
+        input_text = self.casefile_input_edit.text().strip()
+        output_text = self.casefile_output_edit.text().strip()
+        if not input_text or not output_text:
+            QMessageBox.warning(
+                self, "Dati mancanti",
+                "Selezionare cartella fascicolo e cartella output.",
+            )
+            return
+        root = Path(os.path.expanduser(os.path.expandvars(input_text)))
+        output = Path(os.path.expanduser(os.path.expandvars(output_text)))
+        try:
+            estimate = estimate_casefile_pdf_merge(root, output)
+            json_path, md_path, csv_path = write_casefile_pdf_estimate_reports(
+                estimate, output
+            )
+        except (CaseFilePdfMergeError, OSError) as exc:
+            self._append_casefile_log(f"Stima PDF unico non esportata: {exc}")
+            QMessageBox.critical(
+                self, "Esporta stima PDF",
+                f"Impossibile esportare la stima PDF:\n{exc}",
+            )
+            return
+        self._append_casefile_log(f"Stima PDF unico esportata: {json_path}")
+        self._append_casefile_log(f"  Markdown: {md_path}")
+        self._append_casefile_log(f"  CSV: {csv_path}")
         self._append_casefile_log("Nessun PDF generato.")
         self.casefile_pdf_estimate_label.setText(
             "Stima PDF unico: circa "
@@ -2675,6 +2724,9 @@ class MainWindow(QMainWindow):
         self.casefile_merge_estimate_button.setEnabled(
             has_plan and controls_available
         )
+        self.casefile_merge_export_estimate_button.setEnabled(
+            has_plan and controls_available
+        )
         self.casefile_pdf_profile_combo.setEnabled(controls_available)
         if running:
             self.casefile_open_merged_pdf_button.setEnabled(False)
@@ -2700,6 +2752,9 @@ class MainWindow(QMainWindow):
         self.casefile_merge_save_button.setEnabled(has_plan and not running)
         self.casefile_merge_generate_button.setEnabled(has_plan and not running)
         self.casefile_merge_estimate_button.setEnabled(has_plan and not running)
+        self.casefile_merge_export_estimate_button.setEnabled(
+            has_plan and not running
+        )
         self.casefile_pdf_profile_combo.setEnabled(not running)
         self.casefile_pdf_cancel_button.setEnabled(running)
         if running:

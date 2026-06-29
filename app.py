@@ -37,6 +37,7 @@ from gdlex_ocr.casefile_pdf_merge import (
     estimate_casefile_pdf_merge_size,
     format_bytes,
     merge_casefile_pdfs,
+    write_casefile_pdf_estimate_reports,
 )
 from gdlex_ocr.gui import MainWindow
 from gdlex_ocr.icons import application_icon
@@ -105,6 +106,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="stima il PDF unico dal merge plan senza generarlo",
     )
     parser.add_argument(
+        "--write-estimate-reports",
+        action="store_true",
+        help=(
+            "con --estimate-casefile-pdf esporta la stima in JSON, Markdown e CSV"
+        ),
+    )
+    parser.add_argument(
         "--pdf-optimize",
         choices=PDF_OPTIMIZATION_PROFILES,
         default="none",
@@ -171,6 +179,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         parser.error(
             "Le funzioni fascicolo non possono essere usate insieme: "
             + ", ".join(casefile_modes)
+        )
+    if args.write_estimate_reports and not args.estimate_casefile_pdf and not skip:
+        parser.error(
+            "--write-estimate-reports richiede --estimate-casefile-pdf"
         )
     casefile_mode = (
         args.analyze_casefile or args.merge_casefile_pdf
@@ -360,11 +372,21 @@ def merge_casefile_pdf_cli(
     return 0
 
 
-def estimate_casefile_pdf_cli(input_name: str, output_name: str) -> int:
+def estimate_casefile_pdf_cli(
+    input_name: str,
+    output_name: str,
+    *,
+    write_reports: bool = False,
+) -> int:
     """Estimate the single case-file PDF without creating PDFs or reports."""
     try:
+        output_dir = Path(output_name).expanduser()
         estimate = estimate_casefile_pdf_merge(
-            Path(input_name).expanduser(), Path(output_name).expanduser()
+            Path(input_name).expanduser(), output_dir
+        )
+        report_paths = (
+            write_casefile_pdf_estimate_reports(estimate, output_dir)
+            if write_reports else ()
         )
     except (CaseFilePdfMergeError, OSError) as exc:
         print(f"Errore: {exc}", file=sys.stderr)
@@ -376,6 +398,8 @@ def estimate_casefile_pdf_cli(input_name: str, output_name: str) -> int:
     print(f"Pagine stimate: {estimate['estimated_pages']}")
     print(f"Dimensione stimata: {estimate['estimated_source_size_human']}")
     print(f"Warning: {len(estimate['warnings'])}")
+    for path in report_paths:
+        print(f"Report stima creato: {path}")
     print("Nessun PDF generato.")
     return 0
 
@@ -487,7 +511,11 @@ def main(argv: list[str] | None = None) -> int:
         )
 
     if args.estimate_casefile_pdf:
-        return estimate_casefile_pdf_cli(args.estimate_casefile_pdf, args.output)
+        return estimate_casefile_pdf_cli(
+            args.estimate_casefile_pdf,
+            args.output,
+            write_reports=args.write_estimate_reports,
+        )
 
     if args.analyze_judgment:
         return analyze_judgment_markdown(

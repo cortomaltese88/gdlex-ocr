@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import tempfile
 import unittest
@@ -137,6 +138,17 @@ class CasefileGuiControlsTest(unittest.TestCase):
             "Stima PDF unico", self.window.casefile_merge_estimate_button.text()
         )
         self.assertFalse(self.window.casefile_merge_estimate_button.isEnabled())
+        self.assertEqual(
+            "Esporta stima PDF",
+            self.window.casefile_merge_export_estimate_button.text(),
+        )
+        self.assertEqual(
+            "casefileMergeExportEstimateButton",
+            self.window.casefile_merge_export_estimate_button.objectName(),
+        )
+        self.assertFalse(
+            self.window.casefile_merge_export_estimate_button.isEnabled()
+        )
         self.assertEqual(
             "Apri PDF unico", self.window.casefile_open_merged_pdf_button.text()
         )
@@ -364,6 +376,50 @@ class CasefileGuiControlsTest(unittest.TestCase):
                 "Nessun PDF generato.",
             ):
                 self.assertIn(text, log)
+            self.assertFalse(self.window.casefile_open_merged_pdf_button.isEnabled())
+            self.assertFalse(self.window.casefile_open_optimized_pdf_button.isEnabled())
+            self.assertFalse(self.window.casefile_send_pdf_to_ocr_button.isEnabled())
+
+    def test_export_estimate_pdf_button_writes_reports_without_enabling_open(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            input_dir = Path(tmpdir) / "input"
+            unit_dir = input_dir / "100"
+            unit_dir.mkdir(parents=True)
+            (unit_dir / "100.pdf").write_bytes(b"%PDF-synthetic")
+            output_dir = Path(tmpdir) / "output"
+            output_dir.mkdir()
+            plan = CaseFileMergePlan(items=(
+                _synthetic_merge_item("100", 1),
+            ))
+            plan_path = write_casefile_merge_plan_json(
+                plan, output_dir / "fascicolo_merge_plan.json"
+            )
+            self.window.casefile_input_edit.setText(str(input_dir))
+            self.window.casefile_output_edit.setText(str(output_dir))
+            self.assertTrue(self.window._load_casefile_merge_plan(plan_path))
+
+            self.window.casefile_merge_export_estimate_button.click()
+
+            json_path = output_dir / "fascicolo_pdf_estimate.json"
+            md_path = output_dir / "fascicolo_pdf_estimate.md"
+            csv_path = output_dir / "fascicolo_pdf_estimate.csv"
+            self.assertTrue(json_path.is_file())
+            self.assertTrue(md_path.is_file())
+            self.assertTrue(csv_path.is_file())
+            payload = json.loads(json_path.read_text(encoding="utf-8"))
+            self.assertEqual(1, payload["included_items"])
+            self.assertEqual(0, payload["excluded_items"])
+            log = self.window.casefile_log_view.toPlainText()
+            for text in (
+                "Stima PDF unico esportata:",
+                "fascicolo_pdf_estimate.json",
+                "fascicolo_pdf_estimate.md",
+                "fascicolo_pdf_estimate.csv",
+                "Nessun PDF generato.",
+            ):
+                self.assertIn(text, log)
+            self.assertFalse((output_dir / "fascicolo_unico.pdf").exists())
+            self.assertFalse((output_dir / "fascicolo_unico_light.pdf").exists())
             self.assertFalse(self.window.casefile_open_merged_pdf_button.isEnabled())
             self.assertFalse(self.window.casefile_open_optimized_pdf_button.isEnabled())
             self.assertFalse(self.window.casefile_send_pdf_to_ocr_button.isEnabled())

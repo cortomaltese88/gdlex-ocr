@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import csv
+import io
 import json
 import tempfile
 import unittest
@@ -22,6 +24,7 @@ from gdlex_ocr.casefile_pdf_merge import (
     resolve_safe_source_pdf,
     select_casefile_pdf_for_ocr,
     select_casefile_merge_plan,
+    write_casefile_pdf_estimate_reports,
 )
 
 
@@ -204,6 +207,74 @@ class CaseFilePdfMergeTest(unittest.TestCase):
             self.assertIn("nested/source.pdf", text)
             self.assertNotIn(str(root), text)
             self.assertNotIn(str(output), text)
+
+    def test_writes_pdf_estimate_reports_without_pdf_or_merge_reports(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            root, output = base / "private" / "root", base / "output"
+            _pdf(root / "uno.pdf", 2)
+            _pdf(root / "escluso.pdf", 1)
+            _plan(output / "fascicolo_merge_plan.json", [
+                {"final_order": 1, "unit_id": "uno", "source_pdf": "uno.pdf",
+                 "include_in_merged_pdf": True, "bookmark_label": "Atto àccénto",
+                 "warnings": [{"code": "synthetic", "message": "attenzione"}]},
+                {"final_order": None, "unit_id": "skip", "source_pdf": "escluso.pdf",
+                 "include_in_merged_pdf": False, "bookmark_label": "Escluso Ω",
+                 "exclude_reason": "duplicato",
+                 "warnings": [{"code": "excluded", "message": "warning escluso"}]},
+            ])
+
+            estimate = estimate_casefile_pdf_merge(root, output)
+            json_path, md_path, csv_path = write_casefile_pdf_estimate_reports(
+                estimate, output
+            )
+
+            payload = json.loads(json_path.read_text(encoding="utf-8"))
+            for key in (
+                "source_plan", "total_items", "included_items",
+                "excluded_items", "estimated_pages",
+                "estimated_source_size_bytes", "estimated_source_size_human",
+                "warnings", "items", "excluded",
+            ):
+                self.assertIn(key, payload)
+            self.assertEqual("Atto àccénto", payload["items"][0]["bookmark_label"])
+            self.assertEqual("duplicato", payload["excluded"][0]["exclude_reason"])
+            self.assertIn("synthetic: attenzione", payload["warnings"])
+            self.assertIn("excluded: warning escluso", payload["warnings"])
+
+            markdown = md_path.read_text(encoding="utf-8")
+            self.assertIn("# Stima PDF unico fascicolo", markdown)
+            self.assertIn("## Atti inclusi", markdown)
+            self.assertIn("## Atti esclusi", markdown)
+            self.assertIn("## Warning", markdown)
+            self.assertIn("Atto àccénto", markdown)
+            self.assertIn("Escluso Ω", markdown)
+
+            csv_text = csv_path.read_text(encoding="utf-8-sig")
+            rows = list(csv.DictReader(io.StringIO(csv_text), delimiter=";"))
+            self.assertEqual(
+                [
+                    "order", "included", "title/bookmark", "source_pdf",
+                    "pages", "size_bytes", "warning", "reason",
+                ],
+                list(rows[0].keys()),
+            )
+            self.assertEqual("si", rows[0]["included"])
+            self.assertEqual("Atto àccénto", rows[0]["title/bookmark"])
+            self.assertEqual("synthetic: attenzione", rows[0]["warning"])
+            self.assertEqual("no", rows[1]["included"])
+            self.assertEqual("duplicato", rows[1]["reason"])
+
+            combined = (
+                json_path.read_text(encoding="utf-8")
+                + markdown
+                + csv_text
+            )
+            self.assertNotIn(str(base), combined)
+            self.assertFalse((output / "fascicolo_unico.pdf").exists())
+            self.assertFalse((output / "fascicolo_unico_light.pdf").exists())
+            self.assertFalse((output / "fascicolo_unico_report.json").exists())
+            self.assertFalse((output / "fascicolo_unico_report.md").exists())
 
     def test_dry_run_reports_missing_plan(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

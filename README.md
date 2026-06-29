@@ -268,7 +268,9 @@ gdlex-ocr --estimate-casefile-pdf cartella_fascicolo/ --output output/
 
 La stima usa prima `fascicolo_merge_plan_revised.json`, se presente, e
 altrimenti `fascicolo_merge_plan.json`, senza creare PDF o report finali. Il
-merge stampa prima una stima basata sulla somma delle dimensioni dei PDF
+flag `--write-estimate-reports` esporta la stima del PDF unico in JSON,
+Markdown e CSV senza generare il PDF. Il merge stampa prima una stima basata
+sulla somma delle dimensioni dei PDF
 inclusi. La dimensione finale può differire per l'overhead del merge. Per creare
 anche una copia locale alleggerita, senza sovrascrivere l'originale:
 

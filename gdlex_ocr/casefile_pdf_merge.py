@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import csv
+import io
 import json
 import os
 import shutil
@@ -25,6 +27,9 @@ MERGED_PDF_FILENAME = "fascicolo_unico.pdf"
 OPTIMIZED_PDF_FILENAME = "fascicolo_unico_light.pdf"
 MERGE_REPORT_JSON_FILENAME = "fascicolo_unico_report.json"
 MERGE_REPORT_MARKDOWN_FILENAME = "fascicolo_unico_report.md"
+ESTIMATE_REPORT_JSON_FILENAME = "fascicolo_pdf_estimate.json"
+ESTIMATE_REPORT_MARKDOWN_FILENAME = "fascicolo_pdf_estimate.md"
+ESTIMATE_REPORT_CSV_FILENAME = "fascicolo_pdf_estimate.csv"
 PDF_OPTIMIZATION_PROFILES = ("none", "balanced", "small", "screen")
 _GHOSTSCRIPT_SETTINGS = {
     "balanced": "/printer",
@@ -149,6 +154,7 @@ def estimate_casefile_pdf_merge(
         excluded.append({
             "unit_id": item.unit_id,
             "source_pdf": _safe_report_path(item.source_pdf),
+            "bookmark_label": item.bookmark_label,
             "exclude_reason": item.exclude_reason or "escluso",
             "warnings": item_warnings,
         })
@@ -165,6 +171,125 @@ def estimate_casefile_pdf_merge(
         "items": items,
         "excluded": excluded,
     }
+
+
+def default_casefile_pdf_estimate_json_path(output_dir: Path) -> Path:
+    return Path(output_dir) / ESTIMATE_REPORT_JSON_FILENAME
+
+
+def default_casefile_pdf_estimate_md_path(output_dir: Path) -> Path:
+    return Path(output_dir) / ESTIMATE_REPORT_MARKDOWN_FILENAME
+
+
+def default_casefile_pdf_estimate_csv_path(output_dir: Path) -> Path:
+    return Path(output_dir) / ESTIMATE_REPORT_CSV_FILENAME
+
+
+def write_casefile_pdf_estimate_reports(
+    estimate: dict[str, object],
+    output_dir: Path,
+) -> tuple[Path, Path, Path]:
+    """Write audit reports for a PDF merge estimate without creating PDFs."""
+    output = Path(output_dir)
+    output.mkdir(parents=True, exist_ok=True)
+    json_path = default_casefile_pdf_estimate_json_path(output)
+    md_path = default_casefile_pdf_estimate_md_path(output)
+    csv_path = default_casefile_pdf_estimate_csv_path(output)
+    _atomic_write_text(
+        json_path,
+        json.dumps(estimate, ensure_ascii=False, indent=2) + "\n",
+    )
+    _atomic_write_text(md_path, format_casefile_pdf_estimate_markdown(estimate))
+    _atomic_write_text(csv_path, "\ufeff" + format_casefile_pdf_estimate_csv(estimate))
+    return json_path, md_path, csv_path
+
+
+def format_casefile_pdf_estimate_markdown(estimate: dict[str, object]) -> str:
+    lines = [
+        "# Stima PDF unico fascicolo", "",
+        f"Piano usato: {estimate['source_plan']}",
+        f"Atti inclusi: {estimate['included_items']}",
+        f"Atti esclusi: {estimate['excluded_items']}",
+        f"Pagine stimate: {estimate['estimated_pages']}",
+        f"Dimensione stimata: {estimate['estimated_source_size_human']}",
+        f"Warning: {len(estimate.get('warnings', []))}", "",
+        "## Atti inclusi", "",
+        "| Ordine | Titolo/segnalibro | PDF sorgente | Pagine | Dimensione | Warning |",
+        "|---:|---|---|---:|---:|---|",
+    ]
+    for item in estimate.get("items", []):
+        if not isinstance(item, dict):
+            continue
+        warnings = " | ".join(str(warning) for warning in item.get("warnings", []))
+        lines.append(
+            f"| {item.get('final_order') or ''} | "
+            f"{_md(str(item.get('bookmark_label') or ''))} | "
+            f"{_md(str(item.get('source_pdf') or ''))} | "
+            f"{item.get('estimated_pages') or ''} | "
+            f"{_md(str(item.get('source_size_human') or ''))} | "
+            f"{_md(warnings)} |"
+        )
+    lines.extend([
+        "",
+        "## Atti esclusi",
+        "",
+        "| Motivo | Titolo/segnalibro | PDF sorgente | Atto | Warning |",
+        "|---|---|---|---|---|",
+    ])
+    for item in estimate.get("excluded", []):
+        if not isinstance(item, dict):
+            continue
+        warnings = " | ".join(str(warning) for warning in item.get("warnings", []))
+        lines.append(
+            f"| {_md(str(item.get('exclude_reason') or ''))} | "
+            f"{_md(str(item.get('bookmark_label') or ''))} | "
+            f"{_md(str(item.get('source_pdf') or ''))} | "
+            f"{_md(str(item.get('unit_id') or ''))} | "
+            f"{_md(warnings)} |"
+        )
+    lines.extend(["", "## Warning", ""])
+    warnings = estimate.get("warnings", [])
+    if warnings:
+        lines.extend(f"- {_md(str(warning))}" for warning in warnings)
+    else:
+        lines.append("Nessun warning.")
+    return "\n".join(lines) + "\n"
+
+
+def format_casefile_pdf_estimate_csv(estimate: dict[str, object]) -> str:
+    output = io.StringIO(newline="")
+    writer = csv.writer(output, delimiter=";")
+    writer.writerow((
+        "order", "included", "title/bookmark", "source_pdf",
+        "pages", "size_bytes", "warning", "reason",
+    ))
+    for item in estimate.get("items", []):
+        if not isinstance(item, dict):
+            continue
+        writer.writerow((
+            item.get("final_order") or "",
+            "si",
+            item.get("bookmark_label") or "",
+            item.get("source_pdf") or "",
+            item.get("estimated_pages") or "",
+            item.get("source_size_bytes") or "",
+            " | ".join(str(warning) for warning in item.get("warnings", [])),
+            "",
+        ))
+    for item in estimate.get("excluded", []):
+        if not isinstance(item, dict):
+            continue
+        writer.writerow((
+            "",
+            "no",
+            item.get("bookmark_label") or "",
+            item.get("source_pdf") or "",
+            "",
+            "",
+            " | ".join(str(warning) for warning in item.get("warnings", [])),
+            item.get("exclude_reason") or "",
+        ))
+    return output.getvalue()
 
 
 def default_casefile_merged_pdf_path(output_dir: Path) -> Path:
