@@ -1335,6 +1335,35 @@ class MainWindow(QMainWindow):
             self._open_casefile_report
         )
         casefile_buttons_row.addWidget(self.casefile_open_report_button)
+        self.casefile_open_estimate_md_button = QPushButton("Apri stima MD")
+        self.casefile_open_estimate_md_button.setObjectName(
+            "casefileOpenEstimateMdButton"
+        )
+        self.casefile_open_estimate_md_button.setEnabled(False)
+        self.casefile_open_estimate_md_button.clicked.connect(
+            self._open_casefile_estimate_markdown
+        )
+        casefile_buttons_row.addWidget(self.casefile_open_estimate_md_button)
+        self.casefile_open_estimate_csv_button = QPushButton("Apri stima CSV")
+        self.casefile_open_estimate_csv_button.setObjectName(
+            "casefileOpenEstimateCsvButton"
+        )
+        self.casefile_open_estimate_csv_button.setEnabled(False)
+        self.casefile_open_estimate_csv_button.clicked.connect(
+            self._open_casefile_estimate_csv
+        )
+        casefile_buttons_row.addWidget(self.casefile_open_estimate_csv_button)
+        self.casefile_open_validation_md_button = QPushButton(
+            "Apri validazione MD"
+        )
+        self.casefile_open_validation_md_button.setObjectName(
+            "casefileOpenValidationMdButton"
+        )
+        self.casefile_open_validation_md_button.setEnabled(False)
+        self.casefile_open_validation_md_button.clicked.connect(
+            self._open_casefile_validation_markdown
+        )
+        casefile_buttons_row.addWidget(self.casefile_open_validation_md_button)
         self.casefile_open_merged_pdf_button = QPushButton("Apri PDF unico")
         self.casefile_open_merged_pdf_button.setObjectName(
             "casefileOpenMergedPdfButton"
@@ -1938,6 +1967,7 @@ class MainWindow(QMainWindow):
 
     def _refresh_casefile_pdf_actions(self, _text: str = "") -> None:
         if self._casefile_pdf_merge_running:
+            self._update_casefile_report_buttons()
             self.casefile_open_merged_pdf_button.setEnabled(False)
             self.casefile_open_optimized_pdf_button.setEnabled(False)
             self.casefile_send_pdf_to_ocr_button.setEnabled(False)
@@ -1960,6 +1990,53 @@ class MainWindow(QMainWindow):
         has_pdf = original is not None or optimized is not None
         self.casefile_send_pdf_to_ocr_button.setEnabled(has_pdf)
         self.casefile_ocr_pdf_mode_combo.setEnabled(has_pdf)
+        self._update_casefile_report_buttons()
+
+    def _casefile_output_path(self) -> Path | None:
+        output_text = self.casefile_output_edit.text().strip()
+        if not output_text:
+            return None
+        return Path(os.path.expanduser(os.path.expandvars(output_text)))
+
+    def _casefile_output_file(self, name: str) -> Path | None:
+        output = self._casefile_output_path()
+        if output is None or not output.is_dir():
+            return None
+        path = output / name
+        return path if path.is_file() else None
+
+    def _update_casefile_report_buttons(self) -> None:
+        if self._casefile_analysis_running:
+            self._casefile_output_dir = None
+            self.casefile_open_folder_button.setEnabled(False)
+            self.casefile_open_report_button.setEnabled(False)
+            self.casefile_open_estimate_md_button.setEnabled(False)
+            self.casefile_open_estimate_csv_button.setEnabled(False)
+            self.casefile_open_validation_md_button.setEnabled(False)
+            return
+        else:
+            output_dir = self._casefile_output_path()
+            enabled = bool(output_dir and output_dir.is_dir())
+        self._casefile_output_dir = str(output_dir) if enabled and output_dir else None
+        index_report = self._casefile_output_file("fascicolo_index.md")
+        if self._casefile_report_path and output_dir is not None:
+            remembered_report = Path(self._casefile_report_path)
+            if remembered_report.parent == output_dir:
+                index_report = remembered_report
+        self.casefile_open_folder_button.setEnabled(enabled)
+        self.casefile_open_report_button.setEnabled(
+            bool(index_report and index_report.is_file())
+        )
+        self.casefile_open_estimate_md_button.setEnabled(
+            self._casefile_output_file("fascicolo_pdf_estimate.md") is not None
+        )
+        self.casefile_open_estimate_csv_button.setEnabled(
+            self._casefile_output_file("fascicolo_pdf_estimate.csv") is not None
+        )
+        self.casefile_open_validation_md_button.setEnabled(
+            self._casefile_output_file("fascicolo_merge_plan_validation.md")
+            is not None
+        )
 
     def _set_ocr_input_pdf(self, path: Path) -> None:
         self.pdf_edit.setText(str(path))
@@ -2055,8 +2132,9 @@ class MainWindow(QMainWindow):
         self.casefile_log_view.clear()
         self._casefile_last_progress_log_key = None
         self._clear_casefile_merge_plan()
-        self.casefile_open_folder_button.setEnabled(False)
-        self.casefile_open_report_button.setEnabled(False)
+        self._casefile_output_dir = None
+        self._casefile_report_path = None
+        self._update_casefile_report_buttons()
         self.casefile_progress_bar.setRange(0, 100)
         self.casefile_progress_bar.setValue(0)
         self.casefile_progress_label.setText("Analisi fascicolo: preparazione")
@@ -2728,8 +2806,6 @@ class MainWindow(QMainWindow):
 
         self._casefile_output_dir = str(result.json_path.parent)
         self._casefile_report_path = str(result.markdown_path)
-        self.casefile_open_folder_button.setEnabled(True)
-        self.casefile_open_report_button.setEnabled(True)
         self._refresh_casefile_pdf_actions()
 
         QMessageBox.information(
@@ -2770,23 +2846,37 @@ class MainWindow(QMainWindow):
             worker.deleteLater()
 
     def _open_casefile_output_folder(self) -> None:
-        folder = self._casefile_output_dir
-        if not folder or not Path(folder).is_dir():
-            QMessageBox.warning(
-                self,
-                "Cartella non trovata",
-                "La cartella di output non esiste o non è accessibile.",
+        folder = self._casefile_output_path()
+        if folder is None:
+            self._append_casefile_log("Cartella output non disponibile.")
+            return
+        if not folder.is_dir():
+            self._append_casefile_log(
+                "Cartella output non disponibile: la directory non esiste."
             )
             return
         self._open_local_path(
-            Path(folder),
+            folder,
             "Impossibile aprire la cartella",
             "Errore durante l'apertura della cartella.",
         )
 
     def _open_casefile_report(self) -> None:
-        path = self._casefile_report_path
-        if not path or not Path(path).is_file():
+        output = self._casefile_output_path()
+        remembered = (
+            Path(self._casefile_report_path)
+            if self._casefile_report_path
+            else None
+        )
+        if (
+            remembered is not None
+            and output is not None
+            and remembered.parent == output
+        ):
+            path = remembered
+        else:
+            path = self._casefile_output_file("fascicolo_index.md")
+        if path is None or not Path(path).is_file():
             QMessageBox.warning(
                 self,
                 "File non trovato",
@@ -2797,6 +2887,38 @@ class MainWindow(QMainWindow):
             Path(path),
             "Impossibile aprire il file",
             "Errore durante l'apertura del report.",
+        )
+
+    def _open_casefile_output_file(self, name: str, label: str) -> None:
+        path = self._casefile_output_file(name)
+        if path is None:
+            self._append_casefile_log(
+                f"{label} non disponibile. Esporta prima il report richiesto."
+            )
+            self._update_casefile_report_buttons()
+            return
+        self._open_local_path(
+            path,
+            "Impossibile aprire il file",
+            f"Errore durante l'apertura di {label}.",
+        )
+
+    def _open_casefile_estimate_markdown(self) -> None:
+        self._open_casefile_output_file(
+            "fascicolo_pdf_estimate.md",
+            "Report stima Markdown",
+        )
+
+    def _open_casefile_estimate_csv(self) -> None:
+        self._open_casefile_output_file(
+            "fascicolo_pdf_estimate.csv",
+            "Report stima CSV",
+        )
+
+    def _open_casefile_validation_markdown(self) -> None:
+        self._open_casefile_output_file(
+            "fascicolo_merge_plan_validation.md",
+            "Report validazione Markdown",
         )
 
     def _open_casefile_merged_pdf(self) -> None:
@@ -2855,6 +2977,7 @@ class MainWindow(QMainWindow):
             self.casefile_open_optimized_pdf_button.setEnabled(False)
             self.casefile_send_pdf_to_ocr_button.setEnabled(False)
             self.casefile_ocr_pdf_mode_combo.setEnabled(False)
+            self._update_casefile_report_buttons()
         elif not self._casefile_pdf_merge_running:
             self._refresh_casefile_pdf_actions()
 
@@ -2888,6 +3011,7 @@ class MainWindow(QMainWindow):
             self.casefile_open_optimized_pdf_button.setEnabled(False)
             self.casefile_send_pdf_to_ocr_button.setEnabled(False)
             self.casefile_ocr_pdf_mode_combo.setEnabled(False)
+            self._update_casefile_report_buttons()
         else:
             self._refresh_casefile_pdf_actions()
 

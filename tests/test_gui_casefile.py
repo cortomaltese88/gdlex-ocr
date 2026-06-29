@@ -104,8 +104,14 @@ class CasefileGuiControlsTest(unittest.TestCase):
     def test_casefile_output_buttons_exist(self) -> None:
         self.assertIsNotNone(self.window.casefile_open_folder_button)
         self.assertIsNotNone(self.window.casefile_open_report_button)
+        self.assertIsNotNone(self.window.casefile_open_estimate_md_button)
+        self.assertIsNotNone(self.window.casefile_open_estimate_csv_button)
+        self.assertIsNotNone(self.window.casefile_open_validation_md_button)
         self.assertFalse(self.window.casefile_open_folder_button.isEnabled())
         self.assertFalse(self.window.casefile_open_report_button.isEnabled())
+        self.assertFalse(self.window.casefile_open_estimate_md_button.isEnabled())
+        self.assertFalse(self.window.casefile_open_estimate_csv_button.isEnabled())
+        self.assertFalse(self.window.casefile_open_validation_md_button.isEnabled())
         self.assertEqual(
             "casefileOpenFolderButton",
             self.window.casefile_open_folder_button.objectName(),
@@ -113,6 +119,139 @@ class CasefileGuiControlsTest(unittest.TestCase):
         self.assertEqual(
             "casefileOpenReportButton",
             self.window.casefile_open_report_button.objectName(),
+        )
+        self.assertEqual(
+            "casefileOpenEstimateMdButton",
+            self.window.casefile_open_estimate_md_button.objectName(),
+        )
+        self.assertEqual(
+            "casefileOpenEstimateCsvButton",
+            self.window.casefile_open_estimate_csv_button.objectName(),
+        )
+        self.assertEqual(
+            "casefileOpenValidationMdButton",
+            self.window.casefile_open_validation_md_button.objectName(),
+        )
+        self.assertEqual(
+            "Apri stima MD",
+            self.window.casefile_open_estimate_md_button.text(),
+        )
+        self.assertEqual(
+            "Apri stima CSV",
+            self.window.casefile_open_estimate_csv_button.text(),
+        )
+        self.assertEqual(
+            "Apri validazione MD",
+            self.window.casefile_open_validation_md_button.text(),
+        )
+
+    def test_casefile_quick_open_buttons_log_missing_reports(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_dir = Path(tmpdir) / "output"
+            output_dir.mkdir()
+            self.window.casefile_output_edit.setText(str(output_dir))
+
+            self.assertTrue(self.window.casefile_open_folder_button.isEnabled())
+            self.assertFalse(self.window.casefile_open_estimate_md_button.isEnabled())
+            self.assertFalse(self.window.casefile_open_estimate_csv_button.isEnabled())
+            self.assertFalse(self.window.casefile_open_validation_md_button.isEnabled())
+
+            self.window._open_casefile_estimate_markdown()
+            self.window._open_casefile_estimate_csv()
+            self.window._open_casefile_validation_markdown()
+
+            log = self.window.casefile_log_view.toPlainText()
+            self.assertIn(
+                "Report stima Markdown non disponibile. "
+                "Esporta prima il report richiesto.",
+                log,
+            )
+            self.assertIn(
+                "Report stima CSV non disponibile. Esporta prima il report richiesto.",
+                log,
+            )
+            self.assertIn(
+                "Report validazione Markdown non disponibile. "
+                "Esporta prima il report richiesto.",
+                log,
+            )
+
+    def test_casefile_quick_open_buttons_follow_existing_reports(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_dir = Path(tmpdir) / "output con spazi è"
+            output_dir.mkdir()
+            estimate_md = output_dir / "fascicolo_pdf_estimate.md"
+            estimate_csv = output_dir / "fascicolo_pdf_estimate.csv"
+            validation_md = output_dir / "fascicolo_merge_plan_validation.md"
+            estimate_md.write_text("# Stima sintetica\n", encoding="utf-8")
+            estimate_csv.write_text("campo,valore\n", encoding="utf-8")
+            validation_md.write_text("# Validazione sintetica\n", encoding="utf-8")
+            self.window.casefile_output_edit.setText(str(output_dir))
+
+            self.assertTrue(self.window.casefile_open_folder_button.isEnabled())
+            self.assertTrue(self.window.casefile_open_estimate_md_button.isEnabled())
+            self.assertTrue(self.window.casefile_open_estimate_csv_button.isEnabled())
+            self.assertTrue(self.window.casefile_open_validation_md_button.isEnabled())
+
+            with patch.object(self.window, "_open_local_path") as open_path:
+                self.window.casefile_open_folder_button.click()
+                self.window.casefile_open_estimate_md_button.click()
+                self.window.casefile_open_estimate_csv_button.click()
+                self.window.casefile_open_validation_md_button.click()
+
+            opened_paths = [
+                call.args[0]
+                for call in open_path.call_args_list
+            ]
+            self.assertEqual(
+                [output_dir, estimate_md, estimate_csv, validation_md],
+                opened_paths,
+            )
+
+    def test_casefile_quick_open_buttons_refresh_when_reports_are_created(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_dir = Path(tmpdir) / "output"
+            output_dir.mkdir()
+            self.window.casefile_output_edit.setText(str(output_dir))
+            self.assertFalse(self.window.casefile_open_estimate_md_button.isEnabled())
+            self.assertFalse(self.window.casefile_open_estimate_csv_button.isEnabled())
+            self.assertFalse(self.window.casefile_open_validation_md_button.isEnabled())
+
+            (output_dir / "fascicolo_pdf_estimate.md").write_text(
+                "stima md\n", encoding="utf-8"
+            )
+            self.window._refresh_casefile_pdf_actions()
+            self.assertTrue(self.window.casefile_open_estimate_md_button.isEnabled())
+
+            (output_dir / "fascicolo_pdf_estimate.csv").write_text(
+                "stima,csv\n", encoding="utf-8"
+            )
+            self.window._refresh_casefile_pdf_actions()
+            self.assertTrue(self.window.casefile_open_estimate_csv_button.isEnabled())
+
+            (output_dir / "fascicolo_merge_plan_validation.md").write_text(
+                "validazione md\n", encoding="utf-8"
+            )
+            self.window._refresh_casefile_pdf_actions()
+            self.assertTrue(self.window.casefile_open_validation_md_button.isEnabled())
+
+    def test_casefile_quick_open_folder_handles_empty_and_missing_output(self) -> None:
+        self.window.casefile_output_edit.setText("")
+        self.window._open_casefile_output_folder()
+        self.assertIn(
+            "Cartella output non disponibile.",
+            self.window.casefile_log_view.toPlainText(),
+        )
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            missing = Path(tmpdir) / "output assente"
+            self.window.casefile_output_edit.setText(str(missing))
+            self.assertFalse(self.window.casefile_open_folder_button.isEnabled())
+            self.window._open_casefile_output_folder()
+
+        self.assertIn(
+            "Cartella output non disponibile: la directory non esiste.",
+            self.window.casefile_log_view.toPlainText(),
         )
 
     def test_merge_plan_review_controls_exist(self) -> None:

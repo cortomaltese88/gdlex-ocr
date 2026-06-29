@@ -299,8 +299,10 @@ avviene in background senza bloccare l'interfaccia. Non viene eseguito OCR, non
 viene letto il contenuto dei PDF e il path della cartella fascicolo non viene
 salvato nelle impostazioni (`QSettings`). Al termine, i pulsanti **Apri
 cartella output** e **Apri report Markdown** consentono di accedere
-direttamente agli output prodotti. Il log mostra percorsi di input, output e
-conteggi dettagliati.
+direttamente agli output prodotti. La GUI include anche pulsanti per aprire
+rapidamente i report Markdown/CSV della stima PDF e il report Markdown di
+validazione del piano. Il log mostra percorsi di input, output e conteggi
+dettagliati.
 Nella revisione del merge plan, **Genera PDF unico** avvia il merge in
 background e **Apri PDF unico** apre il risultato con l'applicazione locale
 predefinita. La tabella consente di includere o escludere gli atti, indicare il
