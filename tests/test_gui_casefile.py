@@ -19,7 +19,6 @@ from PySide6.QtWidgets import (
     QLabel,
     QProgressBar,
     QScrollArea,
-    QStackedLayout,
     QTabWidget,
     QTableWidget,
 )
@@ -32,7 +31,12 @@ from gdlex_ocr.casefile_merge_plan_export import (
     write_casefile_merge_plan_json,
 )
 from gdlex_ocr.casefile_pdf_merge import CaseFilePdfMergeResult
-from gdlex_ocr.gui import CasefileGuiResult, MainWindow, run_casefile_analysis
+from gdlex_ocr.gui import (
+    CasefileGuiResult,
+    CenteredTextProgressBar,
+    MainWindow,
+    run_casefile_analysis,
+)
 from gdlex_ocr.theme import apply_theme
 
 
@@ -1386,50 +1390,42 @@ class CasefileGuiControlsTest(unittest.TestCase):
         self.assertIn("Base", labels)
         self.assertIn("Backend OCR", labels)
 
-    def test_casefile_progress_bars_use_overlay_labels(self) -> None:
-        for bar, label in (
-            (self.window.casefile_progress_bar,
-             self.window.casefile_progress_bar_label),
-            (self.window.casefile_pdf_progress_bar,
-             self.window.casefile_pdf_progress_bar_label),
+    def test_casefile_progress_bars_are_centered_text(self) -> None:
+        for bar in (
+            self.window.casefile_progress_bar,
+            self.window.casefile_pdf_progress_bar,
         ):
-            self.assertIsInstance(bar, QProgressBar)
-            self.assertIsInstance(label, QLabel)
+            self.assertIsInstance(bar, CenteredTextProgressBar)
             self.assertFalse(
                 bar.isTextVisible(),
                 f"{bar.objectName()} native text should be hidden",
             )
-            self.assertEqual(
-                Qt.AlignmentFlag.AlignCenter,
-                label.alignment(),
-                f"{label.objectName()} alignment is not centered",
-            )
-            self.assertEqual("0%", label.text())
-            self.assertFalse(
-                label.isHidden(),
-                f"{label.objectName()} must not be hidden at startup",
-            )
-            stack = label.parent().layout()
-            self.assertIsInstance(stack, QStackedLayout)
-            self.assertIs(
-                label,
-                stack.currentWidget(),
-                f"{label.objectName()} must be currentWidget of stacked layout",
-            )
+            self.assertEqual("%p%", bar.format())
+            self.assertEqual(0, bar.value())
+            bar.setValue(42)
+            self.assertEqual(42, bar.value())
 
-    def test_casefile_analysis_progress_updates_overlay_label(self) -> None:
+    def test_centered_text_progress_bar_text(self) -> None:
+        bar = CenteredTextProgressBar()
+        bar.setRange(0, 100)
+        bar.setValue(0)
+        self.assertEqual("0%", bar.format().replace("%p", "0"))
+        bar.setValue(42)
+        self.assertEqual("42%", bar.format().replace("%p", "42"))
+        bar.setValue(100)
+        self.assertEqual("100%", bar.format().replace("%p", "100"))
+
+    def test_casefile_analysis_progress_updates_bar(self) -> None:
         self.window._casefile_analysis_progress({
             "phase": "hash",
             "current": 42,
             "total": 100,
             "message": "Calcolo impronta 42/100",
         })
-        label = self.window.casefile_progress_bar_label
         bar = self.window.casefile_progress_bar
-        self.assertEqual(label.text(), f"{bar.value()}%")
         self.assertGreater(bar.value(), 0)
 
-    def test_casefile_pdf_progress_updates_overlay_label(self) -> None:
+    def test_casefile_pdf_progress_updates_bar(self) -> None:
         worker = MagicMock()
         worker.isRunning.return_value = True
         self.window._casefile_pdf_merge_worker = worker
@@ -1441,9 +1437,7 @@ class CasefileGuiControlsTest(unittest.TestCase):
             "bookmark_label": "073 - Atto",
             "message": "Aggiunta unità 73/100",
         })
-        label = self.window.casefile_pdf_progress_bar_label
         bar = self.window.casefile_pdf_progress_bar
-        self.assertEqual(label.text(), f"{bar.value()}%")
         self.assertGreater(bar.value(), 0)
 
     def test_key_widgets_still_exist(self) -> None:
