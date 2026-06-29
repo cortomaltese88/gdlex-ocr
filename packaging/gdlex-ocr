@@ -257,6 +257,14 @@ Opzioni fascicolo (inoltrate all'applicazione):
                            Analizza un fascicolo PDP/TIAP e crea gli export.
   --merge-casefile-pdf CARTELLA --output DIR
                            Genera il PDF unico dal merge plan revisionato.
+  --estimate-casefile-pdf CARTELLA --output DIR
+                           Stima pagine e dimensione del PDF unico senza crearlo.
+  --validate-casefile-merge-plan CARTELLA --output DIR
+                           Valida il merge plan senza generare PDF.
+  --write-estimate-reports
+                           Con --estimate-casefile-pdf esporta JSON/MD/CSV.
+  --write-validation-reports
+                           Con --validate-casefile-merge-plan esporta JSON/MD.
   --pdf-optimize PROFILO   none, balanced, small o screen; gli ultimi tre
                            richiedono Ghostscript e creano il PDF light.
 

@@ -2,6 +2,25 @@
 
 Tutte le modifiche rilevanti del progetto saranno documentate in questo file.
 
+## [0.6.0] - 2026-06-29
+
+### Fascicoli PDP/TIAP
+
+- Aggiunto progress e annullamento per la generazione del PDF unico fascicolo.
+- Aggiunto progress per l'analisi fascicolo.
+- Evidenziati warning nella revisione PDF unico con badge, tooltip e conteggio.
+- Aggiunta scelta esplicita PDF originale / leggero / automatico per invio
+  alla scheda OCR.
+- Aggiunta stima/dry-run del PDF unico da CLI e GUI.
+- Aggiunto export stima PDF unico in JSON, Markdown e CSV.
+- Aggiunta validazione merge plan fascicolo da CLI e GUI.
+- Aggiunto export report validazione in JSON e Markdown.
+- Aggiunti pulsanti GUI per apertura rapida report fascicolo.
+
+### Test
+
+- Estesa copertura test sintetica su helper, CLI, GUI, QSettings e privacy.
+
 ## [0.5.1] - 2026-06-19
 
 ### Correzioni e test

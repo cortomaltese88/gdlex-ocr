@@ -1,4 +1,4 @@
-.TH GDLEX-OCR 1 "19 June 2026" "GD LEX OCR 0.5.1" "User Commands"
+.TH GDLEX-OCR 1 "29 June 2026" "GD LEX OCR 0.6.0" "User Commands"
 .SH NAME
 gdlex-ocr \- convert PDF documents to Markdown using local OCR
 .SH SYNOPSIS
@@ -91,6 +91,31 @@ and
 .IR fascicolo_unico_report.md .
 It does not run OCR or upload documents.
 .TP
+.BI \-\-estimate\-casefile\-pdf " INPUT_DIR"
+Estimate page count and output size for the single casefile PDF without
+generating it. Requires
+.B \-\-output
+to point to the directory containing the merge plan. A revised plan is
+preferred when present.
+.TP
+.BI \-\-validate\-casefile\-merge\-plan " INPUT_DIR"
+Validate the reviewed casefile merge plan without generating a PDF. Requires
+.B \-\-output
+to point to the directory containing the merge plan. The command reports
+missing sources, duplicate order values and other merge-plan problems.
+.TP
+.B \-\-write\-estimate\-reports
+With
+.B \-\-estimate\-casefile\-pdf ,
+write privacy-safe JSON, Markdown and CSV estimate reports in the output
+directory.
+.TP
+.B \-\-write\-validation\-reports
+With
+.B \-\-validate\-casefile\-merge\-plan ,
+write privacy-safe JSON and Markdown validation reports in the output
+directory.
+.TP
 .BI \-\-pdf\-optimize " none|balanced|small|screen"
 Select optional optimization for
 .BR \-\-merge\-casefile\-pdf .
@@ -132,10 +157,12 @@ and
 buttons provide direct access to the generated outputs.
 .PP
 The merge-plan table supports inclusion, exclusion reasons, bookmark editing,
-button and drag-and-drop reordering, keyboard shortcuts, and opening source
-PDFs by double click. It can save a revised JSON/CSV/Markdown plan, generate
-the merged PDF, open its optional light copy, and hand the selected result to
-the OCR tab without starting OCR automatically.
+button and drag-and-drop reordering, keyboard shortcuts, warning badges with
+tooltips and counts, and opening source PDFs by double click. It can save a
+revised JSON/CSV/Markdown plan, estimate and validate the plan, generate the
+merged PDF with progress and cancellation, open its optional light copy, and
+hand the selected original or light result to the OCR tab without starting OCR
+automatically.
 .TP
 .B \-\-version
 Print the installed application version without starting the graphical
@@ -189,6 +216,12 @@ Optional Ghostscript-optimized copy of the merged PDF.
 .TP
 .I fascicolo_unico_report.json, fascicolo_unico_report.md
 Privacy-safe technical reports for the merged casefile PDF.
+.TP
+.I fascicolo_pdf_estimate.json, fascicolo_pdf_estimate.md, fascicolo_pdf_estimate.csv
+Optional privacy-safe estimate reports for the merged casefile PDF.
+.TP
+.I fascicolo_merge_plan_validation.json, fascicolo_merge_plan_validation.md
+Optional privacy-safe validation reports for the reviewed merge plan.
 .SH EXIT STATUS
 .B gdlex-ocr \-\-doctor
 returns 0 when all checks pass, 1 for missing essential components, and 2

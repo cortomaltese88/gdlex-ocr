@@ -1,3 +1,11 @@
+gdlex-ocr (0.6.0) unstable; urgency=medium
+
+  * Add casefile PDF merge progress and cancellation.
+  * Add casefile PDF estimate, validation and export reports.
+  * Improve GUI report handling and OCR handoff selection.
+
+ -- Studio GD LEX <cortomaltese88@users.noreply.github.com>  Mon, 29 Jun 2026 17:46:20 +0200
+
 gdlex-ocr (0.5.1) unstable; urgency=medium
 
   * Warn when optimized casefile PDFs are not smaller than originals.

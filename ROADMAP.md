@@ -12,6 +12,10 @@ resta locale: i documenti originali vengono letti ma non modificati.
 - **v0.5.0**: flusso fascicolo PDP/TIAP completo dall'analisi al merge plan
   revisionabile, PDF unico con segnalibri, copia PDF light opzionale e handoff
   esplicito alla pipeline OCR.
+- **v0.6.0**: consolidamento del flusso fascicolo con progress e annullamento
+  per il PDF unico, progress dell'analisi, warning evidenziati nella revisione,
+  scelta OCR handoff originale/leggero/automatico, stima dry-run, validazione
+  merge plan, export report e pulsanti rapidi per aprire i report.
 
 Molte funzioni inizialmente ipotizzate per la linea `v1.x` sono quindi già
 disponibili. La numerazione futura descrive il consolidamento progressivo del
@@ -24,10 +28,13 @@ flusso esistente, non una promessa di nuove funzioni o date.
 - Allineamento di documentazione, warning e messaggi utente.
 - Nessuna modifica sostanziale al flusso principale.
 
-## v0.6.0 - UX e robustezza (candidati)
+## Prossimi candidati
 
-- Stima dry-run del PDF unico da CLI e GUI, esportabile in JSON, Markdown e CSV
-  senza generazione PDF.
+- Watcher filesystem live per aggiornare i pulsanti report quando cambiano gli
+  output nella cartella selezionata.
+- Ulteriori test manuali su fascicoli pesanti non sensibili generati sotto
+  `/tmp`.
+- Eventuale filtro warning nella tabella di revisione.
 - Rifiniture incrementali del flusso fascicolo e dei messaggi utente.
 - Riduzione della dimensione minima della finestra GUI.
 

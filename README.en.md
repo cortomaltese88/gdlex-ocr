@@ -12,11 +12,12 @@ for each job. The 0.2.x line adds a local **Judgments / Appeals** module that
 creates an heuristic judgment card from Markdown or after PDF conversion.
 The 0.3.x line adds local **PDP/TIAP casefile** folder analysis without OCR,
 available from both CLI and GUI, with document unit recognition, local index
-parsing and index-document matching. The 0.5 line completes the local
+parsing and index-document matching. The 0.6 line consolidates the local
 casefile flow with a reviewable merge plan, a bookmarked merged PDF and
 reports, optional Ghostscript light copy, and explicit manual handoff to the
-OCR tab. Version 0.5.1 consolidates that flow with bug fixes, edge-case tests,
-and clearer warnings, without adding features.
+OCR tab. Version 0.6.0 adds progress and cancellation for merged PDFs,
+dry-run estimates, merge-plan validation, dedicated report exports and quick
+GUI report-opening buttons.
 
 ## What It Does
 
@@ -171,7 +172,20 @@ gdlex-ocr --estimate-casefile-pdf casefile_folder/ --output output/
 The estimate prefers `fascicolo_merge_plan_revised.json` when present and falls
 back to `fascicolo_merge_plan.json`, without creating final PDFs or reports.
 `--write-estimate-reports` exports the single-PDF estimate as JSON, Markdown and
-CSV without generating the PDF.
+CSV without generating the PDF:
+
+```bash
+gdlex-ocr --estimate-casefile-pdf casefile_folder/ --output output/ --write-estimate-reports
+```
+
+The merge plan can be validated before generating the single PDF:
+
+```bash
+gdlex-ocr --validate-casefile-merge-plan casefile_folder/ --output output/
+gdlex-ocr --validate-casefile-merge-plan casefile_folder/ --output output/ --write-validation-reports
+```
+
+`--write-validation-reports` exports validation reports as JSON and Markdown.
 The revised plan is preferred for the merge too, with the original plan as a
 fallback. The command creates `fascicolo_unico.pdf`, document bookmarks and
 privacy-safe JSON/Markdown reports. `--pdf-optimize balanced` (or `small` or
@@ -191,9 +205,10 @@ completion, **Apri cartella output** and **Apri report Markdown** buttons
 provide direct access to the generated outputs. The GUI also includes quick
 open buttons for the PDF estimate Markdown/CSV reports and the merge-plan
 validation Markdown report. **Genera PDF unico** performs the reviewed merge,
-while **Invia PDF unico a OCR** prefers the light copy, falls back to the
-original, and switches to the OCR tab without starting OCR. The PDF plan
-validation can be exported to JSON and Markdown to keep an auditable report.
+while **Invia PDF unico a OCR** lets the user explicitly choose the original
+PDF, the light PDF or automatic selection, then switches to the OCR tab without
+starting OCR. The PDF plan validation can be exported to JSON and Markdown to
+keep an auditable report.
 No casefile document is uploaded and no OCR runs automatically during analysis,
 review, merge, or handoff.
 

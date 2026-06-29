@@ -1,16 +1,16 @@
-# Checklist release v0.5.1
+# Checklist release v0.6.0
 
-La release `v0.5.1` è in preparazione. Gli item aperti rimangono promemoria
+La release `v0.6.0` è in preparazione. Gli item aperti rimangono promemoria
 operativi per audit manuale o pubblicazione; non vanno barrati senza una nuova
 verifica effettiva.
 
-## Pre-release v0.5.1
+## Pre-release v0.6.0
 
-- [x] Verificare che `gdlex_ocr/version.py` riporti `0.5.1`.
-- [x] Verificare coerenza tra README, changelog, manpage e comportamento della GUI.
+- [ ] Verificare che `gdlex_ocr/version.py` riporti `0.6.0`.
+- [ ] Verificare coerenza tra README, changelog, manpage e comportamento della GUI.
 - [ ] Verificare nuovamente launcher, icone e installazione/rimozione desktop
   per utente prima della prossima release.
-- [x] Eseguire i test senza OCR reale:
+- [ ] Eseguire i test senza OCR reale:
 
 ```bash
 .venv/bin/python -m py_compile app.py gdlex_ocr/*.py scripts/*.py scripts/capture-gui-screenshots.py
@@ -51,16 +51,23 @@ git status -sb
   report Markdown" dopo il completamento dell'analisi fascicolo.
 - [x] Documentare merge plan automatico e revisionato, PDF unico con
   segnalibri e report, stima dimensione e PDF light opzionale.
+- [x] Documentare stima/dry-run del PDF unico da CLI e GUI con export JSON,
+  Markdown e CSV tramite `--write-estimate-reports`.
+- [x] Documentare validazione del merge plan da CLI e GUI con export JSON e
+  Markdown tramite `--write-validation-reports`.
+- [x] Documentare progress e annullamento per la generazione del PDF unico.
+- [x] Documentare warning evidenziati nella revisione PDF unico.
 - [x] Confermare che il passaggio del PDF unico alla scheda OCR non avvii
-  automaticamente l'OCR.
+  automaticamente l'OCR e permetta la scelta originale/leggero/automatico.
 - [x] Verificare che nessun output fascicolo o PDF reale sia tracciato.
 - [x] Usare solo fixture sintetiche o non sensibili nei test e negli esempi.
 - [x] Non includere PDF originali, output OCR, Markdown generati o `run.log`.
 - [x] Verificare che directory temporanee `.gdlex_ocr_*` non siano incluse.
+- [ ] Eseguire privacy grep sul diff finale.
 - [ ] Controllare manualmente screenshot e metadati delle immagini prima della
   prossima pubblicazione.
 
-## Perimetro test v0.5.1
+## Perimetro test v0.6.0
 
 - [x] Non eseguire OCR reale durante la preparazione della release.
 - [x] Usare esclusivamente smoke test e fixture sintetiche.
@@ -77,9 +84,12 @@ git status -sb
   report Markdown", log fascicolo con percorsi e conteggi, sezione "File più
   grandi", riepilogo operativo, CSV unità documentali, payload Debian,
   merge plan automatico e revisionato, revisione GUI con drag & drop e
-  shortcut, PDF unico/light, segnalibri, report, handoff OCR, benchmark
-  sintetico e stress test subprocess tramite la suite offline.
-- [x] Suite offline a 634 test sintetici.
+  shortcut, PDF unico/light, progress e annullamento, segnalibri, report,
+  handoff OCR originale/leggero/automatico, stima PDF unico, export stima
+  JSON/Markdown/CSV, validazione merge plan, export validazione JSON/Markdown,
+  pulsanti rapidi per report fascicolo, benchmark sintetico e stress test
+  subprocess tramite la suite offline.
+- [x] Suite offline a 684 test sintetici.
 - [x] Eseguire smoke test senza documenti reali.
 - [ ] Controllare visivamente il PDF unico/light con una fixture non sensibile.
 
@@ -108,30 +118,34 @@ git diff
 ## Packaging
 
 - [x] Applicare la scelta descritta in `PACKAGING.md`.
-- [x] Non incorporare la `.venv` nel pacchetto v0.5.1.
-- [x] Costruire il pacchetto `.deb` v0.5.1 con il metodo del progetto.
-- [x] Verificare contenuto, dipendenze e
+- [ ] Non incorporare la `.venv` nel pacchetto v0.6.0.
+- [ ] Costruire il pacchetto `.deb` v0.6.0 con il metodo del progetto.
+- [ ] Verificare contenuto, dipendenze e
   copyright in ambiente pulito.
-- [x] Verificare il `.deb` con `dpkg-deb`, estrazione temporanea e `lintian`.
-- [x] Non includere modelli Docling/ONNX senza inventario e verifica delle licenze.
-- [x] Confermare che OCRmyPDF e Tesseract restino dipendenze opzionali di sistema.
-- [x] Confermare che Ghostscript resti opzionale e sia richiesto solo per
+- [ ] Verificare il `.deb` con `dpkg-deb`, estrazione temporanea e `lintian`
+  se disponibile.
+- [ ] Non includere modelli Docling/ONNX senza inventario e verifica delle licenze.
+- [ ] Confermare che OCRmyPDF e Tesseract restino dipendenze opzionali di sistema.
+- [ ] Confermare che Ghostscript resti opzionale e sia richiesto solo per
   `--pdf-optimize` diverso da `none`.
 - [ ] Installare manualmente il pacchetto pubblicato con `sudo apt install`.
 - [ ] Eseguire `/usr/bin/gdlex-ocr --doctor` sul pacchetto installato,
   controllando che non venga usato un wrapper `~/.local/bin/gdlex-ocr`.
+- [ ] Pubblicare la release GitHub solo dopo commit, tag e artefatti verificati.
+- [ ] Avviare workflow APT solo dopo release GitHub e controllo `.deb`.
 
 ```bash
 bash scripts/build-deb.sh
-dpkg-deb -f dist/gdlex-ocr_0.5.1_all.deb Package Version Architecture Depends Suggests
-dpkg-deb --contents dist/gdlex-ocr_0.5.1_all.deb | \
-  grep -E 'casefile|casefile_pdf_merge|judgments|folder-matrix|icon-64|gdlex-ocr.desktop|gdlex-ocr.1'
-dpkg-deb --contents dist/gdlex-ocr_0.5.1_all.deb | \
+dpkg-deb -f dist/gdlex-ocr_0.6.0_all.deb Package Version Architecture Depends Suggests
+dpkg-deb --contents dist/gdlex-ocr_0.6.0_all.deb | \
+  grep -E 'casefile|casefile_pdf_merge|casefile_merge_plan|judgments|folder-matrix|icon-64|gdlex-ocr.desktop|gdlex-ocr.1'
+dpkg-deb --contents dist/gdlex-ocr_0.6.0_all.deb | \
   grep -E '(\.venv|__pycache__|\.git|run\.log|manifest\.json|Downloads|Documenti)' || true
-sha256sum dist/gdlex-ocr_0.5.1_all.deb
-sudo apt install ./dist/gdlex-ocr_0.5.1_all.deb
+lintian dist/gdlex-ocr_0.6.0_all.deb
+sha256sum dist/gdlex-ocr_0.6.0_all.deb
+sudo apt install ./dist/gdlex-ocr_0.6.0_all.deb
 /usr/bin/gdlex-ocr --version
-/usr/bin/gdlex-ocr --help | grep -E "analyze-casefile|merge-casefile-pdf|pdf-optimize"
+/usr/bin/gdlex-ocr --help | grep -E "analyze-casefile|merge-casefile-pdf|estimate-casefile-pdf|validate-casefile-merge-plan|write-estimate-reports|write-validation-reports|pdf-optimize"
 /usr/bin/gdlex-ocr --doctor
 ```
 

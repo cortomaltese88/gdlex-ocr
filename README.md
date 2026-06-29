@@ -2,17 +2,18 @@
 
 [English README](README.en.md)
 
-## Versione 0.5.1
+## Versione 0.6.0
 
 GD LEX OCR è un'applicazione desktop locale in Python e PySide6 per
 convertire fascicoli e documenti PDF in Markdown tramite Docling. È pensata
 per workflow legali in cui servono elaborazione locale, output verificabile e
 tracciabilità tecnica del risultato, senza modificare il PDF originale. La
-linea 0.5 completa il flusso locale **Fascicoli PDP/TIAP**: analisi e
+linea 0.6 consolida il flusso locale **Fascicoli PDP/TIAP**: analisi e
 unità documentali, merge plan revisionabile, PDF unico navigabile con
 segnalibri e report, copia light opzionale e passaggio manuale alla scheda OCR.
-La versione 0.5.1 consolida il flusso con correzioni, test dei casi limite e
-warning più visibili, senza aggiungere nuove funzionalità.
+La versione 0.6.0 aggiunge progress e annullamento per il PDF unico, stima
+dry-run, validazione del merge plan, export report dedicati e apertura rapida
+dei report dalla GUI.
 
 ## Prerequisiti minimi
 
@@ -146,7 +147,7 @@ bash scripts/uninstall-desktop.sh
 
 ## Pacchetto Debian leggero
 
-Il pacchetto `.deb` v0.5.1 installa sorgenti, asset, launcher e documentazione,
+Il pacchetto `.deb` v0.6.0 installa sorgenti, asset, launcher e documentazione,
 ma non incorpora `.venv`, dipendenze Python, modelli OCR o documenti elaborati.
 Per costruirlo:
 
@@ -269,10 +270,23 @@ gdlex-ocr --estimate-casefile-pdf cartella_fascicolo/ --output output/
 La stima usa prima `fascicolo_merge_plan_revised.json`, se presente, e
 altrimenti `fascicolo_merge_plan.json`, senza creare PDF o report finali. Il
 flag `--write-estimate-reports` esporta la stima del PDF unico in JSON,
-Markdown e CSV senza generare il PDF. Il merge stampa prima una stima basata
-sulla somma delle dimensioni dei PDF
-inclusi. La dimensione finale può differire per l'overhead del merge. Per creare
-anche una copia locale alleggerita, senza sovrascrivere l'originale:
+Markdown e CSV senza generare il PDF:
+
+```bash
+gdlex-ocr --estimate-casefile-pdf cartella_fascicolo/ --output output/ --write-estimate-reports
+```
+
+Il piano di merge può essere validato prima della generazione del PDF unico:
+
+```bash
+gdlex-ocr --validate-casefile-merge-plan cartella_fascicolo/ --output output/
+gdlex-ocr --validate-casefile-merge-plan cartella_fascicolo/ --output output/ --write-validation-reports
+```
+
+`--write-validation-reports` esporta la validazione in JSON e Markdown. Il
+merge stampa prima una stima basata sulla somma delle dimensioni dei PDF
+inclusi. La dimensione finale può differire per l'overhead del merge. Per
+creare anche una copia locale alleggerita, senza sovrascrivere l'originale:
 
 ```bash
 gdlex-ocr --merge-casefile-pdf cartella_fascicolo/ --output output/ --pdf-optimize balanced
@@ -315,9 +329,9 @@ conservare un report auditabile.
 
 Il profilo PDF scelto nella GUI ha gli stessi effetti dell'opzione CLI
 `--pdf-optimize`: **Apri PDF leggero** è disponibile solo quando Ghostscript ha
-creato la copia alleggerita. **Invia PDF unico a OCR** seleziona la copia light
-se esiste, altrimenti l'originale, e passa alla scheda OCR senza avviare
-automaticamente alcuna elaborazione.
+creato la copia alleggerita. **Invia PDF unico a OCR** permette di scegliere
+esplicitamente PDF originale, PDF leggero o selezione automatica; passa alla
+scheda OCR senza avviare automaticamente alcuna elaborazione.
 
 La stima della dimensione è approssimativa; Ghostscript non garantisce una
 riduzione per ogni documento e può modificare la resa. Se il PDF light è più
