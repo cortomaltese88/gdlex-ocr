@@ -357,6 +357,243 @@ def select_casefile_merge_plan(output_dir: Path) -> Path:
     )
 
 
+def validate_casefile_merge_plan(
+    casefile_root: Path, output_dir: Path
+) -> dict[str, object]:
+    """Validate a case-file merge plan without creating PDFs or extracting text."""
+    root = Path(casefile_root).expanduser()
+    output = Path(output_dir).expanduser()
+    errors: list[str] = []
+    warnings: list[str] = []
+    items: list[dict[str, object]] = []
+    source_plan: str | None = None
+
+    if not root.is_dir():
+        errors.append("La cartella del fascicolo non esiste.")
+
+    try:
+        plan_path = select_casefile_merge_plan(output)
+        source_plan = plan_path.name
+    except CaseFilePdfMergeError as exc:
+        errors.append(str(exc))
+        return {
+            "ok": False,
+            "source_plan": source_plan,
+            "total_items": 0,
+            "included_items": 0,
+            "excluded_items": 0,
+            "errors": errors,
+            "warnings": warnings,
+            "items": items,
+        }
+
+    try:
+        payload = json.loads(plan_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        errors.append(f"Merge plan JSON non valido: {exc.msg}.")
+        return _casefile_merge_plan_validation_result(
+            source_plan, 0, 0, 0, errors, warnings, items
+        )
+    except OSError as exc:
+        detail = exc.strerror or exc.__class__.__name__
+        errors.append(f"Merge plan non leggibile: {detail}.")
+        return _casefile_merge_plan_validation_result(
+            source_plan, 0, 0, 0, errors, warnings, items
+        )
+
+    raw_items = payload.get("items") if isinstance(payload, dict) else None
+    if not isinstance(raw_items, list):
+        errors.append("Il merge plan JSON non contiene una lista 'items'.")
+        return _casefile_merge_plan_validation_result(
+            source_plan, 0, 0, 0, errors, warnings, items
+        )
+
+    included_count = 0
+    excluded_count = 0
+    included_orders: list[int] = []
+    included_sources: list[str] = []
+
+    for index, raw_item in enumerate(raw_items, start=1):
+        item_errors: list[str] = []
+        item_warnings: list[str] = []
+        if not isinstance(raw_item, dict):
+            message = f"Item {index} non valido: atteso oggetto JSON."
+            errors.append(message)
+            items.append({
+                "index": index,
+                "included": False,
+                "errors": [message],
+                "warnings": [],
+            })
+            continue
+
+        included = bool(raw_item.get("include_in_merged_pdf", True))
+        if included:
+            included_count += 1
+        else:
+            excluded_count += 1
+            reason = str(raw_item.get("exclude_reason") or "escluso").strip()
+            item_warnings.append(f"Item {index} escluso dal PDF unico: {reason}.")
+
+        unit_id = str(raw_item.get("unit_id") or "").strip()
+        source_pdf = str(raw_item.get("source_pdf") or "").strip()
+        bookmark_label = str(raw_item.get("bookmark_label") or "").strip()
+        bookmark_title = str(raw_item.get("bookmark_title") or "").strip()
+        raw_order = raw_item.get("final_order")
+        order = _safe_optional_int(raw_order)
+
+        if included:
+            if not source_pdf:
+                item_errors.append(f"Item {index} incluso senza PDF sorgente.")
+            else:
+                try:
+                    source = resolve_safe_source_pdf(root, source_pdf)
+                except CaseFilePdfMergeError as exc:
+                    item_errors.append(f"Item {index}: {exc}")
+                else:
+                    try:
+                        with source.open("rb") as stream:
+                            stream.read(1)
+                    except OSError as exc:
+                        detail = exc.strerror or exc.__class__.__name__
+                        item_errors.append(
+                            f"Item {index}: PDF sorgente non leggibile: "
+                            f"{source_pdf}: {detail}"
+                        )
+                    else:
+                        try:
+                            size = source.stat().st_size
+                        except OSError as exc:
+                            detail = exc.strerror or exc.__class__.__name__
+                            item_errors.append(
+                                f"Item {index}: PDF sorgente non leggibile: "
+                                f"{source_pdf}: {detail}"
+                            )
+                        else:
+                            if size == 0:
+                                item_warnings.append(
+                                    f"Item {index}: PDF sorgente vuoto: {source_pdf}."
+                                )
+                    included_sources.append(source_pdf)
+
+            if order is None:
+                item_warnings.append(f"Item {index}: ordine mancante.")
+            else:
+                included_orders.append(order)
+
+        if not bookmark_label and not bookmark_title:
+            item_warnings.append(f"Item {index}: bookmark/titolo vuoto.")
+
+        pages = _safe_optional_int(raw_item.get("total_pages"))
+        if pages is None or pages == 0:
+            item_warnings.append(f"Item {index}: numero pagine mancante o zero.")
+
+        raw_warnings = raw_item.get("warnings")
+        if isinstance(raw_warnings, list) and raw_warnings:
+            for warning_index, raw_warning in enumerate(raw_warnings, start=1):
+                message = _raw_plan_warning_message(raw_warning, warning_index)
+                item_warnings.append(
+                    f"Item {index}: warning già presente nel piano: {message}"
+                )
+
+        errors.extend(item_errors)
+        warnings.extend(item_warnings)
+        items.append({
+            "index": index,
+            "unit_id": unit_id,
+            "source_pdf": _safe_report_path(source_pdf),
+            "included": included,
+            "final_order": order,
+            "errors": item_errors,
+            "warnings": item_warnings,
+        })
+
+    if included_count == 0:
+        errors.append(
+            "Il merge plan non contiene PDF inclusi: "
+            "Nessun item incluso nel PDF unico."
+        )
+
+    duplicate_orders = sorted(_duplicates(included_orders))
+    for order in duplicate_orders:
+        errors.append(f"Ordine duplicato tra item inclusi: {order}.")
+
+    duplicate_sources = sorted(_duplicates(included_sources))
+    for source_pdf in duplicate_sources:
+        warnings.append(
+            f"PDF sorgente duplicato tra item inclusi: {_safe_report_path(source_pdf)}."
+        )
+
+    if included_orders and not duplicate_orders:
+        expected = list(range(1, len(included_orders) + 1))
+        if sorted(included_orders) != expected:
+            warnings.append(
+                "Ordine non sequenziale tra item inclusi: attesi valori "
+                f"1..{len(included_orders)}."
+            )
+
+    return _casefile_merge_plan_validation_result(
+        source_plan,
+        len(raw_items),
+        included_count,
+        excluded_count,
+        errors,
+        warnings,
+        items,
+    )
+
+
+def _casefile_merge_plan_validation_result(
+    source_plan: str | None,
+    total_items: int,
+    included_items: int,
+    excluded_items: int,
+    errors: list[str],
+    warnings: list[str],
+    items: list[dict[str, object]],
+) -> dict[str, object]:
+    return {
+        "ok": not errors,
+        "source_plan": source_plan,
+        "total_items": total_items,
+        "included_items": included_items,
+        "excluded_items": excluded_items,
+        "errors": errors,
+        "warnings": warnings,
+        "items": items,
+    }
+
+
+def _safe_optional_int(value: object) -> int | None:
+    if value in (None, ""):
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _duplicates(values: list[object]) -> set[object]:
+    seen: set[object] = set()
+    duplicates: set[object] = set()
+    for value in values:
+        if value in seen:
+            duplicates.add(value)
+        seen.add(value)
+    return duplicates
+
+
+def _raw_plan_warning_message(raw_warning: object, index: int) -> str:
+    if isinstance(raw_warning, dict):
+        message = str(raw_warning.get("message") or "").strip()
+        code = str(raw_warning.get("code") or "").strip()
+        if message:
+            return message
+        if code:
+            return code
+    return f"warning {index}"
+
+
 def load_merge_plan_for_pdf_merge(path: Path) -> CaseFileMergePlan:
     try:
         plan_path = Path(path)
@@ -388,6 +625,11 @@ def build_casefile_pdf_merge_job(
     if output.exists() and not output.is_dir():
         raise CaseFilePdfMergeError("Il percorso di output non è una cartella.")
     plan_path = select_casefile_merge_plan(output)
+    validation = validate_casefile_merge_plan(root, output)
+    validation_errors = validation.get("errors", [])
+    if validation_errors:
+        detail = "; ".join(str(error) for error in validation_errors)
+        raise CaseFilePdfMergeError(f"Merge plan non valido: {detail}")
     plan = load_merge_plan_for_pdf_merge(plan_path)
     return CaseFilePdfMergeJob(root.resolve(), output, plan_path, plan)
 

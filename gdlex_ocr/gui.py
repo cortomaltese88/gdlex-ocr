@@ -92,6 +92,7 @@ from gdlex_ocr.casefile_pdf_merge import (
     format_bytes,
     merge_casefile_pdfs,
     select_casefile_pdf_for_ocr,
+    validate_casefile_merge_plan,
     write_casefile_pdf_estimate_reports,
 )
 from gdlex_ocr.icons import tray_icon
@@ -1222,6 +1223,15 @@ class MainWindow(QMainWindow):
             self._generate_casefile_pdf
         )
         merge_buttons.addWidget(self.casefile_merge_generate_button)
+        self.casefile_merge_validate_button = QPushButton("Valida piano PDF")
+        self.casefile_merge_validate_button.setObjectName(
+            "casefileMergeValidateButton"
+        )
+        self.casefile_merge_validate_button.setEnabled(False)
+        self.casefile_merge_validate_button.clicked.connect(
+            self._validate_casefile_pdf_plan
+        )
+        merge_buttons.addWidget(self.casefile_merge_validate_button)
         self.casefile_merge_estimate_button = QPushButton("Stima PDF unico")
         self.casefile_merge_estimate_button.setObjectName(
             "casefileMergeEstimateButton"
@@ -1976,6 +1986,10 @@ class MainWindow(QMainWindow):
             else:
                 self._append_casefile_log("Genera prima il PDF unico del fascicolo.")
             return
+        validation = self._validate_casefile_pdf_plan(show_dialog_on_error=True)
+        if validation is None or not validation["ok"]:
+            self._append_casefile_log("PDF non inviato alla scheda OCR.")
+            return
         self._set_ocr_input_pdf(selected)
         self._switch_to_ocr_tab()
         selected_kind = (
@@ -2055,6 +2069,7 @@ class MainWindow(QMainWindow):
         self.casefile_merge_down_button.setEnabled(False)
         self.casefile_merge_save_button.setEnabled(False)
         self.casefile_merge_generate_button.setEnabled(False)
+        self.casefile_merge_validate_button.setEnabled(False)
         self.casefile_merge_estimate_button.setEnabled(False)
         self.casefile_merge_export_estimate_button.setEnabled(False)
         self.casefile_pdf_cancel_button.setEnabled(False)
@@ -2191,6 +2206,9 @@ class MainWindow(QMainWindow):
         self.casefile_merge_generate_button.setEnabled(
             plan is not None and controls_available
         )
+        self.casefile_merge_validate_button.setEnabled(
+            plan is not None and controls_available
+        )
         self.casefile_merge_estimate_button.setEnabled(
             plan is not None and controls_available
         )
@@ -2301,6 +2319,55 @@ class MainWindow(QMainWindow):
         if markdown_path is not None:
             self._append_casefile_log(f"  Markdown revisionato: {markdown_path}")
 
+    def _selected_casefile_validation_paths(self) -> tuple[Path, Path] | None:
+        input_text = self.casefile_input_edit.text().strip()
+        output_text = self.casefile_output_edit.text().strip()
+        if not input_text or not output_text:
+            QMessageBox.warning(
+                self, "Dati mancanti",
+                "Selezionare cartella fascicolo e cartella output.",
+            )
+            return None
+        root = Path(os.path.expanduser(os.path.expandvars(input_text)))
+        output = Path(os.path.expanduser(os.path.expandvars(output_text)))
+        return root, output
+
+    def _append_casefile_merge_validation_log(
+        self, validation: dict[str, object]
+    ) -> None:
+        self._append_casefile_log(
+            f"Piano usato: {validation.get('source_plan') or 'non trovato'}"
+        )
+        self._append_casefile_log(f"  Item totali: {validation['total_items']}")
+        self._append_casefile_log(f"  Inclusi: {validation['included_items']}")
+        self._append_casefile_log(f"  Esclusi: {validation['excluded_items']}")
+        self._append_casefile_log(f"  Errori: {len(validation['errors'])}")
+        self._append_casefile_log(f"  Warning: {len(validation['warnings'])}")
+        self._append_casefile_log(
+            f"Esito: {'OK' if validation['ok'] else 'ERRORE'}"
+        )
+        for error in validation["errors"]:
+            self._append_casefile_log(f"Errore: {error}")
+        for warning in validation["warnings"]:
+            self._append_casefile_log(f"Warning: {warning}")
+
+    def _validate_casefile_pdf_plan(
+        self, _checked: bool = False, *, show_dialog_on_error: bool = False
+    ) -> dict[str, object] | None:
+        paths = self._selected_casefile_validation_paths()
+        if paths is None:
+            return None
+        root, output = paths
+        validation = validate_casefile_merge_plan(root, output)
+        self._append_casefile_merge_validation_log(validation)
+        if show_dialog_on_error and not validation["ok"]:
+            QMessageBox.critical(
+                self, "Validazione piano PDF",
+                "Il piano PDF contiene errori bloccanti. "
+                "Controllare il log della scheda Fascicolo.",
+            )
+        return validation
+
     def _estimate_casefile_pdf(self) -> None:
         input_text = self.casefile_input_edit.text().strip()
         output_text = self.casefile_output_edit.text().strip()
@@ -2312,6 +2379,10 @@ class MainWindow(QMainWindow):
             return
         root = Path(os.path.expanduser(os.path.expandvars(input_text)))
         output = Path(os.path.expanduser(os.path.expandvars(output_text)))
+        validation = self._validate_casefile_pdf_plan(show_dialog_on_error=True)
+        if validation is None or not validation["ok"]:
+            self._append_casefile_log("Stima PDF unico non avviata.")
+            return
         try:
             estimate = estimate_casefile_pdf_merge(root, output)
         except (CaseFilePdfMergeError, OSError) as exc:
@@ -2347,6 +2418,10 @@ class MainWindow(QMainWindow):
             return
         root = Path(os.path.expanduser(os.path.expandvars(input_text)))
         output = Path(os.path.expanduser(os.path.expandvars(output_text)))
+        validation = self._validate_casefile_pdf_plan(show_dialog_on_error=True)
+        if validation is None or not validation["ok"]:
+            self._append_casefile_log("Stima PDF unico non esportata.")
+            return
         try:
             estimate = estimate_casefile_pdf_merge(root, output)
             json_path, md_path, csv_path = write_casefile_pdf_estimate_reports(
@@ -2384,6 +2459,10 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(
                 self, "Cartella non trovata", "La cartella del fascicolo non esiste."
             )
+            return
+        validation = self._validate_casefile_pdf_plan(show_dialog_on_error=True)
+        if validation is None or not validation["ok"]:
+            self._append_casefile_log("Generazione PDF unico non avviata.")
             return
         self._set_casefile_pdf_merge_running(True)
         self.casefile_pdf_progress_bar.setValue(0)
@@ -2721,6 +2800,7 @@ class MainWindow(QMainWindow):
         self.casefile_merge_down_button.setEnabled(has_rows and controls_available)
         self.casefile_merge_save_button.setEnabled(has_plan and controls_available)
         self.casefile_merge_generate_button.setEnabled(has_plan and controls_available)
+        self.casefile_merge_validate_button.setEnabled(has_plan and controls_available)
         self.casefile_merge_estimate_button.setEnabled(
             has_plan and controls_available
         )
@@ -2751,6 +2831,7 @@ class MainWindow(QMainWindow):
         self.casefile_merge_down_button.setEnabled(has_rows and not running)
         self.casefile_merge_save_button.setEnabled(has_plan and not running)
         self.casefile_merge_generate_button.setEnabled(has_plan and not running)
+        self.casefile_merge_validate_button.setEnabled(has_plan and not running)
         self.casefile_merge_estimate_button.setEnabled(has_plan and not running)
         self.casefile_merge_export_estimate_button.setEnabled(
             has_plan and not running

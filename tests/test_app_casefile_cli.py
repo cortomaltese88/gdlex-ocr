@@ -255,6 +255,61 @@ class AppCasefileCliTest(unittest.TestCase):
             self.assertEqual(1, status)
             self.assertIn("Merge plan non trovato", error.getvalue())
 
+    def test_validate_casefile_merge_plan_prints_ok_summary(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            case_dir = Path(temp_dir) / "fascicolo"
+            out_dir = Path(temp_dir) / "output"
+            _write_synthetic_pdf(case_dir / "one.pdf", 1)
+            _write_merge_plan(out_dir / "fascicolo_merge_plan.json", [
+                {"final_order": 1, "unit_id": "one", "source_pdf": "one.pdf",
+                 "include_in_merged_pdf": True, "bookmark_label": "One",
+                 "total_pages": 1},
+            ])
+
+            stdout = io.StringIO()
+            with redirect_stdout(stdout), patch(
+                "app.QApplication", side_effect=AssertionError("GUI should not start")
+            ):
+                status = app.main([
+                    "--validate-casefile-merge-plan", str(case_dir),
+                    "--output", str(out_dir),
+                ])
+
+            self.assertEqual(0, status)
+            printed = stdout.getvalue()
+            self.assertIn("Piano usato: fascicolo_merge_plan.json", printed)
+            self.assertIn("Item totali: 1", printed)
+            self.assertIn("Inclusi: 1", printed)
+            self.assertIn("Esclusi: 0", printed)
+            self.assertIn("Errori: 0", printed)
+            self.assertIn("Warning: 0", printed)
+            self.assertIn("Esito: OK", printed)
+            self.assertFalse((out_dir / "fascicolo_unico.pdf").exists())
+            self.assertFalse((out_dir / "fascicolo_unico_light.pdf").exists())
+
+    def test_validate_casefile_merge_plan_returns_nonzero_on_errors(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            case_dir = Path(temp_dir) / "fascicolo"
+            out_dir = Path(temp_dir) / "output"
+            case_dir.mkdir()
+            _write_merge_plan(out_dir / "fascicolo_merge_plan.json", [
+                {"final_order": 1, "unit_id": "one", "source_pdf": "",
+                 "include_in_merged_pdf": True, "bookmark_label": "One"},
+            ])
+
+            stdout = io.StringIO()
+            with redirect_stdout(stdout):
+                status = app.main([
+                    "--validate-casefile-merge-plan", str(case_dir),
+                    "--output", str(out_dir),
+                ])
+
+            self.assertEqual(1, status)
+            printed = stdout.getvalue()
+            self.assertIn("Esito: ERRORE", printed)
+            self.assertIn("Errore:", printed)
+            self.assertIn("senza PDF sorgente", printed)
+
     def test_analyze_casefile_writes_json_and_markdown(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             case_dir = Path(temp_dir) / "fascicolo"
@@ -428,6 +483,7 @@ class AppCasefileCliTest(unittest.TestCase):
         self.assertIn("--analyze-casefile", output.getvalue())
         self.assertIn("--merge-casefile-pdf", output.getvalue())
         self.assertIn("--estimate-casefile-pdf", output.getvalue())
+        self.assertIn("--validate-casefile-merge-plan", output.getvalue())
         self.assertIn("--write-estimate-reports", output.getvalue())
         self.assertIn("--pdf-optimize", output.getvalue())
 

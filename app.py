@@ -37,6 +37,7 @@ from gdlex_ocr.casefile_pdf_merge import (
     estimate_casefile_pdf_merge_size,
     format_bytes,
     merge_casefile_pdfs,
+    validate_casefile_merge_plan,
     write_casefile_pdf_estimate_reports,
 )
 from gdlex_ocr.gui import MainWindow
@@ -106,6 +107,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="stima il PDF unico dal merge plan senza generarlo",
     )
     parser.add_argument(
+        "--validate-casefile-merge-plan",
+        metavar="CARTELLA",
+        help="valida il merge plan del fascicolo senza generare PDF o report",
+    )
+    parser.add_argument(
         "--write-estimate-reports",
         action="store_true",
         help=(
@@ -172,6 +178,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             ("--analyze-casefile", args.analyze_casefile),
             ("--merge-casefile-pdf", args.merge_casefile_pdf),
             ("--estimate-casefile-pdf", args.estimate_casefile_pdf),
+            ("--validate-casefile-merge-plan", args.validate_casefile_merge_plan),
         )
         if value
     ]
@@ -187,6 +194,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     casefile_mode = (
         args.analyze_casefile or args.merge_casefile_pdf
         or args.estimate_casefile_pdf
+        or args.validate_casefile_merge_plan
     )
     if casefile_mode and not skip:
         if not args.output:
@@ -404,6 +412,25 @@ def estimate_casefile_pdf_cli(
     return 0
 
 
+def validate_casefile_merge_plan_cli(input_name: str, output_name: str) -> int:
+    """Validate the case-file PDF merge plan without side effects."""
+    validation = validate_casefile_merge_plan(
+        Path(input_name).expanduser(), Path(output_name).expanduser()
+    )
+    print(f"Piano usato: {validation.get('source_plan') or 'non trovato'}")
+    print(f"Item totali: {validation['total_items']}")
+    print(f"Inclusi: {validation['included_items']}")
+    print(f"Esclusi: {validation['excluded_items']}")
+    print(f"Errori: {len(validation['errors'])}")
+    print(f"Warning: {len(validation['warnings'])}")
+    print(f"Esito: {'OK' if validation['ok'] else 'ERRORE'}")
+    for error in validation["errors"]:
+        print(f"Errore: {error}")
+    for warning in validation["warnings"]:
+        print(f"Warning: {warning}")
+    return 0 if validation["ok"] else 1
+
+
 def convert_pdf_to_markdown_cli(
     input_pdf: str,
     output_dir: str,
@@ -515,6 +542,12 @@ def main(argv: list[str] | None = None) -> int:
             args.estimate_casefile_pdf,
             args.output,
             write_reports=args.write_estimate_reports,
+        )
+
+    if args.validate_casefile_merge_plan:
+        return validate_casefile_merge_plan_cli(
+            args.validate_casefile_merge_plan,
+            args.output,
         )
 
     if args.analyze_judgment:

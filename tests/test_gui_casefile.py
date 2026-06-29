@@ -135,6 +135,14 @@ class CasefileGuiControlsTest(unittest.TestCase):
         )
         self.assertFalse(self.window.casefile_merge_generate_button.isEnabled())
         self.assertEqual(
+            "Valida piano PDF", self.window.casefile_merge_validate_button.text()
+        )
+        self.assertEqual(
+            "casefileMergeValidateButton",
+            self.window.casefile_merge_validate_button.objectName(),
+        )
+        self.assertFalse(self.window.casefile_merge_validate_button.isEnabled())
+        self.assertEqual(
             "Stima PDF unico", self.window.casefile_merge_estimate_button.text()
         )
         self.assertFalse(self.window.casefile_merge_estimate_button.isEnabled())
@@ -334,6 +342,9 @@ class CasefileGuiControlsTest(unittest.TestCase):
     def test_estimate_pdf_button_logs_dry_run_without_enabling_open(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             input_dir = Path(tmpdir) / "input"
+            unit_dir = input_dir / "100"
+            unit_dir.mkdir(parents=True)
+            (unit_dir / "100.pdf").write_bytes(b"%PDF-synthetic")
             output_dir = Path(tmpdir) / "output"
             output_dir.mkdir()
             plan = CaseFileMergePlan(items=(
@@ -379,6 +390,54 @@ class CasefileGuiControlsTest(unittest.TestCase):
             self.assertFalse(self.window.casefile_open_merged_pdf_button.isEnabled())
             self.assertFalse(self.window.casefile_open_optimized_pdf_button.isEnabled())
             self.assertFalse(self.window.casefile_send_pdf_to_ocr_button.isEnabled())
+
+    def test_validate_pdf_plan_button_logs_summary_without_outputs(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            input_dir = Path(tmpdir) / "input"
+            output_dir = Path(tmpdir) / "output"
+            output_dir.mkdir()
+            plan = CaseFileMergePlan(items=(
+                _synthetic_merge_item("100", 1),
+            ))
+            plan_path = write_casefile_merge_plan_json(
+                plan, output_dir / "fascicolo_merge_plan.json"
+            )
+            self.window.casefile_input_edit.setText(str(input_dir))
+            self.window.casefile_output_edit.setText(str(output_dir))
+            self.assertTrue(self.window._load_casefile_merge_plan(plan_path))
+
+            validation = {
+                "ok": True,
+                "source_plan": "fascicolo_merge_plan.json",
+                "total_items": 1,
+                "included_items": 1,
+                "excluded_items": 0,
+                "errors": [],
+                "warnings": ["warning sintetico"],
+                "items": [],
+            }
+            with patch(
+                "gdlex_ocr.gui.validate_casefile_merge_plan",
+                return_value=validation,
+            ) as helper:
+                self.window.casefile_merge_validate_button.click()
+
+            helper.assert_called_once_with(input_dir, output_dir)
+            log = self.window.casefile_log_view.toPlainText()
+            for text in (
+                "Piano usato: fascicolo_merge_plan.json",
+                "Item totali: 1",
+                "Inclusi: 1",
+                "Esclusi: 0",
+                "Errori: 0",
+                "Warning: 1",
+                "Esito: OK",
+                "warning sintetico",
+            ):
+                self.assertIn(text, log)
+            self.assertFalse((output_dir / "fascicolo_unico.pdf").exists())
+            self.assertFalse((output_dir / "fascicolo_unico_light.pdf").exists())
+            self.assertFalse((output_dir / "fascicolo_pdf_estimate.json").exists())
 
     def test_export_estimate_pdf_button_writes_reports_without_enabling_open(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -509,9 +568,14 @@ class CasefileGuiControlsTest(unittest.TestCase):
             self.window.casefile_input_edit.setText(str(root))
             self.window.casefile_output_edit.setText(str(output))
             worker = MagicMock()
-            with patch(
-                "gdlex_ocr.gui.CasefilePdfMergeWorker", return_value=worker
-            ) as worker_cls:
+            with (
+                patch("gdlex_ocr.gui.CasefilePdfMergeWorker", return_value=worker) as worker_cls,
+                patch("gdlex_ocr.gui.validate_casefile_merge_plan", return_value={
+                    "ok": True, "source_plan": "fascicolo_merge_plan.json",
+                    "total_items": 1, "included_items": 1, "excluded_items": 0,
+                    "errors": [], "warnings": [], "items": [],
+                }),
+            ):
                 self.window._generate_casefile_pdf()
             worker_cls.assert_called_once_with(root, output, "none", self.window)
             worker.start.assert_called_once()
@@ -583,11 +647,17 @@ class CasefileGuiControlsTest(unittest.TestCase):
             (output / "fascicolo_unico.pdf").write_bytes(b"synthetic-original")
             light = output / "fascicolo_unico_light.pdf"
             light.write_bytes(b"synthetic-light")
+            self.window.casefile_input_edit.setText(str(output))
             self.window.casefile_output_edit.setText(str(output))
 
             self.assertTrue(self.window.casefile_send_pdf_to_ocr_button.isEnabled())
             self.window.main_tabs.setCurrentIndex(1)
-            self.window._send_casefile_pdf_to_ocr()
+            with patch("gdlex_ocr.gui.validate_casefile_merge_plan", return_value={
+                "ok": True, "source_plan": "fascicolo_merge_plan.json",
+                "total_items": 1, "included_items": 1, "excluded_items": 0,
+                "errors": [], "warnings": [], "items": [],
+            }):
+                self.window._send_casefile_pdf_to_ocr()
 
             self.assertEqual(str(light), self.window.pdf_edit.text())
             self.assertEqual("OCR documento", self.window.main_tabs.tabText(
@@ -603,11 +673,17 @@ class CasefileGuiControlsTest(unittest.TestCase):
             output = Path(tmpdir)
             original = output / "fascicolo_unico.pdf"
             original.write_bytes(b"synthetic-original")
+            self.window.casefile_input_edit.setText(str(output))
             self.window.casefile_output_edit.setText(str(output))
             self.window._refresh_casefile_pdf_actions()
 
             self.assertTrue(self.window.casefile_send_pdf_to_ocr_button.isEnabled())
-            self.window._send_casefile_pdf_to_ocr()
+            with patch("gdlex_ocr.gui.validate_casefile_merge_plan", return_value={
+                "ok": True, "source_plan": "fascicolo_merge_plan.json",
+                "total_items": 1, "included_items": 1, "excluded_items": 0,
+                "errors": [], "warnings": [], "items": [],
+            }):
+                self.window._send_casefile_pdf_to_ocr()
             self.assertEqual(str(original), self.window.pdf_edit.text())
             self.assertIn(
                 f"PDF originale inviato alla scheda OCR: {original}",
@@ -621,12 +697,18 @@ class CasefileGuiControlsTest(unittest.TestCase):
             light = output / "fascicolo_unico_light.pdf"
             original.write_bytes(b"synthetic-original")
             light.write_bytes(b"synthetic-light")
+            self.window.casefile_input_edit.setText(str(output))
             self.window.casefile_output_edit.setText(str(output))
             self.window.casefile_ocr_pdf_mode_combo.setCurrentIndex(
                 self.window.casefile_ocr_pdf_mode_combo.findData("original")
             )
 
-            self.window._send_casefile_pdf_to_ocr()
+            with patch("gdlex_ocr.gui.validate_casefile_merge_plan", return_value={
+                "ok": True, "source_plan": "fascicolo_merge_plan.json",
+                "total_items": 1, "included_items": 1, "excluded_items": 0,
+                "errors": [], "warnings": [], "items": [],
+            }):
+                self.window._send_casefile_pdf_to_ocr()
 
             self.assertEqual(str(original), self.window.pdf_edit.text())
             self.assertIn(
@@ -640,12 +722,18 @@ class CasefileGuiControlsTest(unittest.TestCase):
             (output / "fascicolo_unico.pdf").write_bytes(b"synthetic-original")
             light = output / "fascicolo_unico_light.pdf"
             light.write_bytes(b"synthetic-light")
+            self.window.casefile_input_edit.setText(str(output))
             self.window.casefile_output_edit.setText(str(output))
             self.window.casefile_ocr_pdf_mode_combo.setCurrentIndex(
                 self.window.casefile_ocr_pdf_mode_combo.findData("light")
             )
 
-            self.window._send_casefile_pdf_to_ocr()
+            with patch("gdlex_ocr.gui.validate_casefile_merge_plan", return_value={
+                "ok": True, "source_plan": "fascicolo_merge_plan.json",
+                "total_items": 1, "included_items": 1, "excluded_items": 0,
+                "errors": [], "warnings": [], "items": [],
+            }):
+                self.window._send_casefile_pdf_to_ocr()
 
             self.assertEqual(str(light), self.window.pdf_edit.text())
             self.assertIn(
@@ -658,13 +746,19 @@ class CasefileGuiControlsTest(unittest.TestCase):
             output = Path(tmpdir)
             original = output / "fascicolo_unico.pdf"
             original.write_bytes(b"synthetic-original")
+            self.window.casefile_input_edit.setText(str(output))
             self.window.casefile_output_edit.setText(str(output))
             self.window.casefile_ocr_pdf_mode_combo.setCurrentIndex(
                 self.window.casefile_ocr_pdf_mode_combo.findData("light")
             )
             self.window.main_tabs.setCurrentIndex(1)
 
-            self.window._send_casefile_pdf_to_ocr()
+            with patch("gdlex_ocr.gui.validate_casefile_merge_plan", return_value={
+                "ok": True, "source_plan": "fascicolo_merge_plan.json",
+                "total_items": 1, "included_items": 1, "excluded_items": 0,
+                "errors": [], "warnings": [], "items": [],
+            }):
+                self.window._send_casefile_pdf_to_ocr()
 
             self.assertEqual("", self.window.pdf_edit.text())
             self.assertEqual(1, self.window.main_tabs.currentIndex())
@@ -679,13 +773,19 @@ class CasefileGuiControlsTest(unittest.TestCase):
             output = Path(tmpdir)
             light = output / "fascicolo_unico_light.pdf"
             light.write_bytes(b"synthetic-light")
+            self.window.casefile_input_edit.setText(str(output))
             self.window.casefile_output_edit.setText(str(output))
             self.window.casefile_ocr_pdf_mode_combo.setCurrentIndex(
                 self.window.casefile_ocr_pdf_mode_combo.findData("original")
             )
             self.window.main_tabs.setCurrentIndex(1)
 
-            self.window._send_casefile_pdf_to_ocr()
+            with patch("gdlex_ocr.gui.validate_casefile_merge_plan", return_value={
+                "ok": True, "source_plan": "fascicolo_merge_plan.json",
+                "total_items": 1, "included_items": 1, "excluded_items": 0,
+                "errors": [], "warnings": [], "items": [],
+            }):
+                self.window._send_casefile_pdf_to_ocr()
 
             self.assertEqual("", self.window.pdf_edit.text())
             self.assertEqual(1, self.window.main_tabs.currentIndex())
@@ -710,9 +810,17 @@ class CasefileGuiControlsTest(unittest.TestCase):
             output = Path(tmpdir)
             original = output / "fascicolo_unico.pdf"
             original.write_bytes(b"synthetic-original")
+            self.window.casefile_input_edit.setText(str(output))
             self.window.casefile_output_edit.setText(str(output))
 
-            with patch.object(self.window, "_start") as start:
+            with (
+                patch.object(self.window, "_start") as start,
+                patch("gdlex_ocr.gui.validate_casefile_merge_plan", return_value={
+                    "ok": True, "source_plan": "fascicolo_merge_plan.json",
+                    "total_items": 1, "included_items": 1, "excluded_items": 0,
+                    "errors": [], "warnings": [], "items": [],
+                }),
+            ):
                 self.window._send_casefile_pdf_to_ocr()
 
             start.assert_not_called()
@@ -763,6 +871,7 @@ class CasefileGuiControlsTest(unittest.TestCase):
         self.assertTrue(self.window.casefile_output_edit.isEnabled())
         self.window.casefile_merge_save_button.setEnabled(True)
         self.window.casefile_merge_generate_button.setEnabled(True)
+        self.window.casefile_merge_validate_button.setEnabled(True)
         self.window.casefile_open_merged_pdf_button.setEnabled(True)
         self.window.casefile_open_optimized_pdf_button.setEnabled(True)
         self.window.casefile_send_pdf_to_ocr_button.setEnabled(True)
@@ -775,6 +884,7 @@ class CasefileGuiControlsTest(unittest.TestCase):
         self.assertFalse(self.window.casefile_output_button.isEnabled())
         self.assertFalse(self.window.casefile_merge_save_button.isEnabled())
         self.assertFalse(self.window.casefile_merge_generate_button.isEnabled())
+        self.assertFalse(self.window.casefile_merge_validate_button.isEnabled())
         self.assertFalse(self.window.casefile_open_merged_pdf_button.isEnabled())
         self.assertFalse(self.window.casefile_open_optimized_pdf_button.isEnabled())
         self.assertFalse(self.window.casefile_send_pdf_to_ocr_button.isEnabled())
